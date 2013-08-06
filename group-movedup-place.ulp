@@ -1,0 +1,399 @@
+#usage "<b>Generate a MOVE script of part locations selected via the group command</b>\n"
+       "<p>"
+       "This program generates a script of move commands for parts selected via the group command "
+       "which can then be used move or place a group or multiple groups of other parts using the selected "
+       "group as a template and adding an offset. The primary purpose of this to allow placing groups of parts "
+       "to place other groups of parts in the same placement at a new offset. This is useful for placing "
+       "duplicate circuits groups of the same type. Note all groups parts must have the same part ID suffixed with "
+       "a dash and group number (eg first group = C1-1, R1-1, R2-1, and second group = C1-2, R1-2, R2-2, etc). "
+       "Also see the utility group-movedup-place-suffix.ulp for adding suffixes in the schematic.<p>"
+       "<author>http://www.bobstarr.net</author>"
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// Copyright (C) 2011, Robert E. Starr (http://www.bobstarr.net)
+// 
+// REVISION HISTORY:
+//
+// v1.00 - 02/13/2010 (RES) - Initial Release
+//
+//////////////////////////////////////////////////////////////////////////////
+//
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
+// EXPRESSED OR IMPLIED. IF YOU DON'T LIKE IT, DON'T USE IT!
+//
+//////////////////////////////////////////////////////////////////////////////
+
+string Version = "1.00";
+
+string fileName;
+
+string partNameOld[];
+string partNameNew[];
+
+string configFilename   = "group-movedup-place.cfg";
+
+// Variables below are stored/recalled from config file
+
+string strSuffixFirst = "-1";
+string strSuffixLast  = "-1";
+
+real offsetX = 0.0;
+real offsetY = 0.0;
+
+real incX    = 100.0;
+real incY    = 100.0;
+
+int fScriptExec = 1;    // execute script automatically after generating
+int fMultiple   = 0;
+
+//////////////////////////////////////////////////////////////////////////////
+
+// trim all spaces from a string
+
+string trimSpaces(string s)
+{
+    if (!s)
+        return s;
+    string result;
+    int i;
+    int cnt=0;
+    for (i=0; s[i]; i++) {
+      if (isspace(s[i]))
+          continue;
+      result[cnt] = s[i];
+      cnt++;
+    }
+    return result;
+}
+
+// Trim suffix from from a string
+
+string trimSuffix(string s, string suffix)
+{
+    if (!s)
+        return s;
+    int lensuffix = strlen(suffix);
+    int lenstr    = strlen(s);
+    if (lenstr > lensuffix)
+    {
+        if (strstr(s, suffix) > 0)
+            s = strsub(s, 0, lenstr - lensuffix);
+    }
+    return s;
+}
+
+// Replace suffix from from a string
+
+string replaceSuffix(string s, string replace)
+{
+    if (!s)
+        return "";
+        
+    int pos = strrchr(s, '-');
+    
+    if (pos >= 0)
+    {
+        s = strsub(s, 0, pos);
+        s += replace;
+    }
+    
+    return s;
+}
+
+int getSuffixValue(string s)
+{
+    int val = 0;
+
+    if (!s)
+        return 0;
+        
+    int pos = strrchr(s, '-');
+    
+    if (pos >= 0)
+    {
+        s = strsub(s, pos+1);
+        val = strtol(s);
+    }
+    return val;
+}
+
+void LoadConfigSettings()
+{
+    string a[];
+    int n;
+
+    // Should be 8 lines of data in config file
+    if ((n = fileread(a, filedir(argv[0])+configFilename)) == 8)
+    {
+        int i = 0;
+        strSuffixFirst = a[i++];
+        strSuffixLast  = a[i++];
+        offsetX        = strtod(a[i++]);
+        offsetY        = strtod(a[i++]);
+        incX           = strtod(a[i++]);
+        incY           = strtod(a[i++]);
+        fScriptExec    = strtol(a[i++]);
+        fMultiple      = strtol(a[i++]);
+    }
+}
+
+void SaveConfigSettings()
+{
+    // save the config settings 
+    output(filedir(argv[0])+configFilename, "wt")
+    {
+        printf("%s\n", strSuffixFirst);
+        printf("%s\n", strSuffixLast);
+        printf("%f\n", offsetX);
+        printf("%f\n", offsetY);
+        printf("%f\n", incX);
+        printf("%f\n", incY);
+        printf("%d\n", fScriptExec);
+        printf("%d\n", fMultiple);
+    }
+}
+
+int MoveSingleGroup(UL_BOARD B)
+{
+    int cnt = 0;
+
+    B.elements(E)
+    {
+        if (ingroup(E))
+        {
+            real x,y;
+
+            switch (B.grid.unit)
+            {
+                case GRID_UNIT_MIC:
+                    x = u2mic(E.y);
+                    y = u2mic(E.y);
+                    break;
+                case GRID_UNIT_MIL:
+                    x = u2mil(E.x);
+                    y = u2mil(E.y);
+                    break;
+                case GRID_UNIT_MM:
+                    x = u2mm (E.x);
+                    y = u2mm (E.y);
+                    break;
+                case GRID_UNIT_INCH:
+                    x = u2inch(E.x);
+                    y = u2inch(E.y);
+                    break;
+            }
+            
+            string name = E.name;
+
+            if (strSuffixFirst)
+                name = replaceSuffix(name, strSuffixFirst);
+
+            // issue the actual move command and account for rotation/mirror
+            
+            printf("MOVE %s (%5.4f %5.4f);\n", name, x + offsetX, y + offsetY);
+            printf("ROTATE =R%f %s;\n", E.angle, name);
+            if (E.mirror)
+                printf("MIRROR %s;\n", name);
+                
+            ++cnt;
+        }
+    }
+    
+    return cnt;    
+}
+
+int MoveMultipleGroups(UL_BOARD B)
+{
+    int start = getSuffixValue(strSuffixFirst);
+    int end   = getSuffixValue(strSuffixLast);
+
+    if (end < start)
+    {
+        dlgMessageBox("Invalid First/Last Suffix Ranges");
+        return 0;
+    }
+
+    if (!start)
+    {
+        dlgMessageBox("Invalid First Suffix");
+        return 0;
+    }
+
+    if (!end)
+    {
+        dlgMessageBox("Invalid Last Suffix");
+        return 0;
+    }
+    
+    int i;
+    int cnt = 0;
+
+    real offX = offsetX;
+    real offY = offsetY;
+    
+    for (i=start; i <= end; i++)
+    {
+        printf("#\n# Move Group Suffix %d\n#\n", i);
+
+        B.elements(E)
+        {
+            if (ingroup(E))
+            {
+                real x, y;
+    
+                switch (B.grid.unit)
+                {
+                    case GRID_UNIT_MIC:
+                        x = u2mic(E.y);
+                        y = u2mic(E.y);
+                        break;
+                    case GRID_UNIT_MIL:
+                        x = u2mil(E.x);
+                        y = u2mil(E.y);
+                        break;
+                    case GRID_UNIT_MM:
+                        x = u2mm (E.x);
+                        y = u2mm (E.y);
+                        break;
+                    case GRID_UNIT_INCH:
+                        x = u2inch(E.x);
+                        y = u2inch(E.y);
+                        break;
+                }
+                
+                string name = E.name;
+    
+                string suffix;
+                sprintf(suffix, "-%d", i);
+                
+                name = replaceSuffix(name, suffix);
+    
+                // issue the actual move command and account for rotation/mirror
+                
+                printf("MOVE %s (%5.4f %5.4f);\n", name, x + offX, y + offY);
+                printf("ROTATE =R%f %s;\n", E.angle, name);
+                if (E.mirror)
+                    printf("MIRROR %s;\n", name);
+                    
+                ++cnt;
+            }
+        }
+        
+        offX += incX;
+        offY += incY;
+    }
+
+    return cnt;    
+}
+
+
+int MainAppDialog()
+{
+    int nResult = dlgDialog("Group Move/Duplicate Placement")
+    {
+        string title = "Group Move/Duplicate Placement v" + Version;
+
+        dlgVBoxLayout
+        {
+            dlgSpacing(5);
+            
+            dlgGroup(title)
+            {
+                dlgVBoxLayout
+                {
+                    dlgGroup("Part Name Suffixes")
+                    {
+                        dlgGridLayout
+                        {
+                            dlgCell(1,0) dlgLabel("First Part ID Suffix");
+                            dlgCell(1,1) dlgStringEdit(strSuffixFirst);
+                            dlgCell(1,2) dlgRadioButton("Move Single Group of Parts", fMultiple);
+
+                            dlgCell(2,0) dlgLabel("Last Part ID Suffix");
+                            dlgCell(2,1) dlgStringEdit(strSuffixLast);
+                            dlgCell(2,2) dlgRadioButton("Move Multiple Groups of Parts", fMultiple);
+                        }
+                    }
+                    
+                    dlgGridLayout
+                    {
+                        dlgCell(1,0) dlgLabel("X-Offset");
+                        dlgCell(1,1) dlgRealEdit(offsetX);
+                        dlgCell(1,2) dlgLabel("X-Increment");
+                        dlgCell(1,3) dlgRealEdit(incX);
+                        dlgCell(1,4) dlgPushButton("++") { offsetX += incX; }
+                        dlgCell(1,5) dlgPushButton("--") { offsetX -= incX; };
+        
+                        dlgCell(2,0) dlgLabel("Y-Offset");
+                        dlgCell(2,1) dlgRealEdit(offsetY);
+                        dlgCell(2,2) dlgLabel("Y-Increment");
+                        dlgCell(2,3) dlgRealEdit(incY);
+                        dlgCell(2,4) dlgPushButton("++") { offsetY += incY; }
+                        dlgCell(2,5) dlgPushButton("--") { offsetY -= incY; };
+                    }                        
+                }
+            }
+        }
+
+        dlgHBoxLayout
+        {
+            dlgPushButton("OK") dlgAccept();
+            dlgPushButton("-Cancel") dlgReject();
+            dlgCheckBox("&Execute Script", fScriptExec);
+        }
+    };
+    
+    return nResult;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Script Entry Point
+
+if (board) board(B)
+{
+    LoadConfigSettings();
+    
+    if (MainAppDialog() == 0)
+    {
+        SaveConfigSettings();
+        exit(0);
+    }
+                
+    fileName = filesetext(B.name, "_GroupMoveDupPlace.scr");
+        
+    output(fileName)
+    {
+        printf ("GRID ");
+
+        if (B.grid.unit == GRID_UNIT_MIC)
+            printf ("MIC\n");
+        else if (B.grid.unit == GRID_UNIT_MM)
+            printf ("MM\n");
+        else if (B.grid.unit == GRID_UNIT_MIL)
+            printf ("MIL\n");
+        else
+            printf ("INCH\n");
+
+        int cnt = 0;
+
+        if (fMultiple)
+            cnt = MoveMultipleGroups(B);        
+        else
+            cnt = MoveSingleGroup(B);        
+
+        SaveConfigSettings();
+
+        if (fScriptExec && cnt)
+            exit("SCRIPT '" + fileName + "';");
+        else
+            exit(0);
+    }
+}
+else
+{
+   dlgMessageBox("\n   Start this ULP in a Board    \n");
+   exit (0);
+}
+
+

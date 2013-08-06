@@ -1,0 +1,739 @@
+#usage "<b>Teardrops - v1.07 (09/01/13)</b>\n"
+       "<p>"
+       "This ULP allows creation of teardrop-shaped connections from a board's vias/pads to their attached wire segments.  "
+       "Making these connections teardrop shaped enhances manufacturability and reduces board failure by ensuring "
+       "connectivity between the segment and via/pad in cases where the via hole is not accurately drilled and "
+       "would otherwise sever the segment."
+       "<p>"
+       "<author>Original Author: Tad Artis (E3Eagle_removethis@E3Switch.com)<br>"
+       "Modifications: Bob Starr (rtzaudio@comcast.net)<br>"
+       "Modification: layer selectable (alf@cadsoft.de)<br>"
+	     "Modification: curved teardrops. Andres Restrepo S. (ars662001@yahoo.com)<br>"
+       "</author>"
+
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND, EXPRESSED OR IMPLIED
+
+string HelpText = usage +
+  "<p><b>Implementation</b><br>"
+       "This ULP is a variant based on via_teardrops1.ulp by Tad Ardis originally. This version is designed to support pads as well. "
+       "An attempt has been made to implement teardrops in this ULP while maintaining DRC validity.  "
+       "Teardrops are implemented as 'two' added wire segments attaching from the original signal, at a short radius from the via, to two tangential "
+       "points at the via's edge.  These two attachments form a small triangle and then are further attached to the via's center in order to "
+       "avoid ratsnest dangling segment errors.  The user can specify the radius from the via at which the teardrop begins."
+  "<p><b>Output</b><br>"
+       "The output of this program is an .scr script which may be run to add vias to all signals on the board.  "
+       "This .scr file is also properly formatted to allow it to be read into a spreadsheet program as a .csv file which will be found to contain "
+       "detailed information about the signal and via to which each teardrop is being added.  The spreadsheet "
+       "columns can be sorted and copied back to an .scr to simplify adding teardrops to only certain net classes, via sizes, layers, etc. "
+       "The spreadsheet format may also allow teardrops to be added to an unused signal layer which would facilitate cutting "
+       "them from undesired portions of the board and might create a cleaner situation for future board upgrades."
+  "<p><b>Warnings</b><br>"
+       "<b>This ULP should be used with forethought or on a copy of your board file just before plotting.</b><br>"
+       "It may difficult to remove teardrops once added.  It may be difficult to run the teardrop ULP a second time on a board which "
+       "already has teardrops.  It may be possible to alleviate these concerns by using the spreadsheet output or a find/replace "
+       "on the .scr file to send the "
+       "teardrops to unused signal layers which are then included when the origin signal layer is plotted.<br>"
+       "One should be aware that there are small hexogonal points at the ends of the added teardrop segments which protrude beyond "
+       "the tangent of the via.  In most cases these protrusions are tiny and won't present any design rule violations."
+  "<p><b>Limitations</b><br>"
+    "The current software operates using mm units for .scr and only accepts units in mils from the user and in generated spreadsheet values."
+  "<p><b>Copyright</b><br>"
+       "Enhancements to the ULP are welcome without the necessity of contacting the author."
+       "<p>"
+  "This program is provided AS IS and without warranty of any kind, expressed or implied."
+  "This program may be freely modified and distributed."
+  "<p>"
+  "<hr>"
+  "<font color=red>All text in red shows differences with the previous version of this program.</font>"
+  "<hr>"
+;
+
+#require 5.1000
+
+string Release = "1.07";
+string ReleaseDate = "April 04, 2012";  // alf@cadsoft.de
+
+string HistoryText1 =
+  "<p>"
+  "This program was based on the original via_teardrops1.ulp work by Tad Artis (E3Eagle_removethis@E3Switch.com).<br>"
+  "An attempt has been made to add usable support for teardropping pads as well in this adaptation."
+  "<p>"
+  "The following is a history of this program (most recent first)."
+  "<p>"
+  "Version 1.0"
+  "<ul>"
+  "<li>Initial version. Released on January 5, 2008.</li>"
+  "</ul>"
+;
+
+string HistoryText2 =
+  "<p>"
+  "The following is a history of this program (most recent first)."
+  "<p>"
+  "Version History"
+  "<ul>"
+  "<li>v1.00 - Initial release version.</li><p>"
+  "<li>v1.01 - Added teardropping of pads support.</li><p>"
+  "<li>v1.02 - Improved pad teardrop support.</li><p>"
+  "<li>v1.03 - Teardropping of square pad types added support.</li><p>"
+  "<li>v1.04 - Added fixes for Eagle v6.0 (Walter Mueller)</li><p>" //[MUEWA104]
+  "<li>v1.05 - Modified pad teardrops to fill better</li><p>" //[RES105]
+  "<li>v1.06 - Modified selectable layer</li><p>"  //alfcadsoft.de
+  "<li>v1.07 - add curved teardrop option</li><p>"  //ars662001@yahoo.com
+  "</ul>"
+;
+
+int     User_Pads           = 1  ;
+int     User_Vias           = 1  ;
+real    User_Tear_Radius    = 1.9;
+real    User_Ignore_Width   = 25 ;
+real    User_Ignore_sdratio = 1.5;
+real    User_curve_factor   = 2.0;  //ars662001@yahoo.com
+int     User_Enable_Curve   = 1;    //ars662001@yahoo.com
+real    uiw_internal;
+
+int     via_count;
+int     aring;
+real    radius, radius_sq, tangent_radius; //[MUEWA104]
+int     in1,in2;
+int     x_cross, y_cross;
+real    x1, x2, y1, y2; //[MUEWA104]
+real    t;              //[MUEWA104]
+int     tstep;          //[MUEWA104]
+int     changes = 0;
+real    xstep, ystep, xc, yc;
+real    astart,aend,sin_of_astart,cos_of_astart,wstep,w;
+real    tearseg_delta_w, tearseg_w, tearseg_len;
+int     tearseg_xend, tearseg_yend;
+string  vcount, fname, params;
+
+numeric string  LayerName[];
+int     LayerNum[];
+int     LayerCount = 0;
+int     LayerSel = 0;
+numeric string  TargetLayer[];  // 2012-04-04
+int     tCount = 0;
+int     LayActiv[];
+int     IsLayer[];
+int     TeardropLayer[];
+
+// Output in dual-use .scr and spreadsheet .csv format
+void output_hdr(void) {
+  printf("# SCR Command, Signal Name, Signal Class, Layer, Width, Via Drill, Via Layer Diameter, Via X, Via Y, Ratio segment_width/Via_drill_size\n");
+  return;
+}
+
+void output_via_wire(int layer, int width, int x1, int y1, int x2, int y2, UL_VIA V, UL_WIRE W, UL_SIGNAL S) {
+  if (!LayActiv[layer]) return;  // 201-04-04
+  int lnum = TeardropLayer[layer];
+  printf("LAYER %d; WIRE '%s' %.8f (%.9f %.9f) (%.9f %.9f);\n", // #129, %s, %s, %d, %.1f, %.1f, %.1f, %.3f, %.3f, %.2f\n", // alf@cadsoft.de
+          lnum, S.name, u2mm(width), u2mm(x1), u2mm(y1), u2mm(x2), u2mm(y2)
+          //S.name, S.class.name, layer, u2mil(width), u2mil(V.drill), u2mil(V.diameter[layer]), u2mil(V.x), u2mil(V.y), real(width)/V.drill
+        );
+   return;
+}
+
+void output_via_wire_arc(int layer, int width, int x1, int y1, int x2, int y2, int sig, UL_VIA V, UL_WIRE W, UL_SIGNAL S) { //ars662001@yahoo.com
+  real lenga;
+  lenga=sqrt(pow(u2mm(x1)-u2mm(x2),2)+pow(u2mm(y1)-u2mm(y2),2))*User_curve_factor;  
+
+  if (!LayActiv[layer]) return;  // 201-04-04
+  int lnum = TeardropLayer[layer];
+    
+  if(sig==0)
+    printf("LAYER %d; WIRE '%s' %.8f (%.9f %.9f) @+%.9f (%.9f %.9f);\n", 
+            lnum, S.name, u2mm(width), u2mm(x1), u2mm(y1), lenga, u2mm(x2), u2mm(y2) );
+  else
+    printf("LAYER %d; WIRE '%s' %.8f (%.9f %.9f) @-%.9f (%.9f %.9f);\n", 
+            lnum, S.name, u2mm(width), u2mm(x1), u2mm(y1), lenga, u2mm(x2), u2mm(y2) );
+  return;
+}
+
+
+void output_pad_wire(int layer, int width, int x1, int y1, int x2, int y2, UL_PAD P, UL_WIRE W, UL_SIGNAL S) {
+  if (!LayActiv[layer]) return;  // 201-04-04
+  int lnum = TeardropLayer[layer];
+  printf("LAYER %d; WIRE '%s' %.8f (%.9f %.9f) (%.9f %.9f);\n", // #139, %s, %s, %d, %.1f, %.1f, %.1f, %.3f, %.3f, %.2f\n", // alf@cadsoft.de
+          lnum, S.name, u2mm(width), u2mm(x1), u2mm(y1), u2mm(x2), u2mm(y2)
+          //P.name, P.name, layer, u2mil(width), u2mil(P.drill), u2mil(P.diameter[layer]), u2mil(P.x), u2mil(P.y), real(width)/P.drill
+        );
+  return;
+}
+
+void output_pad_wire_arc(int layer, int width, int x1, int y1, int x2, int y2, int sig, UL_PAD P, UL_WIRE W, UL_SIGNAL S) { //ars662001@yahoo.com
+  if (!LayActiv[layer]) return;  // 201-04-04
+  int lnum = TeardropLayer[layer];
+  real lenga;
+  
+  lenga=sqrt(pow(u2mm(x1)-u2mm(x2),2)+pow(u2mm(y1)-u2mm(y2),2))*User_curve_factor;  
+  if(sig==0)
+    printf("LAYER %d; WIRE '%s' %.8f (%.9f %.9f) @+%.9f (%.9f %.9f);\n", 
+            lnum, S.name, u2mm(width), u2mm(x1), u2mm(y1), lenga, u2mm(x2), u2mm(y2) );
+  else
+    printf("LAYER %d; WIRE '%s' %.8f (%.9f %.9f) @-%.9f (%.9f %.9f);\n", 
+            lnum, S.name, u2mm(width), u2mm(x1), u2mm(y1), lenga, u2mm(x2), u2mm(y2) );  
+  return;
+}
+
+void do_pads(UL_SIGNAL S) {
+  int shape;
+
+  S.contactrefs(C) {
+    if (C.contact.pad) {
+      via_count++;
+
+      sprintf(vcount, "Processing Pad #%d -- Signal %s", via_count, C.contact.pad.name);
+      status(vcount);
+
+      // find wires starting within teardrop-apex radius of the via and ending outside it.
+
+      //radius = C.contact.pad.drill * (User_Tear_Radius - 0.25);    //[RES105]
+      radius = C.contact.pad.drill * (User_Tear_Radius - 0.5);
+      radius_sq = radius * radius;
+
+      S.wires(W) {
+        // quick check first.  See if either wire endpoint is within a square of size 2 x radius of the pad.
+        in1 = 0;
+        in2 = 0;
+
+        if ((W.width < uiw_internal) && (real(W.width)/C.contact.pad.drill < User_Ignore_sdratio)) {
+          if (W.layer >= 1 && W.layer <= 16) {
+            shape = C.contact.pad.shape[W.layer];
+            if (shape == PAD_SHAPE_ROUND || shape == PAD_SHAPE_OCTAGON) {
+              // Passed user specified wires to ignore
+              if (abs(W.x1-C.contact.pad.x)<radius && abs(W.y1-C.contact.pad.y)<radius)
+                  in1 = 1;
+              if (abs(W.x2-C.contact.pad.x)<radius && abs(W.y2-C.contact.pad.y)<radius)
+                  in2 = 1;
+
+              if (in1 || in2){
+                if (in1) {
+                    if ((real(W.x1-C.contact.pad.x)*(W.x1-C.contact.pad.x)+real(W.y1-C.contact.pad.y)*(W.y1-C.contact.pad.y)) > radius_sq) //[MUEWA104]
+                        in1 = 0;
+                }
+
+                if (in2) {
+                  if ((real(W.x2-C.contact.pad.x)*(W.x2-C.contact.pad.x)+real(W.y2-C.contact.pad.y)*(W.y2-C.contact.pad.y)) > radius_sq) //[MUEWA104]
+                    in2 = 0;
+                }
+              }
+            }
+          }
+        }
+
+        if (in1 ^ in2) {
+          changes = 1;
+          // Calculate point where wire crosses radius.  Move calculations relative to via's center.
+          x1 = W.x1-C.contact.pad.x;
+          x2 = W.x2-C.contact.pad.x;
+          y1 = W.y1-C.contact.pad.y;
+          y2 = W.y2-C.contact.pad.y;
+          // Make x1,y1 always the end closest to via center.
+          if (in2) {
+            // Swap start/end
+            t = x1;
+            x1 = x2;
+            x2 = t;
+            t = y1;
+            y1 = y2;
+            y2 = t;
+          }
+          // Perhaps the line and arc intersections equations could be solved directly without too much trouble,
+          // but didn't feel like dealing with it and the special cases.
+          if (!W.arc) {
+            // Easiest to represent the line parametrically and step up it.
+            tstep = max(abs(y2-y1),abs(x2-x1));
+            xstep = (x2-x1)/real(tstep);
+            ystep = (y2-y1)/real(tstep);
+            tstep = tstep >>1;
+
+            // We're double testing points here, but don't feel like fixing.
+            for (t = 0; tstep > 0; t = t+tstep) {
+              xc = x1+xstep*t;
+              yc = y1+ystep*t;
+
+              if ((xc*xc + yc*yc) > radius_sq) {
+                // backup a little and increase resolution
+                t = t-tstep;
+                tstep = tstep >> 1;
+              }
+            }
+          }
+          else {
+            // wire segment is an arc
+            // Get correct arc starting end angle for x1,y1
+            if ((x1+C.contact.pad.x) == W.arc.x1 && (y1+C.contact.pad.y) == W.arc.y1) {
+              astart = W.arc.angle1;
+              aend = W.arc.angle2;
+            }
+            else {
+              // Swap start/end
+              astart = W.arc.angle2;
+              aend = W.arc.angle1;
+            }
+
+            // wstep is the change in angle to the next point on the arc to test.
+            astart = PI/180 * astart;
+            aend = PI/180 * aend;
+            wstep = (aend-astart)/2; // make wstep 1/2 the difference
+            sin_of_astart = W.arc.radius*sin(astart);
+            cos_of_astart = W.arc.radius*cos(astart);
+
+            // dy = radius*(sin(astart+dw)-sin(astart))
+            // dx = radius*(cos(astart+dw)-cos(astart))
+
+            // w is the current angle on the arc being tested
+            // We're double testing points here, but don't feel like fixing.
+
+            for (w = astart+wstep; abs(wstep) > .00001; w = w+wstep) {
+              yc = y1+W.arc.radius*sin(w)-sin_of_astart;
+              xc = x1+W.arc.radius*cos(w)-cos_of_astart;
+
+              if ((xc*xc + yc*yc) > radius_sq) {
+                // backup a little and increase resolution
+                w = w-wstep;
+                wstep = wstep/2;
+              }
+            }
+          }
+
+          // Determine location of tangents of via back to wire.
+          // angular offset = sin (viaradius/(seg to via ctr distance))
+
+          int wmult = 1;
+          int width = W.width;
+          int aring = C.contact.pad.diameter[W.layer] - C.contact.pad.drill;
+
+          // printf("# width=%f, drill=%f, diameter=%f, aring=%f\n", u2mil(width), u2mil(C.contact.pad.drill), u2mil(C.contact.pad.diameter[W.layer]), u2mil(aring));
+
+          // [RES102] - Adjusted tangent divide ratios and added logic to determine
+          // if wire width is less than 10 mil or the annular ring is less than the wire width,
+          // double the wire width for better fill.
+
+          //if ((u2mil(width) <= 10) || ((u2mil(aring) / 2.0) > u2mil(width)))	// avoid width change!! ars662001@yahoo.com
+          //  wmult = 2;                                                        // avoid width change!! ars662001@yahoo.com
+
+          width = width * wmult;
+
+          //if (u2mil(C.contact.pad.diameter[W.layer]) >= 100)
+          //    tangent_radius = (C.contact.pad.diameter[W.layer] - (W.width * wmult)) / 4;	// [RES102] was 8
+          //else
+          //    tangent_radius = (C.contact.pad.diameter[W.layer] - (W.width * wmult)) / 2;	// [RES102] was 4
+          // [RES105]
+          tangent_radius = (C.contact.pad.diameter[W.layer] - (W.width * wmult)) / 2;
+
+          if ((tangent_radius > 0) && (tangent_radius<radius)) {   // ars662001@yahoo.com
+            // don't bother if wire is bigger than via
+
+            tearseg_delta_w = asin(real(tangent_radius)/radius);
+            tearseg_len = sqrt(radius * radius - tangent_radius * tangent_radius);
+
+            if (xc == 0) {
+                if (yc < 0)
+                    tearseg_w = PI*.5;
+                else
+                    tearseg_w = -PI*.5;
+            }
+            else {
+                tearseg_w = atan (real(yc)/(xc));
+            }
+
+            // Get the right quadrant
+            if (xc > 0) tearseg_w = tearseg_w + PI;
+
+            tearseg_xend = C.contact.pad.x+xc + tearseg_len*cos(tearseg_w-tearseg_delta_w);
+            tearseg_yend = C.contact.pad.y+yc + tearseg_len*sin(tearseg_w-tearseg_delta_w);
+
+            // Suggest a script command.
+            if(User_Enable_Curve)
+              output_pad_wire_arc(W.layer, width, int(C.contact.pad.x+xc), int(C.contact.pad.y+yc), tearseg_xend, tearseg_yend, 1, C.contact.pad, W, S); //ars662001@yahoo.com
+            else
+              output_pad_wire(W.layer, width, int(C.contact.pad.x+xc), int(C.contact.pad.y+yc), tearseg_xend, tearseg_yend, C.contact.pad, W, S);
+            // Now add segment to the center of the via so ratsnest doesn't show up as dangling.
+            output_pad_wire(W.layer, width, int(C.contact.pad.x), int(C.contact.pad.y), tearseg_xend, tearseg_yend, C.contact.pad, W, S);
+
+            // Now the other side of the tear
+            tearseg_xend = C.contact.pad.x+xc + tearseg_len*cos(tearseg_w+tearseg_delta_w);
+            tearseg_yend = C.contact.pad.y+yc + tearseg_len*sin(tearseg_w+tearseg_delta_w);
+
+            // Suggest a script command.
+            if(User_Enable_Curve)
+              output_pad_wire_arc(W.layer, width, int(C.contact.pad.x+xc), int(C.contact.pad.y+yc), tearseg_xend, tearseg_yend, 0, C.contact.pad, W, S); //ars662001@yahoo.com
+            else
+              output_pad_wire(W.layer, width, int(C.contact.pad.x+xc), int(C.contact.pad.y+yc), tearseg_xend, tearseg_yend, C.contact.pad, W, S); 
+            // Now add segment to the center of the via so ratsnest doesn't show up as dangling.
+            output_pad_wire(W.layer, width, int(C.contact.pad.x), int(C.contact.pad.y), tearseg_xend, tearseg_yend, C.contact.pad, W, S);
+          }
+        }
+      }
+    }
+  }
+  return;
+}
+
+void do_vias(UL_SIGNAL S) {
+  S.vias(V) {
+    via_count++;
+
+    sprintf (vcount, "Processing Via #%d -- Signal %s", via_count, S.name);
+    status (vcount);
+
+    // find wires starting within teardrop-apex radius of the via and ending outside it.
+    radius = V.drill * User_Tear_Radius;
+    radius_sq = radius * radius;
+
+    S.wires(W) {
+      // quick check first.  See if either wire endpoint is within a square of size 2 x radius of the via.
+      in1 = 0;
+      in2 = 0;
+
+      if ((W.width < uiw_internal) && (real(W.width)/V.drill < User_Ignore_sdratio)) {
+        // Passed user specified wires to ignore
+
+        if (abs(W.x1-V.x)<radius && abs(W.y1-V.y)<radius)
+            in1 = 1;
+        if (abs(W.x2-V.x)<radius && abs(W.y2-V.y)<radius)
+            in2 = 1;
+
+        if (in1 || in2) {
+          // Check location more carefully
+          // Check layer
+          if (W.layer >= V.start && W.layer <= V.end) {
+            if (in1) {
+              if ((real(W.x1-V.x)*(W.x1-V.x) + real(W.y1-V.y)*(W.y1-V.y)) > radius_sq) //[MUEWA104]
+                in1 = 0;
+            }
+
+            if (in2) {
+              if ((real(W.x2-V.x)*(W.x2-V.x) + real(W.y2-V.y)*(W.y2-V.y)) > radius_sq) //[MUEWA104]
+                in2 = 0;
+            }
+          }
+          else {
+            in1 = 0;
+            in2 = 0;
+          }
+        }
+      }
+
+      if (in1 ^ in2) {
+        changes = 1;
+
+        // Calculate point where wire crosses radius.  Move calculations relative to via's center.
+        x1 = W.x1-V.x;
+        x2 = W.x2-V.x;
+        y1 = W.y1-V.y;
+        y2 = W.y2-V.y;
+
+        // Make x1,y1 always the end closest to via center.
+        if (in2) {
+          // Swap start/end
+          t = x1;
+          x1 = x2;
+          x2 = t;
+          t = y1;
+          y1 = y2;
+          y2 = t;
+        }
+
+        // Perhaps the line and arc intersections equations could be solved directly without too much trouble,
+        // but didn't feel like dealing with it and the special cases.
+
+        if (!W.arc) {
+          // Easiest to represent the line parametrically and step up it.
+
+          tstep = max(abs(y2-y1),abs(x2-x1));
+          xstep = (x2-x1)/real(tstep);
+          ystep = (y2-y1)/real(tstep);
+          tstep = tstep >>1;
+
+          // We're double testing points here, but don't feel like fixing.
+          for (t = 0; tstep > 0; t = t+tstep) {
+            xc = x1+xstep*t;
+            yc = y1+ystep*t;
+
+            if ((xc*xc + yc*yc) > radius_sq) {
+              // backup a little and increase resolution
+              t = t-tstep;
+              tstep = tstep >> 1;
+            }
+          }
+        }
+        else {
+          // wire segment is an arc
+          // Get correct arc starting end angle for x1,y1
+
+          if ((x1+V.x) == W.arc.x1 && (y1+V.y) == W.arc.y1) {
+            astart = W.arc.angle1;
+            aend = W.arc.angle2;
+          }
+          else {
+            // Swap start/end
+            astart = W.arc.angle2;
+            aend = W.arc.angle1;
+          }
+
+          // wstep is the change in angle to the next point on the arc to test.
+          astart = PI/180 * astart;
+          aend = PI/180 * aend;
+          wstep = (aend-astart)/2; // make wstep 1/2 the difference
+          sin_of_astart = W.arc.radius*sin(astart);
+          cos_of_astart = W.arc.radius*cos(astart);
+
+          // dy = radius*(sin(astart+dw)-sin(astart))
+          // dx = radius*(cos(astart+dw)-cos(astart))
+
+          // w is the current angle on the arc being tested
+          // We're double testing points here, but don't feel like fixing.
+
+          for (w = astart+wstep; abs(wstep) > .00001; w = w+wstep) {
+            yc = y1+W.arc.radius*sin(w)-sin_of_astart;
+            xc = x1+W.arc.radius*cos(w)-cos_of_astart;
+
+            if ((xc*xc + yc*yc) > radius_sq) {
+              // backup a little and increase resolution
+              w = w-wstep;
+              wstep = wstep/2;
+            }
+          }
+        }
+
+        // Determine location of tangents of via back to wire.
+        // angular offset = sin (viaradius/(seg to via ctr distance))
+
+        tangent_radius = (V.diameter[W.layer] - W.width)/2;
+
+        if (tangent_radius > 0) {
+          // don't bother if wire is bigger than via
+          tearseg_delta_w = asin(real(tangent_radius)/radius);
+          tearseg_len = sqrt (radius * radius - tangent_radius * tangent_radius);
+
+          if (xc == 0) {
+            if (yc < 0)  tearseg_w = PI*.5;
+            else  tearseg_w = -PI*.5;
+          }
+          else {
+            tearseg_w = atan (real(yc)/(xc));
+          }
+
+          // Get the right quadrant
+          if (xc > 0)
+              tearseg_w = tearseg_w + PI;
+
+          tearseg_xend = V.x+xc + tearseg_len*cos(tearseg_w-tearseg_delta_w);
+          tearseg_yend = V.y+yc + tearseg_len*sin(tearseg_w-tearseg_delta_w);
+
+          // Suggest a script command.
+          if(User_Enable_Curve)
+            output_via_wire_arc(W.layer, W.width, int(V.x+xc), int(V.y+yc), tearseg_xend, tearseg_yend, 1, V, W, S); //ars662001@yahoo.com
+          else
+            output_via_wire(W.layer, W.width, int(V.x+xc), int(V.y+yc), tearseg_xend, tearseg_yend, V, W, S);
+          // Now add segment to the center of the via so ratsnest doesn't show up as dangling.
+          output_via_wire (W.layer, W.width, int(V.x), int(V.y), tearseg_xend, tearseg_yend, V, W, S);
+
+          // Now the other side of the tear
+          tearseg_xend = V.x+xc + tearseg_len*cos(tearseg_w+tearseg_delta_w);
+          tearseg_yend = V.y+yc + tearseg_len*sin(tearseg_w+tearseg_delta_w);
+
+          // Suggest a script command.
+          if(User_Enable_Curve)
+            output_via_wire_arc(W.layer, W.width, int(V.x+xc), int(V.y+yc), tearseg_xend, tearseg_yend, 0, V, W, S); //ars662001@yahoo.com
+          else
+            output_via_wire(W.layer, W.width, int(V.x+xc), int(V.y+yc), tearseg_xend, tearseg_yend, V, W, S);
+          // Now add segment to the center of the via so ratsnest doesn't show up as dangling.
+          output_via_wire (W.layer, W.width, int(V.x), int(V.y), tearseg_xend, tearseg_yend, V, W, S);
+        }
+      }
+    }
+  }
+  return;
+}
+
+
+void setlayerstatus(void) {  // 2012-04-04 set layer status
+  string s[];
+  for (int n = 0; n < LayerCount; n++) {
+    int cnt = strsplit(s, LayerName[n], '\t');
+    int num = strtol(s[0]);
+    int target  = strtol(s[1]);
+    IsLayer[num] = num;
+    TeardropLayer[num] = target;
+    if (s[2] == "yes" ) LayActiv[num] = 1;
+    else LayActiv[num] = 0;
+  }
+  return;
+}
+
+
+void generate_tears(void) {
+  setlayerstatus();
+  board(B) {
+    uiw_internal = User_Ignore_Width/u2mil(1); // Convert user mil units to internal units.
+    via_count = 0;
+    fname = filesetext(B.name, "_AddTearDrops.scr");
+
+    if (!User_Vias && !User_Pads) {
+        dlgMessageBox("You must check vias and/or pads option.");
+        return;
+    }
+
+    output(fname, "wtD") {
+      printf("# Script generated to add teardrops to board vias.\n");
+      printf("# Script generated with '%s', *%s* at %s.\n", filename(argv[0]), EAGLE_SIGNATURE, t2string(time(), "Uyyyy-MM-dd hh:mm:ss"));
+      printf("# Script values in mm and spreadsheet values in mils:\n");
+      printf("# This script generated with the following user parameters:\n");
+      printf("# Teardrop Apex Radius Factor: %.2f.  Ignoring segments >= %.1f mils.  Ignoring segments with width/via_hole ratio >= %.1f. ",
+              User_Tear_Radius, User_Ignore_Width, User_Ignore_sdratio);
+      printf("\n");
+      output_hdr();
+      printf("SET UNDO_LOG OFF;\n");
+      printf("SET WIRE_BEND 2;\n"); // straight lines for drawing our teardrop wires.
+      printf("GRID MM;\n");
+
+      B.signals(S) {
+          if (User_Vias)
+              do_vias(S);
+
+          if (User_Pads)
+              do_pads(S);
+      }
+
+      printf("GRID LAST;\n");
+      printf("SET UNDO_LOG ON;\n");
+
+      if (changes) exit ("script '" + fname + "';\n");
+      else  dlgMessageBox("No teardrops generated with current parameters");
+    }
+  }
+  return;
+}
+
+
+string settarget(string sellayer) {  // 2012-04-04
+  string no_change  = sellayer;
+  string l[];
+  strsplit(l, sellayer, '\t');
+  string s[];
+  strsplit(s, l[0], '-');
+  int activ;
+  if (l[2] == "yes") activ = 1;
+
+  int sel = strtol(l[1]) -1;
+  dlgDialog("Target Layer") {
+    dlgLabel("New layer for " + l[0]);
+    dlgGroup("Layer activ") {
+      dlgRadioButton("&no", activ);
+      dlgRadioButton("&yes", activ);
+    }
+    dlgComboBox(TargetLayer, sel) {
+      sellayer = s[0] + "\t" + TargetLayer[sel];
+      if (activ) sellayer += "\t" + "yes";
+      else  sellayer += "\t" + "no";
+    }
+    dlgHBoxLayout {
+      dlgPushButton("+OK") {
+        sellayer = s[0] + "\t" + TargetLayer[sel];
+        if (activ) sellayer += "\t" + "yes";
+        else  sellayer += "\t" + "no";
+        dlgAccept();
+      }
+      dlgPushButton("-Cancel") {
+        dlgReject();
+        sellayer = no_change;
+      }
+    }
+  };
+  return sellayer;
+}
+
+
+//*****************************
+
+string mainscrtext =
+        "\nStatus bar will show progress while generating teardrops.\n\n"
+        "Apex Radius Factor sets the distance from the apex of a teardrop to the associated via's center.  "
+        "The Radius Factor entered is multiplied by the via's drill-hole diameter to arrive at a physical distance."
+        "For example, with an entered radius factor of 1.5 operating on a via with a drill size of 10mils, the apex begins "
+        "15 mils from that particular via's center.\n\n"
+        "Teardrop Curve Factor multiplies to the tangent segment length to get the arc radius applied to this segment."; //ars662001@yahoo.com
+
+if (!board) {
+    dlgMessageBox("You should run this ULP from an open board design.");
+    exit(0);
+}
+
+dlgDialog("Teardrops for Vias") {
+  if (!board) {
+      dlgMessageBox("You should run this ULP from an open board design.");
+      exit(-1);
+  }
+  board(B) {
+      B.layers(L) {
+        if (L.number <= 16) { // 2012-04-04
+          string lname;
+          if (L.used) {
+            sprintf(lname, "%d-%s\t%d-%s\tyes", L.number, L.name, L.number, L.name);
+            LayerName[LayerCount] = lname;
+            LayerNum[LayerCount]  = L.number;
+            ++LayerCount;
+          }
+        }
+        sprintf(TargetLayer[tCount], "%d-%s", L.number, L.name);
+        tCount++;
+      }
+  }
+
+  dlgHBoxLayout  {
+    dlgTabWidget {
+      dlgTabPage("Processing") {
+        dlgHBoxLayout  {
+          dlgGroup("Parameters") {
+            dlgSpacing(8);
+            dlgGridLayout {
+              dlgCell( 1, 0)  dlgLabel("Teardrop Apex Radius Factor  ");
+              dlgCell( 1, 1)  dlgRealEdit(User_Tear_Radius, 0.5, 2.5);
+                                         
+              dlgCell( 2, 0)  dlgLabel("Teardrop Curve Factor  ");      //ars662001@yahoo.com
+              dlgCell( 2, 1)  dlgRealEdit(User_curve_factor, 0.5, 5.0); //ars662001@yahoo.com             
+              
+              dlgCell( 3, 0)  dlgLabel("Ignore all segments >= ");
+              dlgCell( 3, 1)  dlgRealEdit(User_Ignore_Width, 4.0, 400.0);
+              dlgCell( 3, 2)  dlgLabel(" mils");
+
+              dlgCell( 4, 0)  dlgLabel("Ignore all segments/drill ratios >= ");
+              dlgCell( 4, 1)  dlgRealEdit(User_Ignore_sdratio, 0.1, 99.0);
+            }
+            dlgVBoxLayout {
+              dlgGroup("Options") {
+                dlgCheckBox("&Teardrop Vias", User_Vias);
+                dlgCheckBox("&Teardrop Pads", User_Pads);
+                dlgSpacing(5);
+                dlgCheckBox("&Curved Teardrops", User_Enable_Curve);  //ars662001@yahoo.com
+                dlgSpacing(8);
+                dlgLabel("Click on layer to select :");
+                dlgListView("Layer Source\tTeardrop Target\tactiv", LayerName, LayerSel) {
+                  LayerName[LayerSel] = settarget(LayerName[LayerSel]);
+                }
+              }
+              dlgStretch(1);
+              dlgSpacing(10);
+              dlgHBoxLayout {
+                dlgPushButton("Teardrop Board") generate_tears();
+                dlgPushButton("-Cancel") dlgReject();
+              }
+            }
+          }
+          dlgTextView(mainscrtext);
+        }
+      } // tab page
+
+      dlgTabPage("Overview") {
+        dlgTextView(HelpText);
+      }
+
+      dlgTabPage("History") {
+          dlgTextView(Release + " " + ReleaseDate + " " + HistoryText2);
+      }
+    }
+  }
+};

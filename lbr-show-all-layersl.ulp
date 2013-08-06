@@ -1,0 +1,17 @@
+#usage "<b>Display all device/symbol layers in a library</b><p>\n"
+       "<author>Author: rtzaudio@comcast.net</author><p><p>"
+
+string cmd, s;
+
+if  (library) {
+  library(L) {
+    L.devicesets(DS) {
+       sprintf(s, "EDIT %s.DEV;\nDISPLAY ALL;\nWRITE;", DS.name);
+       cmd += s;
+       break;
+    }
+  }
+  exit (cmd);
+}
+
+else dlgMessageBox("Start this ULP from a Library", "OK");

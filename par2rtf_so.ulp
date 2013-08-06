@@ -1,0 +1,213 @@
+/*
+ *  This EAGLE User Language Program prints a board's
+ *  Partlist and its "Bill Of Material" in RTF.
+ *  Tested and works under Star Office 6.0
+ *  Published under GNU-Public-License
+ *  Ing.-Büro Völpel GmbH
+ *  Author: Thomas Bronner 
+ *  Email: info@voelpel.com	
+ */
+
+string hexb(char c)
+  {
+  string buf = "";
+
+  sprintf(buf, "%X", c);
+  buf = "\\\'" + buf;
+  return (buf);
+  }
+
+string convert(string str)
+  {
+  string buf ="";
+  int i, len;
+
+  len = strlen(str);
+  for (i=0;i<len;i++)
+    {
+    if (str[i] == '\\')
+      {
+      buf = buf + '/';
+      }
+    else if (str[i] > 127)
+      {
+      buf = buf + hexb(str[i]);
+      }
+    else
+      {
+      buf = buf + str[i];
+      }
+    }
+  return buf;
+  }
+
+
+void PartLine(string Name, string Value, string Package)
+  {
+  Name = convert(Name);
+  Value = convert(Value);
+  Package = convert(Package);
+  printf("\\trowd\\trql\\trrh360\\clbrdrl\\brdrs\\brdrw1\\brdrcf1\\brsp0\\clbrdrr\\brdrw1"
+	"\\brdrcf1\\brsp0\\clbrdrb\\brdrs\\brdrw1\\brdrcf1\\brsp0"
+	"\\cellx1118"
+	"\\trowd\\trql\\trrh360\\clbrdrl\\brdrs\\brdrw1\\brdrcf1\\brsp0\\clbrdrr\\brdrw1"
+	"\\brdrcf1\\brsp0\\clbrdrb\\brdrs\\brdrw1\\brdrcf1\\brsp0"
+	"\\cellx3121"
+	"\\trowd\\trql\\trrh360\\clbrdrl\\brdrs\\brdrw1\\brdrcf1\\brsp0\\clbrdrr\\brdrw1"
+	"\\brdrcf1\\brsp0\\clbrdrb\\brdrs\\brdrw1\\brdrcf1\\brsp0"
+	"\\cellx4712"
+	"\\trowd\\trql\\trrh360\\clbrdrl\\brdrs\\brdrw1\\brdrcf1\\brsp0\\clbrdrr\\brdrw1"
+	"\\brdrcf1\\brsp0\\clbrdrb\\brdrs\\brdrw1\\brdrcf1\\brsp0"
+	"\\cellx9922"
+	"\\pard\\widctlpar\\intbl\\plain" 
+	"\\ql{\\f1 %-s}"
+	"\\cell"
+	"{\\f1 %-s}"
+	"\\cell"
+	"{\\f1 %-s}"
+	"\\cell"
+	"\\cell\\row\\pard\\plain\n", Name, Value, Package);
+  }
+
+int ValueLine(string Quantity, string Value, string Package, string Parts)
+  {
+  Quantity = convert(Quantity);
+  Value = convert(Value);
+  Package = convert(Package);
+  Parts = convert(Parts);
+  printf("\\trowd\\trql\\trrh360\\clbrdrl\\brdrs\\brdrw1\\brdrcf1\\brsp0\\clbrdrr\\brdrw1"
+	"\\brdrcf1\\brsp0\\clbrdrb\\brdrs\\brdrw1\\brdrcf1\\brsp0"
+	"\\cellx1118"
+	"\\trowd\\trql\\trrh360\\clbrdrl\\brdrs\\brdrw1\\brdrcf1\\brsp0\\clbrdrr\\brdrw1"
+	"\\brdrcf1\\brsp0\\clbrdrb\\brdrs\\brdrw1\\brdrcf1\\brsp0"
+	"\\cellx3121"
+	"\\trowd\\trql\\trrh360\\clbrdrl\\brdrs\\brdrw1\\brdrcf1\\brsp0\\clbrdrr\\brdrw1"
+	"\\brdrcf1\\brsp0\\clbrdrb\\brdrs\\brdrw1\\brdrcf1\\brsp0"
+	"\\cellx4712"
+	"\\trowd\\trql\\trrh360\\clbrdrl\\brdrs\\brdrw1\\brdrcf1\\brsp0\\clbrdrr\\brdrw1"
+	"\\brdrcf1\\brsp0\\clbrdrb\\brdrs\\brdrw1\\brdrcf1\\brsp0"
+	"\\cellx9922"
+	"\\pard\\intbl\\plain" 
+	"\\ql{\\f1 %-s}"
+	"\\cell"
+	"{\\f1 %-s}"
+	"\\cell"
+	"{\\f1 %-s}"
+	"\\cell"
+	"{\\f1 %-s}"
+	, Quantity, Value, Package, Parts); 
+	
+	  
+
+  
+  return 50;
+  }
+
+
+if (board) board(B)
+  {
+  output(filesetext(B.name, ".RTF"),"wt")
+    {                  
+    printf("\{\\rtf1\\ansi\\deff8\\deflang1033\\sectd\\pard\n");
+    printf("{\\fonttbl{\\f1\\fnil\\fprq0\\fcharset0 Times New Roman;}}");
+    printf("\{\\colortbl;\\red0\\green0\\blue0;\\red204\\green204\\blue204;\\red128\\green128\\blue128;}\n");
+    printf("\\footery0 {\\footer \\pard\\plain {\\ltrch\\loch\\f1 Seite {\\field{\\*\\fldinst \\\\page}{\\fldrslt 2}}}\\par}");
+    
+    printf("\\headery0 {\\header \\pard\\plain {"
+	"\\f1 Partlist exported from %s at %s}}",
+           convert(B.name), t2string(time()));
+    
+
+    printf("\\trowd\\trql\\trhdr\\clbrdrt\\brdrs\\brdrw1\\brdrcf1\\brsp0\\clbrdrl\\brdrs"
+	"\\brdrw1\\brdrcf1\\brsp0\\clbrdrb\\brdrs\\brdrw1\\brdrcf1\\brsp0\\clbrdrr\\brdrs\\brdrw1\\brdrcf1\\brsp0\\clcbpat2\\clvertal"
+	"\\cellx1118"
+	"\\trowd\\trql\\trhdr\\clbrdrt\\brdrs\\brdrw1\\brdrcf1\\brsp0\\clbrdrl\\clbrdrr\\brdrs"
+	"\\brdrw1\\brdrcf1\\brsp0\\clbrdrb\\brdrs\\brdrw1\\brdrcf1\\brsp0\\clcbpat2\\clvertal"
+	"\\cellx3121"
+	"\\trowd\\trql\\trhdr\\clbrdrt\\brdrs\\brdrw1\\brdrcf1\\brsp0\\clbrdrl\\clbrdrr\\brdrs"
+	"\\brdrw1\\brdrcf1\\brsp0\\clbrdrb\\brdrs\\brdrw1\\brdrcf1\\brsp0\\clcbpat2\\clvertal"
+	"\\cellx4712"
+	"\\trowd\\trql\\trhdr\\clbrdrt\\brdrs\\brdrw1\\brdrcf1\\brsp0\\clbrdrl\\clbrdrr\\brdrs"
+	"\\brdrw1\\brdrcf1\\brsp0\\clbrdrb\\brdrs\\brdrw1\\brdrcf1\\brsp0\\clbrdrr\\clcbpat2\\clvertal"
+	"\\cellx9922"
+	"\\pard\\intbl\\plain "
+	"\\b\\qc{\\ltrch\\loch\\f1 Part}"
+	"\\cell "
+	"{\\ltrch\\loch\\f1 Value}"
+	"\\cell "
+	"{\\ltrch\\loch\\f1 Package}"
+	"\\cell"
+	"{\\ltrch\\loch\\f1 Comments}"
+	"\\cell\\row\\pard \\plain \n");
+    
+    numeric string ename[], evalue[], pname[];
+    int cnt = 0, index[];
+
+    B.elements(E)
+      {
+      ename[cnt] = E.name;
+      evalue[cnt] = E.value;
+      pname[cnt] = E.package.name;
+      cnt++;
+      }
+    sort(cnt, index, ename);
+    for (int i = 0; i < cnt; i++)
+      PartLine(ename[index[i]], evalue[index[i]], pname[index[i]]);
+
+    string lastvalue = "? ? ?", lastpack = "? ? ?", parts = "";
+    printf("\\line \n");
+    
+    printf("\\sect \\headery0 {\\header \\pard\\plain {"
+    	"\\f1 Bill of materials exported from %s at %s }}\n", convert(B.name), t2string(time()));
+    printf("\\footery0 {\\footer \\pard\\plain {\\ltrch\\loch\\f1 Seite {\\field{\\*\\fldinst \\\\page}{\\fldrslt 2}}}\\par}");
+    
+    printf("\\trowd\\trql\\trhdr\\clbrdrt\\brdrs\\brdrw1\\brdrcf1\\brsp0\\clbrdrl\\brdrs"
+	"\\brdrw1\\brdrcf1\\brsp0\\clbrdrb\\brdrs\\brdrw1\\brdrcf1\\brsp0\\clbrdrr\\brdrs\\brdrw1\\brdrcf1\\brsp0\\clcbpat2\\clvertal"
+	"\\cellx1118"
+	"\\trowd\\trql\\trhdr\\clbrdrt\\brdrs\\brdrw1\\brdrcf1\\brsp0\\clbrdrl\\clbrdrr\\brdrs"
+	"\\brdrw1\\brdrcf1\\brsp0\\clbrdrb\\brdrs\\brdrw1\\brdrcf1\\brsp0\\clcbpat2\\clvertal"
+	"\\cellx3121"
+	"\\trowd\\trql\\trhdr\\clbrdrt\\brdrs\\brdrw1\\brdrcf1\\brsp0\\clbrdrl\\clbrdrr\\brdrs"
+	"\\brdrw1\\brdrcf1\\brsp0\\clbrdrb\\brdrs\\brdrw1\\brdrcf1\\brsp0\\clcbpat2\\clvertal"
+	"\\cellx4712"
+	"\\trowd\\trql\\trhdr\\clbrdrt\\brdrs\\brdrw1\\brdrcf1\\brsp0\\clbrdrl\\clbrdrr\\brdrs"
+	"\\brdrw1\\brdrcf1\\brsp0\\clbrdrb\\brdrs\\brdrw1\\brdrcf1\\brsp0\\clbrdrr\\clcbpat2\\clvertal"
+	"\\cellx9922"
+	"\\pard\\intbl\\plain "
+	"\\b\\qc{\\ltrch\\loch\\f1 Qty}"
+	"\\cell "
+	"{\\ltrch\\loch\\f1 Value}"
+	"\\cell "
+	"{\\ltrch\\loch\\f1 Package}"
+	"\\cell"
+	"{\\ltrch\\loch\\f1 Parts}"
+	"\\cell\\pard \\plain \n");
+    sort(cnt, index, evalue, pname, ename);
+    for (int n = 0; n < cnt; n++)
+      {
+      int i = index[n];
+      if ((lastvalue != evalue[i]) || (lastpack != pname[i]))
+        {
+        lastvalue = evalue[i];
+        lastpack = pname[i];
+        int quantity = 1;
+        for (int j = n + 1; j < cnt && (lastvalue == evalue[index[j]]) &&
+             (lastpack == pname[index[j]]); ++j)
+          ++quantity;
+	printf("\\cell\\row");        
+	string buf;
+        sprintf(buf, "%d", quantity);
+        ValueLine(buf, evalue[i], pname[i], "");
+        }
+      else
+        {
+        printf(", ");
+        }
+      printf("\\f1");
+      printf(ename[i]);
+      
+	}
+    printf("\\cell\\row}");
+    }
+  }
+

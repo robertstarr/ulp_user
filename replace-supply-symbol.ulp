@@ -1,0 +1,102 @@
+#usage "en:<b>Replace supply symbols.</b><p>\n"
+          "This replaces all occurances of a supply symbol in a schematic "
+          "with a symbol from another supply library. This ULP is only guaranteed "
+          "to work with the supply symbols on bobstarr.net though.<p>"
+
+#require 6.0301
+
+//-----------------------------------------------------------------------------
+
+string Version = "1.01";
+string Status = "";
+string SymbolName = "GND";
+string ReplaceName = "GND";
+int LibNameIndex = 0;
+int ScriptExec   = 1;   // execute script automatically after generating
+string strFileName;
+
+string LibNames[] = {
+    "supply.lbr",
+    "supply0.lbr",
+    "supply1.lbr",
+    "supply2.lbr",
+    "supply3.lbr",
+    "supply4.lbr"
+    };
+
+//------------ main ----------------------------------------
+
+if (!schematic)
+{
+  dlgMessageBox("Please start from schematic editor!");
+  exit(1);
+}
+else
+{
+    schematic(SCH)
+    {
+        strFileName = filesetext(SCH.name, "_ReplaceLibParts.scr");
+        
+        int Result = dlgDialog("Replace Power Supply Symbol")
+        {
+            dlgGroup("Replace Power Symbol - v"+Version) {
+                dlgGridLayout {
+                    dlgCell(0, 0) dlgLabel("Replace with symbol from:");
+                    dlgCell(0, 1) dlgComboBox(LibNames, LibNameIndex);
+                    dlgCell(1, 0) dlgLabel("Symbol name to replace:");
+                    dlgCell(1, 1)  dlgStringEdit(SymbolName);
+                    dlgCell(2, 0) dlgLabel("Replace symbol name with:");
+                    dlgCell(2, 1)  dlgStringEdit(ReplaceName);
+                }
+            }
+                
+            dlgLabel(Status, 1);
+            
+            dlgHBoxLayout {
+                dlgCheckBox("&Execute Script", ScriptExec);
+                dlgStretch(1);
+                dlgPushButton("+&" + "OK") dlgAccept();
+                dlgPushButton("-&" + "Cancel") dlgReject();
+            }
+        };
+    
+        if (!Result)
+        {
+            exit(0);
+        }
+        else
+        {        
+            output(strFileName, "wtD")
+            {
+                printf("# '%s;\n\n", EAGLE_SIGNATURE);
+                printf("SET UNDO_LOG OFF;\n");
+                printf("# Migrate parts to '%s'\n", LibNames[LibNameIndex]);
+                printf("USE -*;\n");
+                printf("USE '%s';\n", LibNames[LibNameIndex]);
+        
+                SCH.sheets(S)
+                {
+                    printf("#\n# SHEET %d - MIGRATE PARTS\n#\n", S.number);
+                    printf("EDIT .s%d\n", S.number);
+        
+                    S.parts(P)
+                    {
+                        if ((P.device.name == SymbolName))  // && (P.device.package == ""))
+                        {
+                            printf("REPLACE %s %s;\n", P.name, ReplaceName);
+                        }
+                    }
+                }
+                printf("EDIT .s1\n");
+                printf("SET UNDO_LOG ON;\n");
+        		printf("# Put all libraries back into use\n");
+        		printf("USE *;\n");
+            }
+            
+            if (ScriptExec)
+                exit ("SCRIPT '" + strFileName + "';");
+            else
+                exit(0);
+        }
+    }
+};

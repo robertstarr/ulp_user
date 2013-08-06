@@ -1,0 +1,153 @@
+#usage "<b>Change all library package silkscreen widths</b>\n"
+       "<p>The silkscreen elements are changed only on layers tPlace and tDoc\n"
+       "and if the current silk width found is within a range limits specified below in the script.\n"
+       "<p>"
+       "<author>Author: rtzaudio@mindspring.com</author>"
+
+string ulp_path = "";
+string script_change = "";
+
+int Result = 0;
+string grid = "GRID MIL FINEST;\n";
+
+// new silk width in mils
+real changewidth = 8;
+
+// Only change the silk width of an object if it is within this range
+real minlimit    = 5;	// lower range limit
+real maxlimit    = 10;	// upper range limit
+
+
+void change(real dx, real dy)
+{
+   printf("CHANGE WIDTH %.3f (%.3f %.3f);\n", changewidth, dx, dy);
+}
+
+
+void DoPackage(UL_PACKAGE P) {
+
+   real dx, dy;
+
+/*   P.arcs(A) {
+      // Must be on tPlace or tDoc to change
+      if (A.layer == 21 || A.layer == 51) {
+         // Only change width if within these limits
+         if (u2mil(A.width) >= minlimit && u2mil(A.width) <= maxlimit) {
+            dx = u2mil(A.x1);
+            dy = u2mil(A.y1);
+            change(dx, dy);
+         }
+      }
+   } */
+
+/*   P.rectangles(R) {
+      // Must be on tPlace or tDoc to change
+      if (R.layer == 21 || R.layer == 51) {
+         // Only change width if within these limits
+         if (u2mil(R.width) >= minlimit && u2mil(R.width) <= maxlimit) {
+            dx = u2mil(R.x1);
+            dy = u2mil(R.y1);
+            change(dx, dy);
+         }
+      }
+   } */
+
+   P.circles(C) {
+      // Must be on tPlace or tDoc to change
+      if (C.layer == 21 || C.layer == 51) {
+         // Only change width if within these limits
+         if (u2mil(C.width) >= minlimit && u2mil(C.width) <= maxlimit) {
+            dx = u2mil(C.x + C.radius);
+            dy = u2mil(C.y);
+            change(dx, dy);
+         }
+      }
+   }
+
+   P.wires(W) {
+      // Must be on tPlace or tDoc to change
+      if (W.layer == 21 || W.layer == 51) {
+         // Only change width if within these limits
+         if (u2mil(W.width) >= minlimit && u2mil(W.width) <= maxlimit) {
+	    if (W.arc)
+            {
+               dx = u2mil(W.arc.x1);
+               dy = u2mil(W.arc.y1);
+  	       change(dx, dy);
+            }
+            dx = u2mil((W.x1 + W.x2) / 2);
+            dy = u2mil((W.y1 + W.y2) / 2);
+            change(dx, dy);
+         }
+      }    
+   }
+}
+
+
+void DoPackage2(UL_PACKAGE P) {
+   real dx, dy;
+
+   dx = u2inch(P.area.x2 - P.area.x1);
+   dy = u2inch(P.area.y2 - P.area.y1);        // height of package 
+
+   change(dx, dy);
+}
+
+void menue(void) {
+   int err = 0;
+   int newWidth;
+   int minLimit = 0;
+   int maxLimit = 0;
+
+   dlgDialog("Change All Silkscreen Widths") {
+      dlgStretch(0);
+      dlgHBoxLayout {   dlgLabel("New silikscreen width (2-20 mils)\t");   dlgRealEdit(changewidth, 2.0, 20.0);   }
+      dlgGroup("Change Width Range Limits") {
+	dlgHBoxLayout {   dlgLabel("Minimum width to change (4-10 mils)\t");   dlgRealEdit(minlimit, 4.0, 10.0);   }
+	dlgHBoxLayout {   dlgLabel("Maximum width to change (4-20 mils)\t");   dlgRealEdit(maxlimit, 4.0, 20.0);   }
+      }
+      dlgStretch(1);
+      dlgPushButton("+&OK") { dlgAccept(); return; }
+      dlgPushButton("-&Cancel") { dlgReject(); exit (0);}
+   };
+}
+
+if (library) {
+   char bkslash = '/';
+   int pos = strrchr(argv[0], bkslash);
+   if (pos >= 0) {
+      ulp_path = strsub(argv[0], 0, pos + 1);
+   }
+   int n = 0;
+   library(L) {
+   int posb = strrchr(argv[0], bkslash);
+   if (posb >= 0) {
+      ulp_path = strsub(argv[0], 0, posb + 1);
+   }
+
+   menue();
+
+   script_change = filesetext(L.name, "~~~.scr");
+
+   output(script_change, "wtD") {
+      printf("DISPLAY NONE 21 51;\n");
+      int firstf = 1;
+      L.packages(P) {
+         printf("EDIT %s.PAC;\n", P.name);
+         if (firstf) {
+           printf("%s",grid);
+           firstf = 0;
+         }
+
+         DoPackage(P);
+      }
+
+      printf("GRID DEFAULT;\n");
+      printf("DISPLAY NONE 1 16 17 21 51;\n");
+   }
+   }
+  exit ("SCRIPT '" + script_change + "';\n"); // REMOVE " + script_change + ";\n");
+} else {
+   dlgMessageBox("\n*** Start this ULP in a Library ***\n");
+   exit (0);
+}

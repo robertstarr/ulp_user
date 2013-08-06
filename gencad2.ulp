@@ -1,0 +1,973 @@
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND, EXPRESSED OR IMPLIED.
+///////////////////////////////////////////////////////////////////////////////////////////
+//                      Generate EAGLE Output in GenCad Format                           //
+///////////////////////////////////////////////////////////////////////////////////////////
+//
+// Copyrights: 8/2001 GenRad Europe Ltd.
+// Author:     Peter Kuhlemann; GenRad Europe Ltd.; pxk@genrad.com
+//
+///////////////////////////////////////////////////////////////////////////////////////////
+//
+// Update Notes: 1.00 GR PXK 07-Aug-01: created
+//               1.10 GR PXK 14-Aug-01: fixed problem with alphanumeric pins              
+//               1.15 GR PXK 22-Aug-01: enabled output of geometrics from all layers 
+//               1.20 TR PXK 04-Dec-03: fixed problems with Eagle 4.1
+//               1.21 Function  padtype( ... int Layer
+//                    Function  viatype( ... int Layer
+//                    change name layer to Layer for parser problem in 4.1x
+//                    Author: librarian@cadsoft.de
+//               1.22 Corrected the rotation of "LONG" pads 
+//                    SMD with Roundness = 100 will be drawn as CIRCLES
+//                    by support@cadsoft.de
+//               1.23 Saves dialog file name and path instead of original name. Jim Thurman 9/11/06
+//               1.25 TR PXK 09-APR-05: Fixed problem with devices that have bottom side
+//                    pads only, typicaly testpads
+//               1.26 TR PXK 11-APR-05: Fixed problem with wrongly oriented pads
+//               1.27 TR PXK 06-NOV-06: Exclude devices with 0 pins
+//               1.30 Rotation for all angles possible (not only 90, 180, 270) P. Schulz ROB-Engineering GmbH 03/23/11
+//
+   string ULP_VERSION = "1.30";
+//
+///////////////////////////////////////////////////////////////////////////////////////////
+
+string property_value[],
+       padshape[];
+
+real   x, y;
+
+//-----------------------------------------------------
+real u2u(int x) { // resolution 1/100 mm
+   return round(u2mm(x) * 100) / 100;  // if mm
+  }
+//-----------------------------------------------------
+real u2ang(real x) {
+  x = x - 360.0 * round(x / 360.0);
+  if (x < 0.0) x += 360.0;
+
+  x = round(x * 10)/10;
+  return x;
+  }
+//-----------------------------------------------------
+void rot(real alfa, int mirr, real xt, real yt) {
+  real alfa_b;
+  if (mirr) xt = -xt;
+  alfa = u2ang(alfa);
+
+  if (alfa == 0) {
+     x = xt; y = yt;
+     }
+  else if (alfa == 90) {
+     x = yt;  y = -xt;
+     }
+  else if (alfa == 180) {
+     x = -xt; y = -yt;
+     }
+  else if (alfa == 270) {
+     x = -yt; y = xt;
+     }
+  else {
+     alfa_b = PI / 180.0 * alfa;
+     x = (xt*cos(alfa_b)+yt*sin(alfa_b));
+     y = (yt*cos(alfa_b)-xt*sin(alfa_b));
+     }
+  x = round(x * 100)/100; y = round(y * 100)/100; // resolution 1/100 mm
+  }
+//-----------------------------------------------------
+string padtype(UL_CONTACT C, int Layer, real alfa, int mirr) { // name contains shape SROXY or SM for SMD
+  string s;                    // diam_drill (in 1/100mm) or smdx_y in (1/100 mm)
+  real pdi, sx, sy;       // e.g. SR_140_80 or SM_100_120
+  string padtype;
+  if (C.pad) {
+// Uncomment the following 2 lines for Eagle Version 4.0 and above
+     pdi = round(u2u(C.pad.diameter[Layer]) * 100);
+     padtype = padshape[C.pad.shape[Layer]];
+// Comment the following 2 lines for Eagle Version 4.0 and above
+//     pdi = round(u2u(C.pad.diameter) * 100);
+//     padtype = padshape[C.pad.shape];
+// Comment the following 4 lines for Eagle Version 4.1 and above
+//     if ((alfa == 90) || (alfa == 270)) {
+//        if (padtype == padshape[PAD_SHAPE_XLONGOCT]) padtype = padshape[PAD_SHAPE_YLONGOCT];
+//        else if (padtype == padshape[PAD_SHAPE_YLONGOCT]) padtype = padshape[PAD_SHAPE_XLONGOCT];
+//        }
+
+     alfa += C.pad.angle;
+      if (alfa >= 360) 
+        alfa -= 360;
+      
+     if ((alfa == 90 || alfa == 270) && C.pad.shape[Layer] == PAD_SHAPE_LONG) 
+      padtype = "LY";
+
+     sprintf(s, "P%s%03.0f", padtype, pdi);
+     }
+  
+  if (C.smd) {
+// TR PXK 11-APR-05: Fixed problem with wrongly oriented pads
+     alfa += C.smd.angle;
+      if (alfa >= 360) 
+        alfa -= 360;
+
+     sx = round(u2u(C.smd.dx) * 100);
+     sy = round(u2u(C.smd.dy) * 100);
+
+     rot(alfa, mirr, sx, sy);
+     sx = abs(x);
+     sy = abs(y);
+
+     sprintf(s, "SMD%03.0f%03.0f", sx, sy);
+     
+     
+     }
+     
+  
+   if (C.smd && C.smd.roundness == 100) {
+   
+     sx = round(u2u(C.smd.dx) * 100);
+     sy = round(u2u(C.smd.dy) * 100);
+
+     rot(alfa, mirr, sx, sy);
+     sx = abs(x);
+     sy = abs(y);
+
+     sprintf(s, "SMR%03.0f%03.0f", sx, sy);
+     }
+   
+     
+     
+  return s;
+  }
+//-----------------------------------------------------
+string viatype(UL_VIA V, int Layer) {
+  string s;                    // diam_drill (in 1/100mm)
+  real pdi;               // e.g. SR_140_80 or SM_100_120
+// Uncomment the following 2 lines for Eagle Version 4.0 and above
+
+
+  pdi = round(u2u(V.diameter[Layer]) * 100);
+  sprintf(s, "P%s%03.0f", padshape[V.shape[Layer]], pdi);
+// Comment the following 2 lines for Eagle Version 4.0 and above
+//  pdi = round(u2u(V.diameter) * 100);
+//  sprintf(s, "P%s%03.0f", padshape[V.shape], pdi);
+  return s;
+  }
+//-----------------------------------------------------
+//////////////////////////////////////////////////////
+string padnames[];
+int npads=0;
+
+void printpadifnew(string padname) {
+  int i, new;
+  real x, y, w, wx, wy, a, b, c, d;
+  string s1;
+
+  new = 1;                    // padtype not generated yet
+  for (i = 0; padnames[i]; i++) {
+    if (padnames[i] == padname)
+      new = 0;             // padtype exists
+    }
+  if (new) {
+    padnames[npads] = padname;
+    npads++;
+
+    sprintf(s1, "%s.%s", strsub(padname, 3, 1), strsub(padname, 4, 2));
+    x = strtod(s1);
+
+    if (strsub(padname, 1, 2) == padshape[0]) {
+      w = x/2;
+      printf("PAD %s RECTANGULAR -1\n", padname);
+      printf("RECTANGLE %g %g %g %g\n", -w, -w, x, x);
+      }
+    if (strsub(padname, 1, 2) == padshape[1]) {
+      w = x/2;
+      printf("PAD %s ROUND -1\n", padname);
+      printf("CIRCLE 0 0 %g\n", w);
+      }
+    if (strsub(padname, 1, 2) == padshape[2]) {
+      x = x/2;
+      w = x/2;
+      printf("PAD %s OCTAGON -1\n", padname);
+      printf("LINE %g %g %g %g\n",  w,  x,  x,  w);
+      printf("LINE %g %g %g %g\n",  x,  w,  x, -w);
+      printf("LINE %g %g %g %g\n",  x, -w,  w, -x);
+      printf("LINE %g %g %g %g\n",  w, -x, -w, -x);
+      printf("LINE %g %g %g %g\n", -w, -x, -x, -w);
+      printf("LINE %g %g %g %g\n", -x, -w, -x,  w);
+      printf("LINE %g %g %g %g\n", -x,  w, -w,  x);
+      printf("LINE %g %g %g %g\n", -w,  x,  w,  x);
+      }
+    if (strsub(padname, 1, 2) == padshape[3]) { // xlong
+//    x = x/2;
+      a = 3*x/4; b = x; c = x/4; d = x/2; // dimension ratio x:y = 2:1
+      printf("PAD %s OCTAGON -1\n", padname);
+      printf("LINE %g %g %g %g\n",  a,  d,  b,  c);
+      printf("LINE %g %g %g %g\n",  b,  c,  b, -c);
+      printf("LINE %g %g %g %g\n",  b, -c,  a, -d);
+      printf("LINE %g %g %g %g\n",  a, -d, -a, -d);
+      printf("LINE %g %g %g %g\n", -a, -d, -b, -c);
+      printf("LINE %g %g %g %g\n", -b, -c, -b,  c);
+      printf("LINE %g %g %g %g\n", -b,  c, -a,  d);
+      printf("LINE %g %g %g %g\n", -a,  d,  a,  d);
+      }
+    if (strsub(padname, 1, 2) == "LY") { // ylong
+//    if (strsub(padname, 1, 2) == padshape[4]) { // ylong
+//    x = x/2;
+      c = 3*x/4; d = x; a = x/4; b = x/2; // dimension ratio x:y = 2:1
+      printf("PAD %s OCTAGON -1\n", padname);
+      printf("LINE %g %g %g %g\n",  a,  d,  b,  c);
+      printf("LINE %g %g %g %g\n",  b,  c,  b, -c);
+      printf("LINE %g %g %g %g\n",  b, -c,  a, -d);
+      printf("LINE %g %g %g %g\n",  a, -d, -a, -d);
+      printf("LINE %g %g %g %g\n", -a, -d, -b, -c);
+      printf("LINE %g %g %g %g\n", -b, -c, -b,  c);
+      printf("LINE %g %g %g %g\n", -b,  c, -a,  d);
+      printf("LINE %g %g %g %g\n", -a,  d,  a,  d);
+      }
+    if (strsub(padname, 1, 2) == "MD") {         // look for padshape M = SMD
+      sprintf(s1, "%s.%s", strsub(padname, 6, 1), strsub(padname, 7, 2));
+      y = strtod(s1);
+      wx = x/2; wy = y/2;
+      printf("PAD %s RECTANGULAR -1\n", padname);
+      printf("RECTANGLE %g %g %g %g\n", -wx, -wy, x, y);
+      }
+    
+    if (strsub(padname, 1, 2) == "MR") {         // look for round padshape M = SMD, R = roundness=100
+      sprintf(s1, "%s.%s", strsub(padname, 6, 1), strsub(padname, 7, 2));
+      y = strtod(s1);
+      w = x/2; 
+      printf("PAD %s ROUND -1\n", padname);
+      printf("CIRCLE 0 0 %g\n", w);
+      }    
+    }
+  }
+//-----------------------------------------------------
+string padstacknames[];
+int npadstacks=0;
+
+void printpadstackifnew(string padstackname) {
+  int i, new;
+  string padname;
+  string s1;
+  real pdr;
+
+  new = 1;                    // padtype not generated yet
+  for (i = 0; padstacknames[i]; i++) {
+    if (padstacknames[i] == padstackname)
+      new = 0;             // padtype exists
+    }
+  if (new) {
+    padstacknames[npadstacks] = padstackname;
+    npadstacks++;
+
+    i = strlen(padstackname);
+    padname = strsub(padstackname, i - 6, 6);
+    if (strsub(padname, 0, 3) == "DRI") {
+      sprintf(s1, "%s.%s", strsub(padname, 3, 1), strsub(padname, 4, 2));
+      pdr = strtod(s1);
+      }
+    else {
+      pdr = 0;
+    }
+
+    if (pdr) {
+      printf("PADSTACK %s %g\n", padstackname, pdr);
+      padname = strsub(padstackname, 0, 6);
+      printf("PAD %s SOLDERMASK_TOP 0 0\n", padname);
+      printf("PAD %s SOLDERMASK_BOTTOM 0 0\n", padname);
+      padname = strsub(padstackname, 6, 6);
+      printf("PAD %s TOP 0 0\n", padname);
+      printf("PAD %s BOTTOM 0 0\n", padname);
+      padname = strsub(padstackname, 12, 6);
+      printf("PAD %s INNER 0 0\n", padname);
+      }
+    else {
+      printf("PADSTACK %s 0\n", padstackname);
+      padname = strsub(padstackname, 0, 9);
+      printf("PAD %s SOLDERMASK_TOP 0 0\n", padname);
+      padname = strsub(padstackname, 9, 9);
+      printf("PAD %s TOP 0 0\n", padname);
+      }
+    }
+  }
+//---------------------------------------------------
+void get_user_parameters(UL_ELEMENT E) { // assign property_values[]
+  int max_property = 7;
+  string property[] = {"partnumber"        // propterty[0] is partnumber and so on
+                      ,"parttype"
+                      ,"description"
+                      ,"pos_tolerance"
+                      ,"neg_tolerance"
+                      ,"user1"
+                      ,"user2"
+                      ,"user3"
+                      };
+  string user_layer_name = "unidat"; // layer name for property definitions (lower case!)
+  string layer_name[];
+  string property_assign_char = "=";
+  string s, pname, pvalue;
+  int    i, pos, len;
+  if (project.schematic) {
+     project.schematic(S) {
+       S.parts(P) {
+         if (P.name == E.name) {
+            P.instances(I) {
+              for (i = 0; i <= max_property; i++) { // clear properties
+                  property_value[i] = "";
+                  }
+              I.gate.symbol.texts(T) {
+                if (strlwr(layer_name[T.layer]) == user_layer_name) {
+
+                   s = T.value;
+                   len = strlen(s);
+                   pos = strstr(s, property_assign_char);
+                   if (pos > 0) {
+                      pname  = strsub(s, 0, pos);
+                      pvalue = strsub(s, pos+1, len - pos);
+                      i = 0;
+                      while (i <= max_property) {
+                        if (property[i] == strlwr(pname)) {
+                           property_value[i] = pvalue;
+                           }
+                        i++;
+                        }
+                      }
+
+                   }
+                }
+              }
+           }
+         }
+       }
+     }
+  else { // no schematic -> no properties
+     for (i = 0; i <= max_property; i++) { // clear properties
+         property_value[i] = "";
+         }
+     }
+  }
+//---------------------------------------------------
+
+//////////////////////////////////////////////////////
+void create_header (UL_BOARD B) {
+  int t = time();
+  printf ("$HEADER\n");
+  printf ("GENCAD 1.4\n");
+  printf ("CADID \"CADSOFTWARE=EAGLE %d.%d\"\n", EAGLE_VERSION, EAGLE_RELEASE);
+  printf ("DRAWING \"%s\"\n", B.name);
+  printf ("UNITS MM\n");
+  printf ("ORIGIN 0 0\n");
+  printf ("USER \"Created by GENCAD.ULP, Version %s (C) 8/2001 GenRad Europe Ltd.\"\n", ULP_VERSION);
+  printf ("USER \"Created on %02d.%02d.%02d %02d:%02d:%02d\n",
+          t2day(t),t2month(t),t2year(t),t2hour(t),t2minute(t),t2second(t));
+  printf ("$ENDHEADER\n");
+  printf ("\n");
+  }
+//////////////////////////////////////////////////////
+void create_board(UL_BOARD B) {
+  printf ("$BOARD\n");
+  real angle1;
+  real angle2;
+
+  B.wires(W) {
+    if (W.layer == LAYER_DIMENSION) {
+       printf("LINE %g %g %g %g\n", u2u(W.x1), u2u(W.y1), u2u(W.x2), u2u(W.y2));
+      }
+    }
+  
+  B.circles(C) {
+    if (C.layer == LAYER_DIMENSION) {
+       printf("CIRCLE %g %g %g\n", u2u(C.x), u2u(C.y), u2u(C.radius));
+      }
+    }
+
+// Comment the following 10 lines for Eagle Version 4.1 and above
+//  B.arcs(A) {
+//    if (A.layer == LAYER_DIMENSION) {
+//       angle1 = PI / 180.0 * A.angle1;
+//       angle2 = PI / 180.0 * A.angle2;
+//       printf("ARC %g %g %g %g %g %g\n",
+//             u2u(A.radius * cos(angle1) + A.xc), u2u(A.radius * sin(angle1) + A.yc),
+//             u2u(A.radius * cos(angle2) + A.xc), u2u(A.radius * sin(angle2) + A.yc),
+//             u2u(A.xc),u2u(A.yc));
+//      }
+//    }
+
+  printf ("$ENDBOARD\n");
+  printf ("\n");
+  }
+//////////////////////////////////////////////////////
+void create_pads(UL_BOARD B) {
+  string padname;
+  int    layer;
+
+  printf ("$PADS\n");
+
+  B.elements(E) {
+    E.package.contacts(C) {
+      padname = padtype(C, LAYER_PADS, E.angle, E.mirror);
+      printpadifnew(padname);
+
+      padname = padtype(C, LAYER_TSTOP, E.angle, E.mirror);
+      printpadifnew(padname);
+
+      for (layer = LAYER_TOP; layer <= LAYER_BOTTOM; layer++) {
+        padname = padtype(C, layer, E.angle, E.mirror);
+        printpadifnew(padname);
+        }
+
+      padname = padtype(C, LAYER_BSTOP, E.angle, E.mirror);
+      printpadifnew(padname);
+      }
+    }
+
+  B.signals(S) {
+    S.vias(V) {
+      padname = viatype(V, LAYER_VIAS);
+      printpadifnew(padname);
+
+      padname = viatype(V, LAYER_TSTOP);
+      printpadifnew(padname);
+
+      for (layer = LAYER_TOP; layer <= LAYER_BOTTOM; layer++) {
+        padname = viatype(V, layer);
+        printpadifnew(padname);
+        }
+
+      padname = viatype(V, LAYER_BSTOP);
+      printpadifnew(padname);
+      }
+    }
+
+  printf ("$ENDPADS\n");
+  printf ("\n");
+  }
+//////////////////////////////////////////////////////
+string padstackname_fromcontact(UL_CONTACT C, UL_ELEMENT E) {
+  string padstackname;
+  string padname;
+  real pdr;
+
+  if (C.pad) {
+    padname = padtype(C, LAYER_TSTOP, E.angle, E.mirror);
+    padstackname = padname;
+
+    padname = padtype(C, LAYER_TOP, E.angle, E.mirror);
+    padstackname += padname;
+
+    padname = padtype(C, LAYER_TOP + 1, E.angle, E.mirror);
+    padstackname += padname;
+
+    padname = padtype(C, LAYER_PADS, E.angle, E.mirror);
+    padstackname += padname;
+
+    pdr = u2u(C.pad.drill);
+    sprintf(padname, "DRI%03.0f", round(pdr * 100));
+    padstackname += padname;
+    }
+  if (C.smd) {
+    padname = padtype(C, LAYER_TSTOP, E.angle, E.mirror);
+    padstackname = padname;
+
+    padname = padtype(C, LAYER_TOP, E.angle, E.mirror);
+    padstackname += padname;
+
+    padname = padtype(C, LAYER_PADS, E.angle, E.mirror);
+    padstackname += padname;
+
+    pdr = 0;
+    }
+
+  return padstackname;
+  }
+//////////////////////////////////////////////////////
+string padstackname_fromvia(UL_VIA V) {
+  string padstackname;
+  string padname;
+  real pdr;
+
+  padname = viatype(V, LAYER_TSTOP);
+  padstackname = padname;
+
+  padname = viatype(V, LAYER_TOP);
+  padstackname += padname;
+
+  padname = viatype(V, LAYER_TOP + 1);
+  padstackname += padname;
+
+  padname = viatype(V, LAYER_VIAS);
+  padstackname += padname;
+
+  pdr = u2u(V.drill);
+  sprintf(padname, "DRI%03.0f", round(pdr * 100));
+  padstackname += padname;
+
+  return padstackname;
+  }
+//////////////////////////////////////////////////////
+void create_padstacks(UL_BOARD B) {
+  string padstackname;
+
+  printf ("$PADSTACKS\n");
+
+  B.elements(E) {
+    E.package.contacts(C) {
+      padstackname = padstackname_fromcontact(C, E);
+      printpadstackifnew(padstackname);
+      }
+    }
+
+  B.signals(S) {
+    S.vias(V) {
+      padstackname = padstackname_fromvia(V);
+      printpadstackifnew(padstackname);
+      }
+    }
+
+  printf ("$ENDPADSTACKS\n");
+  printf ("\n");
+  }
+//////////////////////////////////////////////////////
+void create_shapes(UL_BOARD B) {
+  int nshapes;
+  string shapenames[];
+  string padstackname;
+  string padname;
+  int new;
+  int i;
+  int padcount;
+  real rx;
+  real ry;
+  real x1;
+  real y1;
+  real x2;
+  real y2;
+  real angle1;
+  real angle2;
+
+  printf ("$SHAPES\n");
+
+  nshapes = 0;
+
+  B.elements(E) {
+    new = 1;                    // padstacktype not generated yet
+    for (i = 0; shapenames[i]; i++) {
+        if (shapenames[i] == E.package.name)
+           new = 0;             // shapename exists
+        }
+    if (new) {
+      shapenames[nshapes] = E.package.name;
+      nshapes++;
+
+      printf ("SHAPE %s\n", E.package.name);
+      rx = u2u(E.x); ry = u2u(E.y); // origin for rot function
+
+      E.package.wires(W) {
+//        if (W.layer == LAYER_TPLACE || W.layer == LAYER_BPLACE) {
+          x1 = u2u(W.x1)-rx; y1 = u2u(W.y1)-ry; x2 = u2u(W.x2)-rx; y2 = u2u(W.y2)-ry;
+          rot(E.angle, E.mirror, x1, y1); x1 = x; y1 = y;
+          rot(E.angle, E.mirror, x2, y2); x2 = x; y2 = y;
+          printf("LINE %g %g %g %g\n", x1, y1, x2, y2);
+//          }
+        }
+      E.package.circles(C) {
+//        if (C.layer == LAYER_TPLACE || C.layer == LAYER_BPLACE) {
+          x1 = u2u(C.x)-rx; y1 = u2u(C.y)-ry;
+          rot(E.angle, E.mirror, x1, y1);
+          printf("CIRCLE %g %g %g\n", x, y, u2u(C.radius));
+//          }
+        }
+      E.package.rectangles(R) {
+//        if (C.layer == LAYER_TPLACE || C.layer == LAYER_BPLACE) {
+          x1 = u2u(R.x1)-rx; y1 = u2u(R.y1)-ry; x2 = u2u(R.x2)-rx; y2 = u2u(R.y2)-ry;
+          rot(E.angle, E.mirror, x1, y1); x1 = x; y1 = y;
+          rot(E.angle, E.mirror, x2, y2); x2 = x; y2 = y;
+          printf("RECTANGLE %g %g %g %g\n", x1, y1, x2-x1, y2-y1);
+//          }
+        }
+// Comment the following 12 lines for Eagle Version 4.1 and above
+//      E.package.arcs(A) {
+////        if (A.layer == LAYER_TPLACE || A.layer == LAYER_BPLACE) {
+//          x1 = u2u(A.xc)-rx; y1 = u2u(A.yc)-ry;
+//          rot(E.angle, E.mirror, x1, y1); // new coord x,y
+//          angle1 = PI / 180.0 * (A.angle1 - E.angle);
+//          angle2 = PI / 180.0 * (A.angle2 - E.angle);
+//          printf("ARC %g %g %g %g %g %g\n",
+//            u2u(A.radius * cos(angle1)) + x, u2u(A.radius * sin(angle1)) + y,
+//            u2u(A.radius * cos(angle2)) + x, u2u(A.radius * sin(angle2)) + y,
+//            x, y);
+////          }
+//        }
+
+      E.package.contacts(C) {
+        printf("PIN %s ", C.name);
+
+        padstackname = padstackname_fromcontact(C, E);
+        printf("%s ", padstackname);
+
+        x1 = u2u(C.x)-rx; y1 = u2u(C.y)-ry;
+        rot(E.angle, E.mirror, x1, y1); // get x,y
+        printf("%g %g ", x, y);
+
+        if (C.pad) {
+          printf("TOP 0 0\n");
+          }
+        if (C.smd) {
+// TR PXK 09-APR-05: Make all pins top
+//          if (C.smd.layer == LAYER_TOP) {
+            printf("TOP 0 0\n");
+//            }
+//          else {
+//            printf("BOTTOM 0 0\n");
+//            }
+          }
+        }
+      }
+    }
+  printf ("$ENDSHAPES\n");
+  printf ("\n");
+  }
+//////////////////////////////////////////////////////
+void create_components(UL_BOARD B) {
+  string devicename;
+  int Top;
+  int NrOfPins;
+
+  printf ("$COMPONENTS\n");
+
+  B.elements(E) { // add exclusion for el. w/o package!!!
+    if (E.package) {
+
+// TR PXK 06-NOV-06: Exclude devices with 0 pins
+      NrOfPins = 0;
+      E.package.contacts(C) { NrOfPins++; }
+      if (NrOfPins > 0) {
+        printf ("COMPONENT %s\n", E.name);
+
+        devicename = E.package.name;
+        if (E.value)
+          devicename += "_" + E.value;
+        printf ("DEVICE %s\n", devicename);
+
+        printf ("PLACE %g %g\n", u2u(E.x), u2u(E.y));
+
+        if (!E.mirror) {
+// TR PXK 09-APR-05: Make devices with bottom elements only bottom
+          Top = 1;
+          E.package.contacts(C) {
+            if (C.smd) {
+              if (C.smd.layer == LAYER_BOTTOM) Top = 0;
+              }
+            }
+          if (!Top) {
+            E.package.contacts(C) {
+              if (C.pad) Top = 1;
+              if (C.smd) {
+                if (C.smd.layer == LAYER_TOP) Top = 1;
+                }
+              }
+            }
+          if (Top) {
+            printf ("LAYER TOP\n");
+            printf ("ROTATION %g\n", u2ang(E.angle));
+            printf ("SHAPE %s 0 0\n", E.package.name);
+            }
+          else {
+            printf ("LAYER BOTTOM\n");
+            printf ("ROTATION %g\n", u2ang(-E.angle));
+            printf ("SHAPE %s MIRRORY FLIP\n", E.package.name);
+            }
+          }
+        else {
+          printf ("LAYER BOTTOM\n");
+          printf ("ROTATION %g\n", u2ang(-E.angle));
+          printf ("SHAPE %s MIRRORY FLIP\n", E.package.name);
+          }
+
+        if (E.value)
+          printf ("ATTRIBUTE COMPONENT EAGLEVALUE %s\n", E.value);
+        }
+      }
+    }
+
+  printf ("$ENDCOMPONENTS\n");
+  printf ("\n");
+  }
+//////////////////////////////////////////////////////
+void create_devices(UL_BOARD B) {
+  int ndevices;
+  string devicenames[];
+  string devicename;
+  int new;
+  int i;
+  string padname;
+  int pad_is_numeric;
+  int padcount;
+
+  printf ("$DEVICES\n");
+  ndevices = 0;
+
+  B.elements(E) { // add exclusion for el. w/o package!!!
+    if (E.package) {
+      devicename = E.package.name;
+      if (E.value)
+        devicename += "_" + E.value;
+
+        new = 1;                    // padstacktype not generated yet
+        for (i = 0; devicenames[i]; i++) {
+          if (devicenames[i] == devicename)
+          new = 0;             // shapename exists
+        }
+      if (new) {
+        devicenames[ndevices] = devicename;
+        ndevices++;
+
+        printf ("DEVICE %s\n", devicename);
+        printf ("PART %s\n", devicename);
+        printf ("PACKAGE %s\n", E.package.name);
+	if (E.value) {
+          printf ("STYLE %s\n", E.value);
+          printf ("VALUE %s\n",E.value);
+          }
+
+        pad_is_numeric = 1;
+        E.package.contacts(C) { // test if name numeric
+          padname = C.name;
+          for (i = 0; padname[i]; ++i) {
+            if (!isdigit(padname[i])) {
+              pad_is_numeric = 0;
+              }
+            }
+          }
+
+        padcount = 0;
+        E.package.contacts(C) {
+          padcount++;
+          if (!pad_is_numeric) {
+            printf("PINDESC %s %d\n", C.name, padcount);
+            }
+          }
+
+        printf ("PINCOUNT %d\n", padcount);
+
+        get_user_parameters(E);                           // get user defined prop. from spec. layer
+        if (property_value[0])
+          printf("PART %s\n",property_value[0]);            // PARTNUMBER
+        if (property_value[1])
+          printf("TYPE %s\n",property_value[1]);            // PARTTYPE
+        if (property_value[2])
+          printf("DESC %s\n",property_value[2]);            // PARTDESCRIPTION
+        if (property_value[3])
+          printf("PTOL %s\n",property_value[3]);            // POS TOLERANCE
+        if (property_value[4])
+          printf("NTOL %s\n",property_value[4]);            // NEG TOLERANCE
+        if (property_value[5])
+          printf("ATTRIBUTE USER1 %s\n",property_value[5]); // USER1
+        if (property_value[6])
+          printf("ATTRIBUTE USER2 %s\n",property_value[6]); // USER2
+        if (property_value[7])
+          printf("ATTRIBUTE USER3 %s\n",property_value[7]); // USER3
+        }
+      }
+    }
+
+  printf ("$ENDDEVICES\n");
+  printf ("\n");
+  }
+//////////////////////////////////////////////////////
+void create_signals(UL_BOARD B) {
+  string devicename;
+
+  printf ("$SIGNALS\n");
+
+  B.signals(S) {
+    if (S.name) {
+
+      printf ("SIGNAL %s\n", S.name);
+      S.contactrefs(C) {
+        if (C.element)
+        printf ("NODE %s %s\n", C.element.name, C.contact.name);
+        }
+      }
+    }
+  printf ("$ENDSIGNALS\n");
+  printf ("\n");
+  }
+//////////////////////////////////////////////////////
+void create_tracks(UL_BOARD B) {
+  int ntracks;
+  string tracknames[];
+  string trackname;
+  real width;
+  int i;
+  int new;
+
+  printf ("$TRACKS\n");
+
+  ntracks = 0;
+
+  B.signals(S) {
+    if (S.name) {
+      S.wires(W) {
+        width = u2u(W.width);
+        sprintf(trackname, "TR%03.0f", round(width * 100));
+
+        new = 1;                    // padtype not generated yet
+        for (i = 0; tracknames[i]; i++) {
+          if (tracknames[i] == trackname) {
+            new = 0;             // padtype exists
+            }
+          }
+        if (new) {
+          tracknames[ntracks] = trackname;
+          ntracks++;
+          printf (" TRACK %s %g\n", trackname, width);
+          }
+        }
+      }
+    }
+
+  printf ("$ENDTRACKS\n");
+  printf ("\n");
+  }
+//////////////////////////////////////////////////////
+void create_layers(UL_BOARD B) {
+  printf ("$LAYERS\n");
+
+  B.layers(L) {
+    switch(L.number) {
+      case LAYER_TSTOP:
+        printf ("DEFINE SOLDERMASK_TOP %d", L.number);
+        if (L.name)
+          printf (":%s", L.name);
+        printf("\n");
+        break;
+      case LAYER_TOP:
+        printf ("DEFINE TOP %d", L.number);
+        if (L.name)
+          printf (":%s", L.name);
+        printf("\n");
+        break;
+      case LAYER_BOTTOM:
+        printf ("DEFINE BOTTOM %d", L.number);
+        if (L.name)
+          printf (":%s", L.name);
+        printf("\n");
+        break;
+      case LAYER_BSTOP:
+        printf ("DEFINE SOLDERMASK_BOTTOM %d", L.number);
+        if (L.name)
+          printf (":%s", L.name);
+        printf("\n");
+        break;
+      }
+    if ((L.number > LAYER_TOP) && (L.number < LAYER_BOTTOM)) {
+      printf ("DEFINE INNER%d %d", L.number - LAYER_TOP, L.number);
+      if (L.name)
+        printf (":%s", L.name);
+      printf("\n");
+      }
+    }
+
+  printf ("$ENDLAYERS\n");
+  printf ("\n");
+  }
+//////////////////////////////////////////////////////
+void create_routes(UL_BOARD B) {
+  real width;
+  real lastwidth;
+  int layer;
+  int lastlayer;
+  string trackname;
+  int nVia;
+  string padstackname;
+
+  printf ("$ROUTES\n");
+  B.signals(S) {
+    printf("ROUTE %s\n", S.name);
+    lastwidth = 0.0;
+    lastlayer = -1;
+    S.wires(W) {
+      width = u2u(W.width);
+      if (width != lastwidth) {
+        sprintf(trackname, "TR%03.0f", round(width * 100));
+        printf ("TRACK %s\n", trackname);
+        lastwidth = width;
+        }
+
+      layer = W.layer;
+      if (layer != lastlayer) {
+        switch(W.layer) {
+          case LAYER_TSTOP:
+            printf ("LAYER SOLDERMASK_TOP\n");
+            break;
+          case LAYER_TOP:
+            printf ("LAYER TOP\n");
+            break;
+          case LAYER_BOTTOM:
+            printf ("LAYER BOTTOM\n");
+            break;
+          case LAYER_BSTOP:
+            printf ("LAYER SOLDERMASK_BOTTOM\n");
+            break;
+          }
+        if ((layer > LAYER_TOP) && (W.layer < LAYER_BOTTOM)) {
+          printf ("LAYER INNER%d\n", W.layer - LAYER_TOP);
+          }
+        lastlayer = layer;
+        }
+      printf("LINE %g %g %g %g\n", u2u(W.x1), u2u(W.y1), u2u(W.x2), u2u(W.y2));
+      }
+    S.vias(V) {
+      padstackname = padstackname_fromvia(V);
+      nVia++;
+      printf("VIA %s %g %g TOP %g VIA%d\n", padstackname, u2u(V.x), u2u(V.y), u2u(V.drill), nVia);
+      }
+    }
+  printf ("$ENDROUTES\n");
+  printf ("\n");
+  }
+//////////////////////////////////////////////////////
+void init() {
+  padshape[PAD_SHAPE_SQUARE] = "SK";
+  padshape[PAD_SHAPE_ROUND]  = "RX";
+  padshape[PAD_SHAPE_OCTAGON] = "OP";
+// Uncomment the following line for Eagle Version 4.1 and above
+  padshape[PAD_SHAPE_LONG] = "LX";
+// Comment the following 4 lines for Eagle Version 4.1 and above
+//  padshape[PAD_SHAPE_XLONGOCT] = "XR";
+//  padshape[PAD_SHAPE_YLONGOCT] = "YG";
+  }
+//////////////////////////////////////////////////////
+{
+  string jobname;
+
+  if (board) board(B) {
+
+    jobname = filename(B.name);
+    jobname = strsub(jobname, 0, strlen(jobname) - 4);
+    sprintf(jobname, "%s\%s.cad", filedir(B.name), jobname);
+
+    string fileName = dlgFileSave("Save GenCAD File", filesetext(B.name, ".cad"), "*.cad");
+    if (fileName == "") exit(0);
+
+    output(fileName) {
+      init();
+      create_header(B);
+      create_board(B);
+      create_pads(B);
+      create_padstacks(B);
+      create_shapes(B);
+      create_components(B);
+      create_devices(B);
+      create_signals(B);
+      create_tracks(B);
+      create_layers(B);
+      create_routes(B);
+      }
+    }
+  else {
+    output("GENCAD.ERR", "at") {
+      printf("start GENCAD.ULP from BRD file.\n");
+      int t = time();
+      printf("Error file generated : %s \n", t2string(t));
+      }
+    }
+  }

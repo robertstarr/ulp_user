@@ -1,0 +1,313 @@
+/*
+ *  THIS VERSION ONLY WORKS WITH EAGLE 4.XX
+ *
+ *  This EAGLE User Language Program generates a script
+ *  which places a drill legend on the current board.
+ *  After executing the ULP update the drill diameter
+ *  symbols with Options - Set - Drill - Set
+ *  NEW MODIFICATION- PLACES THE SCRIPT IN ANY DIRECTORY
+ *  BY ANY NAME YOU WISH.
+ *
+ *
+ *   Filename: drillplan2_0.ulp                                                              
+ *   Edited by: Jeff Moore <engineer@nctimes.net>                                       
+ *   Date: February 5th 2001
+ *   Options - Set - Drill - Set
+ *
+ *   Edited by: Brad Goodman <brad@bradgoodman.com>
+ *   Date: January, 30, 2002
+ *   Added separate counts and reporting for plated drills.
+ *   Changed order of drawing, to smallest drills are first.
+ * 
+ *  Origonal Filename: drillplan.ulp
+ *  by: Frank Hoffman
+ *
+ *  Dieses ULP generiert ein Script, das eine Bohrlegende
+ *  im Layout plaziert.
+ *  Aktualisieren Sie anschließend die Symbole für die
+ *  Bohrdurchmesser mit 
+ *
+ *   Options - Set - Drill - Set
+ */
+
+int Drilling[];
+int Counts[];
+int Index[];
+int Plating[];
+int imax = 0;
+int totalDrills = 0;
+int totalPlates = 0;
+
+string strTmp;
+string strCmd;      // script command text
+
+int nUnits = 0;     // 0=metric, 1=emperial
+
+void AddDrilling(int Size,int plated)
+{
+    for ( int i = imax; --i >= 0; )
+    {
+        if (Drilling[i] == Size)
+        {
+            Counts[i]++;
+            totalDrills++;
+            if (plated == 1)
+            {
+                Plating[i]++;
+                totalPlates++;
+            }
+            return;
+        }
+    }
+    Drilling[imax] = Size;
+    if (plated == 1)
+    {
+        Plating[imax]=1;
+        totalPlates++;
+    }
+    else
+        Plating[imax]=0;
+    Counts[imax++] = 1;
+    totalDrills++;
+}
+
+
+
+board(B)
+{
+    int Result = dlgDialog("Add Drill Plan")
+    {
+        dlgHBoxLayout
+        {
+            dlgVBoxLayout
+            {
+                dlgGroup("Drill Plan Display Units")
+                {
+                    dlgRadioButton("Metric (mm)", nUnits);
+                    dlgRadioButton("Emperial (mil)", nUnits);
+                }
+                dlgStretch(1);
+            }
+        }
+        dlgHBoxLayout
+        {
+            dlgPushButton("OK") dlgAccept();
+            dlgPushButton("-Cancel") dlgReject();
+        }
+    };
+
+    if (!Result)
+        exit(0);
+    
+    real ylegend;
+    real xlegend = u2mil(B.area.x2) + 40;
+    real drill = 0;  
+    B.holes(H) AddDrilling(H.drill,0);
+    B.signals(S) S.vias(V) AddDrilling(V.drill,1);
+    B.elements(E)
+    {
+        E.package.contacts(C)
+        {
+            if (C.pad)
+                AddDrilling(C.pad.drill,1);
+        }
+        E.package.holes(H) AddDrilling(H.drill,0);
+    }
+
+    sort(imax, Index, Drilling, Counts );
+    
+    ylegend = u2mil(B.area.y1) + (imax* 200);
+
+    sprintf(strTmp, "GRID mil 50 ON;\n");
+    strCmd += strTmp;
+    sprintf(strTmp, "CHANGE SIZE 70;\n");
+    strCmd += strTmp;
+    sprintf(strTmp, "CHANGE RATIO 8;\n");
+    strCmd += strTmp;
+    sprintf(strTmp, "CHANGE LAYER 48;\n");
+    strCmd += strTmp;
+    sprintf(strTmp, "WINDOW FIT;\n");
+    strCmd += strTmp;
+    
+    for (int i = 0; i < imax; ++i)
+    {
+       sprintf(strTmp, "HOLE  %f (%f %f);\n", u2mil(Drilling[Index[i]]),
+                  xlegend + 200, ylegend - 100);
+       strCmd += strTmp;
+        
+       sprintf(strTmp, "WIRE 5  (%f %f) (%f %f);\n",
+                  u2mil(B.area.x2) + 40, ylegend,
+                  u2mil(B.area.x2) + 3140, ylegend );
+       strCmd += strTmp;
+        
+        if (nUnits == 0)
+        {
+            // Metric Units
+            sprintf(strTmp, "TEXT '%5.3f mm' (%f %f);\n", 
+                  u2mm(Drilling[Index[i]]),
+                  xlegend + 440,
+                  ylegend - 135 );
+            strCmd += strTmp;
+        
+            sprintf(strTmp, "TEXT '+/-0.075 mm' (%f %f);\n",
+                  xlegend + 1250, ylegend - 135 );
+            strCmd += strTmp;
+        }
+        else
+        {
+            // Emperial Units
+            sprintf(strTmp, "TEXT '%5.3f in' (%f %f);\n", 
+                  u2inch(Drilling[Index[i]]),
+                  xlegend + 440,
+                  ylegend - 135 );
+            strCmd += strTmp;
+        
+            sprintf(strTmp, "TEXT '+/-0.003 in' (%f %f);\n",
+                  xlegend + 1250, ylegend - 135 );
+            strCmd += strTmp;
+        }
+
+        sprintf(strTmp, "TEXT '%4d' (%f %f);\n",Counts[Index[i]],
+              xlegend + 2200, ylegend - 135 );
+        strCmd += strTmp;
+    
+        if (Counts[Index[i]] == Plating[Index[i]])
+        {
+            sprintf(strTmp, "TEXT 'Yes' (%f %f);\n",
+                      xlegend + 2600, ylegend - 135 );
+            strCmd += strTmp;
+        }
+        else
+        {
+            if (!Plating[Index[i]])
+            {
+                sprintf(strTmp, "TEXT 'NO' (%f %f);\n",
+                      xlegend + 2600, ylegend - 135 );
+                strCmd += strTmp;
+            }
+            else
+            {
+                sprintf(strTmp, "TEXT '%4d' (%f %f);\n", Plating[Index[i]],
+                  xlegend + 2600, ylegend - 135 );
+                strCmd += strTmp;
+            }
+        }
+    
+        ylegend -= 200;
+    }
+    
+    ylegend = u2mil(B.area.y1) + (imax* 200);
+    
+    sprintf(strTmp, "WIRE 5  (%f %f) (%f %f);\n",
+          u2mil(B.area.x2) + 40, u2mil(B.area.y1),
+          u2mil(B.area.x2) + 3140, u2mil(B.area.y1));
+    strCmd += strTmp;
+    
+    sprintf(strTmp, "WIRE 5  (%f %f) (%f %f);\n",
+          u2mil(B.area.x2) + 40, ylegend + 400,
+          u2mil(B.area.x2) + 3140, ylegend + 400 );
+    strCmd += strTmp;
+    
+    sprintf(strTmp, "WIRE 5  (%f %f) (%f %f);\n", 
+          u2mil(B.area.x2) + 40, u2mil(B.area.y1),
+          u2mil(B.area.x2) + 40, ylegend + 400 );
+    strCmd += strTmp;
+    
+    sprintf(strTmp, "WIRE 5  (%f %f) (%f %f);\n", 
+          u2mil(B.area.x2) + 3140, u2mil(B.area.y1),
+          u2mil(B.area.x2) + 3140, ylegend + 400 );
+    strCmd += strTmp;
+    
+    sprintf(strTmp, "WIRE 5  (%f %f) (%f %f);\n",
+          u2mil(B.area.x2) + 40, ylegend + 200,
+          u2mil(B.area.x2) + 3140, ylegend + 200 );
+    strCmd += strTmp;
+    
+    sprintf(strTmp, "WIRE 5  (%f %f) (%f %f);\n",
+          u2mil(B.area.x2) + 40, ylegend,
+          u2mil(B.area.x2) + 3140, ylegend );
+    strCmd += strTmp;
+    
+    sprintf(strTmp, "WIRE 5  (%f %f) (%f %f);\n", 
+          u2mil(B.area.x2) + 410, u2mil(B.area.y1),
+          u2mil(B.area.x2) + 410, ylegend + 200 );
+    strCmd += strTmp;
+    
+    sprintf(strTmp, "WIRE 5  (%f %f) (%f %f);\n", 
+          u2mil(B.area.x2) + 2140, u2mil(B.area.y1),
+          u2mil(B.area.x2) + 2140, ylegend + 200 );
+    strCmd += strTmp;
+    
+    sprintf(strTmp, "WIRE 5  (%f %f) (%f %f);\n", 
+          u2mil(B.area.x2) + 2540, u2mil(B.area.y1),
+          u2mil(B.area.x2) + 2540, ylegend + 200 );
+    strCmd += strTmp;
+    
+    sprintf(strTmp, "CHANGE SIZE 150;\n");
+    strCmd += strTmp;
+    
+    sprintf(strTmp, "TEXT 'DRILL PLAN' (%f %f);\n",
+          xlegend + 800, ylegend + 225);
+    strCmd += strTmp;
+    
+    sprintf(strTmp, "CHANGE SIZE 100;\n");
+    strCmd += strTmp;
+    
+    sprintf(strTmp, "TEXT 'SYM' (%f %f);\n",
+          xlegend + 50, ylegend + 50);
+    strCmd += strTmp;
+    
+    sprintf(strTmp, "TEXT 'SIZE' (%f %f);\n",
+          xlegend + 460, ylegend + 50);
+    strCmd += strTmp;
+    
+    sprintf(strTmp, "TEXT 'TOL.' (%f %f);\n",
+          xlegend + 1250, ylegend + 50);
+    strCmd += strTmp;
+    
+    sprintf(strTmp, "TEXT 'CNT' (%f %f);\n",
+          xlegend + 2190, ylegend + 50);
+    strCmd += strTmp;
+    
+    sprintf(strTmp, "TEXT 'PLATE' (%f %f);\n",
+          xlegend + 2590, ylegend + 50);
+    strCmd += strTmp;
+    
+    sprintf(strTmp, "CHANGE SIZE 70;\n");
+    strCmd += strTmp;
+    
+    sprintf(strTmp, "TEXT 'TOTAL' (%f %f);\n",
+          xlegend + 1600, u2mil(B.area.y1) - 150 );
+    strCmd += strTmp;
+
+    sprintf(strTmp, "TEXT '%4d' (%f %f);\n",totalDrills,
+          xlegend + 2200, u2mil(B.area.y1) - 150 );
+    strCmd += strTmp;
+
+    sprintf(strTmp, "TEXT '%4d' (%f %f);\n",totalPlates,
+          xlegend + 2600, u2mil(B.area.y1) - 150 );
+    strCmd += strTmp;
+    
+    //sprintf(strTmp, "TEXT '(Set the drill symbols with' (%f %f);\n",
+    //        xlegend + 120, ylegend + 1000 );
+    // strCmd += strTmp;
+    
+    //sprintf(strTmp, "TEXT 'Options - Set - Drill - Set)' (%f %f);\n",
+    //        xlegend + 120, ylegend + 900);
+    // strCmd += strTmp;
+    
+    //sprintf(strTmp, "TEXT 'Drill file will contain one extra of' (%f %f);\n",
+    //        xlegend + 120, ylegend + 700 );
+    // strCmd += strTmp;
+    
+    //sprintf(strTmp, "TEXT 'each drill, placed in above diagram.' (%f %f);\n",
+    //        xlegend + 120, ylegend + 600);
+    // strCmd += strTmp;
+    
+    sprintf(strTmp, "WINDOW FIT;\n");
+    strCmd += strTmp;
+    
+    exit(strCmd);
+}
+
+

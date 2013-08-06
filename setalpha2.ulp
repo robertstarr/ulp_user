@@ -1,0 +1,61 @@
+#usage "run setalpha 1 90\n"
+"to set the alpha value of whatever color layer 1 is using to 90\n"
+
+
+string usedLayer[]  = { "NONE" };
+int    usedLayerN[] = { 0 };
+int    colorN[];
+int    nAlpha = 255;
+int    cnt = 0;
+int    nsel = 0;
+int    setLayer = 0;
+
+int menue(void) {
+
+  dlgDialog("Set Layer Alpha") {
+    dlgGroup("Layer Alpha") {
+      dlgHBoxLayout {
+        dlgLabel("&Layer");
+        dlgComboBox(usedLayer, nsel);
+      }
+      dlgHBoxLayout {
+        dlgLabel("Alpha");
+        dlgIntEdit(nAlpha, 0, 255);
+      }
+    }
+
+    dlgHBoxLayout {
+      dlgPushButton("+OK") {
+        setLayer = usedLayerN[nsel];
+        dlgAccept();
+        return 1;
+      }
+      dlgStretch(1);
+      dlgPushButton("-&Cancel") { dlgReject(); exit (0);}
+    }
+  };
+  return 0;
+}
+
+
+if (board) board(B) {
+
+  B.layers(L) {
+    usedLayerN[cnt] = L.number;
+    usedLayer[cnt]  = L.name;
+    colorN[cnt]     = L.color;
+    ++cnt;
+  }
+
+  if (menue()) {
+    int color = (palette(colorN[setLayer]) & 0x00FFFFFF) | (nAlpha << 24);
+    string s;
+    sprintf(s, "SET PALETTE %d 0x%08X;", colorN[setLayer], color);
+  dlgMessageBox(s, "OK");
+    exit(0);
+  }
+
+} else {
+  dlgMessageBox("Run this ULP from a Board", "OK");
+  exit (0);
+}

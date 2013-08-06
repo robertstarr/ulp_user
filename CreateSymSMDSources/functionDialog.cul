@@ -1,0 +1,686 @@
+/**************************************************************************
+This functionDialog.cul is a subroutine for the CreateSymSMDPackage.ulp
+Do not edit, remove or delete.
+***************************************************************************/
+
+// Dialog Functions 
+
+// show Wizard(n)
+int showWizard(int windowNum)  {
+   int nextWindowNum = 0, nPad;
+   string textNext;
+   sprintf(textNext,"%s - %s",tr("Generate a symmetric SMD package"),tr("Wizard"));
+   dlgDialog(textNext) {
+      sprintf(textNext,"<h2>%s: %s %d %s %d</h2>",tr("Wizard"), tr("Step"), windowNum+1, tr("of"), useDefault? 3:4);
+      if(windowNum == 4) {
+         sprintf(textNext,"<h2>%s</h2>",tr("Summary"));
+      }
+      dlgLabel(textNext,1);
+      switch(windowNum) {
+         case 0: // First Window ask for Quad or Double sided package and Number of Pins
+            dlgGroup(tr("Package")){
+               dlgGridLayout{
+                  dlgCell(0,0) dlgRadioButton(tr("Double sided package"),qfpOrSop);
+                  dlgCell(0,1) dlgRadioButton(tr("Quad sided package"),qfpOrSop);
+                  dlgCell(1,0) dlgLabel(picSopMeasure);
+                  dlgCell(1,1) dlgLabel(picQfpMeasure);
+               }
+            }
+            dlgGroup(tr("Number of pins")) {
+               dlgHBoxLayout{
+                  dlgSpinBox(sopNumPins,0,5000);
+                  dlgStretch(1);
+               }
+            }
+            dlgHBoxLayout{ // Buttons
+               dlgPushButton(tr("-Cancel")){
+                  nextWindowNum=1000;
+                  dlgReject(nextWindowNum);
+               }
+               dlgSpacing(40);
+               dlgStretch(1);
+               dlgPushButton(tr("+Next >")) {
+                  nextWindowNum = windowNum+1;
+                  if(qfpOrSop) {
+                     if(sopNumPins%4) {
+                        nextWindowNum--;
+                        dlgMessageBox(tr(":The number of pins must be a multiple of 4."),tr("+OK"));
+                     }
+                  } else {
+                     if(sopNumPins%2) {
+                        nextWindowNum--;
+                        dlgMessageBox(tr(":The number of pins must be a multiple of 2."),tr("+OK"));
+                     }
+                  }
+                  if(nextWindowNum != windowNum) {
+                     dlgAccept(nextWindowNum);
+                  }
+               }
+            }
+         break;
+         case 1: // Name and create new package ?
+            sopOverwrite = 0;
+            if(qfpOrSop) {
+               sprintf(sopPackageName,"QFP%d",sopNumPins);
+            } else {
+               sprintf(sopPackageName,"SOP%d",sopNumPins);
+            }
+            if(!package) {
+               sopNewPackage = 1;
+            }
+            dlgGridLayout{
+               dlgCell(0,0) dlgLabel(tr("Package name"));
+               dlgCell(1,0) dlgStringEdit(sopPackageName);
+               dlgCell(1,1) dlgCheckBox(tr("Create a new package"),sopNewPackage);
+            }
+            dlgSpacing(20);
+            dlgHBoxLayout{ // Buttons
+               dlgPushButton(tr("-Cancel")){
+                  nextWindowNum=1000;
+                  dlgReject(nextWindowNum);
+               }
+               dlgSpacing(40);
+               dlgStretch(1);
+               dlgPushButton(tr("< &Back")) {
+                     nextWindowNum = windowNum-1;
+                     dlgAccept(nextWindowNum);
+               }
+               dlgPushButton(tr("+Next >")) {
+                  sopPackageName = strupr(sopPackageName);
+                  nextWindowNum = windowNum+1;
+                  if((package) && (!sopNewPackage)) {
+                     nPad=0;
+                     package(PAC) {
+                        PAC.contacts(C) {
+                           nPad++;
+                        }
+                     }
+                     if(nPad) {
+                        dlgMessageBox(tr(":The package must not contain any pads."),tr("+OK"));
+                        nextWindowNum=windowNum;
+                     }
+                  }
+                  if((!sopNewPackage) && (!package)) {
+                     if(dlgMessageBox(tr(";Create a new package?"),tr("+Yes"),tr("-No"))==0) {
+                        sopNewPackage=1;
+                     } else {
+                        nextWindowNum=windowNum;
+                     }
+                  }
+                  if(sopNewPackage) {
+                     nPad=0;
+                     library(L){
+                        L.packages(PAC){
+                           if(PAC.name==strupr(sopPackageName)) {
+                              // package already exist ==> ask for overwrite
+                              nPad=1;
+                           }
+                        }
+                     }
+                     if(nPad) {
+                        nPad=0;
+                        library(L){
+                           L.devicesets(S){
+                              S.devices(D){
+                                 if(D.package){
+                                    if(D.package.name == strupr(sopPackageName)) {
+                                       nPad=1;
+                                    }
+                                 }
+                              }
+                           }  
+                        }
+                        if(nPad) { // Package wird bereits verwendet 
+                           dlgMessageBox(tr(":The package is used in other devices."),tr("+OK"));
+                           nextWindowNum=windowNum;
+                        } else { // Package wird noch nicht verwendet
+                           if(dlgMessageBox(tr(";Package already exist. Overwrite?"),tr("+Yes"),tr("-No"))==0) {
+                              sopOverwrite=1;
+                           } else {
+                              nextWindowNum = windowNum;
+                           }                           
+                        }
+                     }                        
+                  }
+                  if((strchr(sopPackageName,';')+1) || (strchr(sopPackageName,'.')+1) || 
+                     (strchr(sopPackageName,' ')+1) || (strchr(sopPackageName,9)+1)){
+                     dlgMessageBox(tr(":The package name must not included any white space or one of the "
+                     "following signs: '.', ';'."));
+                     nextWindowNum = windowNum;
+                  }
+                  if(nextWindowNum != windowNum) {
+                     dlgAccept(nextWindowNum);
+                  }
+               }
+            }            
+         break;
+         case 2: // Measurements (general)
+            if(qfpOrSop) {
+               picMeasure = picQfpMeasure;
+            } else {
+               picMeasure = picSopMeasure;
+            }
+            dlgVBoxLayout{
+               dlgStretch(1);
+               dlgLabel(tr("Dimensions in"));
+               dlgComboBox(strSopGrid, sopGridSel) {
+                  sopGridSelOld=SopChangeUnit(sopGridSel, sopGridSelOld);
+                  strSopUnit=strSopGrid[sopGridSel];
+               };
+            }
+            dlgHBoxLayout {
+               dlgGroup(tr("Package")) {
+                  if(!qfpOrSop) {
+                     dlgHBoxLayout{
+                        dlgStretch(2);
+                        dlgLabel("A");
+                        dlgRealEdit(sopA);
+                        dlgLabel(strSopUnit,1);
+                        dlgStretch(1);
+                     }
+                  }
+                  dlgHBoxLayout{
+                     dlgStretch(2);
+                     dlgLabel("B");
+                     dlgRealEdit(sopB);
+                     dlgLabel(strSopUnit,1);
+                     dlgStretch(1);
+                  }
+                  dlgHBoxLayout{
+                     dlgStretch(2);
+                     dlgLabel("B1");
+                     dlgRealEdit(sopB1);
+                     dlgLabel(strSopUnit,1);
+                     dlgStretch(1);
+                  }
+                  dlgHBoxLayout{
+                     dlgStretch(2);
+                     dlgLabel("P");
+                     dlgRealEdit(sopP);
+                     dlgLabel(strSopUnit,1);
+                     dlgStretch(1);
+                  }
+               } // VBoxLayout
+               dlgLabel(picMeasure,1);
+               
+            } // HBoxLayout
+            dlgCheckBox(tr("Use default settings for pads and line width"),useDefault){
+               sprintf(textNext,"<h2>%s: %s %d %s %d</h2>",tr("Wizard"), tr("Step"), 
+                  windowNum+1, tr("of"), useDefault? 3:4);
+            }
+            dlgHBoxLayout{ // Buttons
+               dlgPushButton(tr("-Cancel")){
+                  nextWindowNum=1000;
+                  dlgReject(nextWindowNum);
+               }
+               dlgSpacing(40);
+               dlgStretch(1);
+               dlgPushButton(tr("< &Back")) {
+                     nextWindowNum = windowNum-1;
+                     dlgAccept(nextWindowNum);
+               }
+               dlgPushButton(tr("+Next >")) {
+                  if(useDefault) {
+                     nextWindowNum = windowNum+2;
+                     setDefault();
+                  } else {
+                     nextWindowNum = windowNum+1;
+                  }
+                  if(nextWindowNum != windowNum) {
+                     dlgAccept(nextWindowNum);
+                  }
+               }
+            }
+         break;
+         case 3: // Measurements (advanced)
+            dlgVBoxLayout{
+               dlgStretch(1);
+               dlgLabel(tr("Dimensions in"));
+               dlgComboBox(strSopGrid, sopGridSel) {
+                  sopGridSelOld=SopChangeUnit(sopGridSel, sopGridSelOld);
+                  strSopUnit=strSopGrid[sopGridSel];
+               };
+            }
+            dlgHBoxLayout {
+               dlgVBoxLayout{
+                  dlgGroup(tr("SMD pad")) {
+                     dlgHBoxLayout{
+                        dlgStretch(2);
+                        dlgLabel("L");
+                        dlgRealEdit(sopL);
+                        dlgLabel(strSopUnit,1);
+                        dlgStretch(1);
+                     }
+                     dlgHBoxLayout{
+                        dlgStretch(1);
+                        dlgLabel("<html>&#10005;</html>");
+                        dlgStretch(1);
+                     }
+                     dlgHBoxLayout{
+                        dlgStretch(2);
+                        dlgLabel("H");
+                        dlgRealEdit(sopH);
+                        dlgLabel(strSopUnit,1);
+                        dlgStretch(1);
+                     }
+                     dlgHBoxLayout{
+                        dlgCheckBox(tr("First pin rounded"),firstPinRounded) {
+                           if(firstPinRounded) {
+                              picPadMeasure = picPadMeasureRd;
+                              pad1Rd=pad1RdOld;
+                           } else {
+                              picPadMeasure = picPadMeasureNRd;
+                              pad1RdOld = pad1Rd;
+                              pad1Rd    = 0;
+                           }
+                        }
+                        dlgLabel(tr("Roundness"));
+                        dlgSpinBox(pad1Rd,0,100);
+                        dlgLabel("\%");
+                        dlgStretch(1);
+                     }
+                  } // Group
+                  dlgGroup(tr("Distances and line width")) {
+                     dlgHBoxLayout{
+                        dlgStretch(2);
+                        dlgLabel("K");
+                        dlgRealEdit(sopK);
+                        dlgLabel(strSopUnit,1);
+                        dlgStretch(1);
+                     }
+                     dlgHBoxLayout{
+                        // dlgStretch(2);
+                        dlgLabel(tr("Linewidth"));
+                        dlgRealEdit(sopLineW);
+                        dlgLabel(strSopUnit,1);
+                        dlgStretch(1);
+                     }
+                  } // Group
+               } // VBoxLayout
+               dlgLabel(picPadMeasure,1);
+            } // HBoxLayout
+            dlgHBoxLayout{
+               dlgGroup(tr("Exposed pad")) {
+                  dlgCheckBox(tr("Exposed pad on center"),exposedPad);
+                  dlgHBoxLayout{
+                        dlgStretch(2);
+                        dlgLabel("Le");
+                        dlgRealEdit(sopHe);
+                        dlgLabel(strSopUnit,1);
+                        dlgStretch(1);
+                     }
+                     dlgHBoxLayout{
+                        dlgStretch(1);
+                        dlgLabel("<html>&#10005;</html>");
+                        dlgStretch(1);
+                     }
+                     dlgHBoxLayout{
+                        dlgStretch(2);
+                        dlgLabel("He");
+                        dlgRealEdit(sopLe);
+                        dlgLabel(strSopUnit,1);
+                        dlgStretch(1);
+                     }
+               } // Group
+               dlgLabel(picEPMeasure);
+            } // HBoxLayout
+            dlgHBoxLayout{ // Buttons
+               dlgPushButton(tr("-Cancel")){
+                  nextWindowNum=1000;
+                  dlgReject(nextWindowNum);
+               }
+               dlgSpacing(40);
+               dlgStretch(1);
+               dlgPushButton(tr("< &Back")) {
+                     nextWindowNum = windowNum-1;
+                     dlgAccept(nextWindowNum);
+               }
+               dlgPushButton(tr("+Next >")) {
+                  nextWindowNum = windowNum+1;
+                  if(nextWindowNum != windowNum) {
+                     dlgAccept(nextWindowNum);
+                  }
+               }
+            }
+         break;
+         case 4: // summary
+            textNext = createSummery();
+            // a trick for get a greater window size
+            dlgHBoxLayout{
+               dlgSpacing(500);
+            }
+            dlgHBoxLayout{
+               dlgVBoxLayout {
+                  dlgSpacing(500);
+               }
+               dlgTextView(textNext);
+            }
+            dlgSpacing(20);
+            dlgHBoxLayout{ // Buttons
+               dlgPushButton(tr("-Cancel")){
+                  nextWindowNum=1000;
+                  dlgReject(nextWindowNum);
+               }
+               dlgSpacing(40);
+               dlgStretch(1);
+               if(windowNum) {
+                  dlgPushButton(tr("< &Back")) {
+                     if(useDefault) {
+                        nextWindowNum = windowNum-2;
+                     } else {
+                        nextWindowNum = windowNum-1;
+                     }
+                     dlgAccept(nextWindowNum);
+                  }
+               }
+               dlgPushButton(tr("+Finish")) {
+                  nextWindowNum = windowNum+1;
+                  dlgAccept(nextWindowNum);
+               }
+            }
+         break;
+         default:
+            dlgHBoxLayout{ // Buttons
+               dlgPushButton(tr("-Cancel")){
+                  nextWindowNum=1000;
+                  dlgReject(nextWindowNum);
+               }
+            }
+         break;
+      } // Switch(windowNum)
+   }; // Dialog
+   
+   return nextWindowNum;
+}
+
+// Wizard
+int wizard() {
+   int retOK=0, wizNum=0;
+   while (wizNum<5) {
+      wizNum = showWizard(wizNum);
+   }
+   if(wizNum==5){
+      if(qfpOrSop) {
+         retOK = 2;
+      } else {
+         retOK=1;
+      }
+   }
+   return retOK;
+}
+   
+
+// Dialog
+int showDialog(){
+   int retOK=0;
+   int nPad=0;
+   dlgDialog(tr("Generate a symmetric SMD package")) {
+      dlgGroup(tr("General")) {
+         dlgHBoxLayout{
+            dlgGroup(tr("Package")) {
+               // Ändern des Layouts in QFP bzw. SOP
+               dlgRadioButton(tr("Double sided package"),qfpOrSop){
+                  picMeasure  = picSopMeasure;
+               }
+               dlgRadioButton(tr("Quad sided package"),qfpOrSop){
+                  picMeasure  = picQfpMeasure;
+               }
+            }
+            dlgStretch(1);
+            dlgVBoxLayout{
+               dlgLabel(tr("Package name"));
+               dlgStringEdit(sopPackageName);
+               dlgLabel(tr("Number of pins"));
+               dlgSpinBox(sopNumPins,0,5000);
+            }
+            dlgStretch(1);
+            dlgVBoxLayout{
+               dlgCheckBox(tr("Create a new package"),sopNewPackage);
+               dlgStretch(1);
+               dlgLabel(tr("Dimensions in"));
+               dlgComboBox(strSopGrid, sopGridSel) {
+                  sopGridSelOld=SopChangeUnit(sopGridSel, sopGridSelOld);
+                  strSopUnit=strSopGrid[sopGridSel];
+               };
+            }
+            dlgStretch(1);
+         } // HBoxLayout
+      } // Group General
+      dlgTabWidget{
+         dlgTabPage(tr("General settings")){
+            dlgHBoxLayout {
+               dlgGroup(tr("Package")) {
+                  dlgHBoxLayout{
+                     dlgStretch(2);
+                     dlgLabel("A");
+                     dlgRealEdit(sopA);
+                     dlgLabel(strSopUnit,1);
+                     dlgStretch(1);
+                  }
+                  dlgHBoxLayout{
+                     dlgStretch(2);
+                     dlgLabel("B");
+                     dlgRealEdit(sopB);
+                     dlgLabel(strSopUnit,1);
+                     dlgStretch(1);
+                  }
+                  dlgHBoxLayout{
+                     dlgStretch(2);
+                     dlgLabel("B1");
+                     dlgRealEdit(sopB1);
+                     dlgLabel(strSopUnit,1);
+                     dlgStretch(1);
+                  }
+                  dlgHBoxLayout{
+                     dlgStretch(2);
+                     dlgLabel("P");
+                     dlgRealEdit(sopP);
+                     dlgLabel(strSopUnit,1);
+                     dlgStretch(1);
+                  }
+               } // VBoxLayout
+               dlgLabel(picMeasure,1);
+               
+            } // HBoxLayout
+            dlgCheckBox(tr("Use default settings for pads and line width"),useDefault){
+               // Pad und line width settings
+               if(useDefault){
+                  setDefault();
+               }
+            }
+            dlgSpacing(10);
+            dlgHBoxLayout {
+               dlgSpacing(40);
+               dlgPushButton(tr("&Wizard")) {
+                  retOK = wizard();
+                  if(retOK) {
+                     dlgAccept(retOK);
+                  }
+               }
+               dlgStretch(1);
+               dlgPushButton(tr("+OK"))    {
+                  sopPackageName = strupr(sopPackageName);
+                  if(qfpOrSop) { // QFP package
+                     if(sopNumPins%4) {
+                        dlgMessageBox(tr(":The number of pins must be a multiple of 4."),tr("+OK"));
+                     } else {
+                        retOK=2;
+                     }
+                  } else {
+                     if(sopNumPins%2){
+                        // Error Number of Pins must be a multiple of 2
+                        dlgMessageBox(tr(":The number of pins must be a multiple of 2."),tr("+OK"));
+                     } else {
+                        retOK=1;
+                     }
+                  }
+                  if(retOK) {
+                     if((package) && (!sopNewPackage)) {
+                        nPad=0;
+                        package(PAC) {
+                           PAC.contacts(C) {
+                              nPad++;
+                           }
+                        }
+                        if(nPad) {
+                           dlgMessageBox(tr(":The package must not contain any pads."),tr("+OK"));
+                           retOK=0;
+                        }
+                     }
+                     if((!sopNewPackage) && (!package)) {
+                        if(dlgMessageBox(tr(";Create a new package?"),tr("+Yes"),tr("-No"))==0) {
+                           sopNewPackage=1;
+                        } else {
+                           retOK=0;
+                        }
+                     }
+                     if(sopNewPackage) {
+                        nPad=0;
+                        library(L){
+                           L.packages(PAC){
+                              if(PAC.name==strupr(sopPackageName)) {
+                                 // package already exist ==> ask for overwrite
+                                 nPad=1;
+                              }
+                           }
+                        }
+                        if(nPad) {
+                           nPad=0;
+                           library(L){
+                              L.devicesets(S){
+                                 S.devices(D){
+                                    if(D.package){
+                                       if(D.package.name == strupr(sopPackageName)) {
+                                          nPad=1;
+                                       }
+                                    }
+                                 }
+                              }  
+                           }
+                           if(nPad) { // Package wird bereits verwendet 
+                              dlgMessageBox(tr(":The package is used in other devices."),tr("+OK"));
+                              retOK=0;
+                           } else { // Package wird noch nicht verwendet
+                              if(dlgMessageBox(tr(";Package already exist. Overwrite?"),tr("+Yes"),tr("-No"))==0) {
+                                 sopOverwrite=1;
+                              } else {
+                                 retOK=0;
+                              }                           
+                           }
+                        }                        
+                     } 
+                  }
+                  if((strchr(sopPackageName,';')+1) || (strchr(sopPackageName,'.')+1) || 
+                     (strchr(sopPackageName,' ')+1) || (strchr(sopPackageName,9)+1)){
+                     dlgMessageBox(tr(":The package name must not included any white space or one of the "
+                     "following signs: '.', ';'."));
+                     retOK = 0;
+                  }
+                  if(retOK) {
+                     dlgAccept(retOK);
+                  }
+               }
+               dlgPushButton(tr("-Cancel")) dlgReject();
+            } // HBoxLayout
+         } // Tab Page General settings
+         dlgTabPage(tr("Advanced settings")){
+            if(useDefault) { // Defaultwerte für Pads und Line width generieren
+               setDefault();
+            }
+            dlgHBoxLayout {
+               dlgVBoxLayout{
+                  dlgGroup(tr("SMD pad")) {
+                     dlgHBoxLayout{
+                        dlgStretch(2);
+                        dlgLabel("L");
+                        dlgRealEdit(sopL);
+                        dlgLabel(strSopUnit,1);
+                        dlgStretch(1);
+                     }
+                     dlgHBoxLayout{
+                        dlgStretch(1);
+                        dlgLabel("<html>&#10005;</html>");
+                        dlgStretch(1);
+                     }
+                     dlgHBoxLayout{
+                        dlgStretch(2);
+                        dlgLabel("H");
+                        dlgRealEdit(sopH);
+                        dlgLabel(strSopUnit,1);
+                        dlgStretch(1);
+                     }
+                     dlgHBoxLayout{
+                        dlgCheckBox(tr("First pin rounded"),firstPinRounded) {
+                           if(firstPinRounded) {
+                              picPadMeasure = picPadMeasureRd;
+                              pad1Rd=pad1RdOld;
+                           } else {
+                              picPadMeasure = picPadMeasureNRd;
+                              pad1RdOld = pad1Rd;
+                              pad1Rd    = 0;
+                           }
+                        }
+                        dlgLabel(tr("Roundness"));
+                        dlgSpinBox(pad1Rd,0,100);
+                        dlgLabel("\%");
+                        dlgStretch(1);
+                     }
+                  } // Group
+                  dlgGroup(tr("Distances and line width")) {
+                     dlgHBoxLayout{
+                        dlgStretch(1);
+                        dlgLabel("K");
+                        dlgRealEdit(sopK);
+                        dlgLabel(strSopUnit,1);
+                        dlgStretch(1);
+                     }
+                     dlgHBoxLayout{
+                        // dlgStretch(2);
+                        dlgLabel(tr("Linewidth"));
+                        dlgRealEdit(sopLineW);
+                        dlgLabel(strSopUnit,1);
+                        dlgStretch(1);
+                     }
+                  } // Group
+               } // VBoxLayout
+               dlgLabel(picPadMeasure,1);
+            } // HBoxLayout
+            dlgHBoxLayout{
+               dlgGroup(tr("Exposed pad")) {
+                  dlgCheckBox(tr("Exposed pad on center"),exposedPad);
+                  dlgHBoxLayout{
+                        dlgStretch(2);
+                        dlgLabel("Le");
+                        dlgRealEdit(sopHe);
+                        dlgLabel(strSopUnit,1);
+                        dlgStretch(1);
+                     }
+                     dlgHBoxLayout{
+                        dlgStretch(1);
+                        dlgLabel("<html>&#10005;</html>");
+                        dlgStretch(1);
+                     }
+                     dlgHBoxLayout{
+                        dlgStretch(2);
+                        dlgLabel("He");
+                        dlgRealEdit(sopLe);
+                        dlgLabel(strSopUnit,1);
+                        dlgStretch(1);
+                     }
+               } // Group
+               dlgLabel(picEPMeasure);
+            } // HBoxLayout
+         } // Tab Page Advanced settings
+         
+         dlgTabPage(tr("Documentation")){
+            if(i16Lang==1){
+               dlgTextView(textHelpDE);
+            } else {
+               dlgTextView(textHelpEN);
+            }
+         }
+         
+      }
+   };
+   return retOK;
+}

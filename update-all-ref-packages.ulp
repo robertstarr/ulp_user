@@ -1,0 +1,29 @@
+#usage "<b>run a ULP through all libraries in a directory</b><p>\n"
+       "This is an example how to loop through all libraries in a directory "
+       "and counts the devices.<p>"
+       "Load any library from the library directory and execute the ULP.<p>"
+       "<author>Author: support@cadsoft.de</author><p><p>"
+
+string a[], cmd;
+
+
+//-------- main program --------------------------------------------------
+
+if  (library) {
+   library(L) {
+      string lbr_path = filedir(L.name);
+      string ulpFile = "update-ref-packages.ulp";
+      int n = fileglob(a, lbr_path + "*.lbr");
+      if (n) {
+         //dlgMessageBox("Library Path: "+lbr_path, "OK");
+        for (int xl = 0; xl < n; xl++) {
+            string h;
+            sprintf(h, "OPEN '" + lbr_path + filename(a[xl]) + "';\nRUN '" + ulpFile + "';\n");
+            cmd += h;
+            }
+         }
+      }
+   exit (cmd);
+   }
+
+else dlgMessageBox("Start this ULP from a Library", "OK");

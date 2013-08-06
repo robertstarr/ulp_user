@@ -1,0 +1,51 @@
+string GetServiceURL()
+{
+    return "http://localhost:59820/Service1.svc";
+}
+
+
+if (schematic)
+{
+    string partNum;
+    
+    // Build the XML query string
+    string timeStamp = t2string(time(), "Uyyyy-MM-ddThh:mm:ss.000");
+    string Result;
+    
+//    string Query = "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\">\n"
+//                   "  <s:Header>\n"
+//                   "    <Action s:mustUnderstand=\"1\" xmlns=\"http://schemas.microsoft.com/ws/2005/05/addressing/none\">http://tempuri.org/IService1/GetData</Action>\n"
+//                   "  </s:Header>\n"
+//                   "  <s:Body>\n"
+//                   "    <GetData xmlns=\"http://tempuri.org/\">\n"
+//                   "      <value>23</value>\n"
+//                   "    </GetData>\n"
+//                   "  </s:Body>\n"
+//                   "</s:Envelope>\n";
+
+    string Query = "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\">\n"
+                   "  <s:Header>\n"
+                   "    <Action s:mustUnderstand=\"1\" xmlns=\"http://schemas.microsoft.com/ws/2005/05/addressing/none\">http://tempuri.org/IService1/GetData</Action>\n"
+                   "    <ActivityId CorrelationId=\"56593589-cbcc-4796-8e44-d6692d114a2c\" xmlns=\"http://schemas.microsoft.com/2004/09/ServiceModel/Diagnostics\">4619ad01-d423-44af-9c34-f33dc9a5b96f</ActivityId>\n"
+                   "  </s:Header>\n"
+                   "  <s:Body>\n"
+                   "    <GetData xmlns=\"http://tempuri.org/\">\n"
+                   "      <value>33</value>\n"
+                   "    </GetData>\n"
+                   "  </s:Body>\n"
+                   "</s:Envelope>\n";
+
+    int rc = netpost(Result, GetServiceURL(), Query, 15, "text/xml;charset=utf-8");
+                    
+    if (rc >= 0)
+    {
+        dlgMessageBox(Result);
+        dlgMessageBox(Query);        
+    }
+    else
+    {
+        dlgMessageBox(neterror()); 
+        dlgMessageBox(Query);        
+    }
+}
+    

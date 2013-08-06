@@ -1,0 +1,71 @@
+#usage "<b>SMASH ALL</b><p>\n"
+       "<hr>"
+       "This Program will Execute 'SMASH' Command " 
+       "for all parts on Board or Schematic<p>\n"
+
+// Based on sm_all.ulp by Reinhard Daemon < yum@fexphds01.tu-graz.ac.at >
+// Extended by Sergey Molchanov < serge@lineo.ca > 29 May 2001
+
+
+if (dlgMessageBox("<b>SMASH ALL ?</b>", "+Yes", "No") != 0) exit (0);
+
+int cnt=0, i = 0, coordx[], coordy[];
+
+if (board) board(B)
+  {
+    B.elements(E)
+      {
+        coordx[cnt] = u2mil(E.x);
+        coordy[cnt] = u2mil(E.y);
+        cnt++;
+      }
+  }
+
+if (schematic) schematic(S)
+  {
+    S.parts(P)
+      {
+        P.instances(E)
+          {
+            coordx[cnt] = u2mil(E.x);
+            coordy[cnt] = u2mil(E.y);
+            cnt++;
+          }
+      }
+  }
+
+  string ulp_path;
+  char bkslash = '/';
+  int pos = strrchr(argv[0], bkslash);
+
+  if (pos >= 0) 
+    { 
+      ulp_path = strsub(argv[0], 0, pos + 1);
+    }
+
+  output(ulp_path + "smash_all.scr","wt")
+    {
+      printf("grid mil;\n");
+
+      if (board)
+        {
+          printf("dis 23;\n");
+          printf("dis -24;\n");
+        }
+
+      for (i = 0; i < cnt; i++)
+        printf("smash (%d %d);\n",coordx[i], coordy[i]);
+
+      if (board)
+        {
+          printf("dis 24;\n");
+          printf("dis -23;\n");
+          for (i = 0; i < cnt; i++)
+            printf("smash (%d %d);\n",coordx[i], coordy[i]);
+        }
+
+      printf("grid last;\n");
+    }
+
+exit("; SCR '" + ulp_path + "smash_all.scr';\n");
+

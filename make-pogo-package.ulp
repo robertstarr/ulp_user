@@ -1,0 +1,302 @@
+#usage "<b>Generate Library Part for a PCB with Pogo Test Pads - v1.02</b>\n"
+       "<p>"
+       "This ULP generates a script from an existing board that can be run in a library to create a device "
+       "that represents the PCB with pogo pin holes that match the X/Y locations of "
+       "SMD adn through hole test points that contain the attribute 'POGOPIN'."
+       "<p>"
+       "The SMD test points can be on the top or bottom side of the board and "
+       "MUST also have an attribute of type 'POGOPIN' defined for each test point "
+       "that requires a hole location for mounting a pogo pin."
+       "<p>"
+       "<author>http://www.bobstarr.net</author>";
+
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND, EXPRESSED OR IMPLIED
+
+real padDiameter  = 52.0;
+real padDrillSize = 32.0;
+string padShape   = "ROUND";
+
+real wireSize = 0.0;
+string nameSymbol = "TP";
+string namePkgDev = "PCB-POGO";
+
+string pinNames[];
+int pinCount;
+
+void DrawWire(UL_WIRE W)
+{
+    if (W.arc)
+    {
+        printf("Arc CCW %.3f (%.3f %.3f) (%.3f %.3f) (%.3f %.3f);\n",
+            wireSize,   /*u2mil(W.width)*/
+            u2mil(W.arc.x1), u2mil(W.arc.y1),
+            u2mil(W.arc.xc + W.arc.xc - W.arc.x1), u2mil(W.arc.yc + W.arc.yc - W.arc.y1),
+            u2mil(W.arc.x2), u2mil(W.arc.y2));
+    }
+    else
+    {
+        printf("WIRE %.3f (%.3f %.3f) (%.3f %.3f);\n",
+            wireSize, u2mil(W.x1), u2mil(W.y1), u2mil(W.x2), u2mil(W.y2) );
+    }
+}
+
+int MakePogoPackage(UL_BOARD B)
+{
+    pinCount = 0;
+    
+    // PROCESS BOTTOM SIDE FOR SMD TEST POINT PADS
+
+    printf("# \n");
+    printf("# CREATE PCB PACKAGE FOR POGOPINS\n");
+    printf("# \n");
+
+    printf("EDIT '%s.pac'\n", namePkgDev);
+
+    printf("GRID ");
+    if (B.grid.unit == GRID_UNIT_MIC)
+        printf ("microns");
+    else if (B.grid.unit == GRID_UNIT_MM)
+        printf ("mm");
+    else if (B.grid.unit == GRID_UNIT_MIL)
+        printf ("mil");
+    else if (B.grid.unit == GRID_UNIT_INCH)
+        printf ("inch");
+    printf(";\n");
+        
+    B.elements(E)
+    {
+        int wasSmd, wasPad,
+             xmax =-2147483648,
+             xmin = 2147483647,
+             ymax = xmax,
+             ymin = xmin;
+
+        wasSmd = 0;
+
+        int addPogoPin = 0;
+
+        E.package.contacts(C)
+        {
+            if (C.smd && ((C.smd.layer == 1) || (C.smd.layer == 16)))
+            {
+                wasSmd = 1;
+
+                if (C.x > xmax) xmax = C.x;
+                if (C.y > ymax) ymax = C.y;
+                if (C.x < xmin) xmin = C.x;
+                if (C.y < ymin) ymin = C.y;
+                break;
+            }
+            if (C.pad)
+            {
+                wasPad = 1;
+
+                if (C.pad.x > xmax) xmax = C.pad.x;
+                if (C.pad.y > ymax) ymax = C.pad.y;
+                if (C.pad.x < xmin) xmin = C.pad.x;
+                if (C.pad.y < ymin) ymin = C.pad.y;
+                break;
+            }
+        }
+
+        // Check for DNP or BOM EXCLUDED PARTS
+        E.attributes(A)
+        {
+            if (A.name == "POGOPIN")
+            {
+                addPogoPin = 1;
+                // Exclude part from BOM?
+                if ((A.value == "F") || (A.value == "0"))
+                    addPogoPin = 0;
+            }
+        }
+
+        if ((wasSmd || wasPad) && addPogoPin)
+        {
+            real x,y;
+
+            switch (B.grid.unit)
+            {
+                case GRID_UNIT_MIC:
+                    x = u2mic((xmin + xmax) / 2);
+                    y = u2mic((ymin + ymax) / 2);
+                    break;
+                case GRID_UNIT_MIL:
+                    x = u2mil((xmin + xmax) / 2);
+                    y = u2mil((ymin + ymax) / 2);
+                    break;
+                case GRID_UNIT_MM:
+                    x = u2mm((xmin + xmax) / 2);
+                    y = u2mm((ymin + ymax) / 2);
+                    break;
+                case GRID_UNIT_INCH:
+                    x = u2inch((xmin + xmax) / 2);
+                    y = u2inch((ymin + ymax) / 2);
+                    break;
+            }
+
+            string value = E.value, name = E.package.name;
+            int index = 0;
+
+            while ((index = strchr (value,' ',index)) >= 0)
+            {
+                value[index] = '_';
+            }
+
+            index = 0;
+
+            while ((index = strchr (name,' ',index)) >= 0)
+            {
+                name[index] = '_';
+            }
+
+            if (strlen (value) == 0) value = "none";
+            if (strlen (name) == 0) value = "none";
+
+            printf("# BOARD ==> %s, %s, %5.4f %5.4f %3.0f %s %s\n", E.name, name, x, y, E.angle, value, name);
+            printf("CHANGE DRILL %.4f;\n", padDrillSize);
+            printf("PAD '%s' %s %f R0 (%.4f %.4f);\n", E.name, padShape, padDiameter, x, y);
+    
+            pinNames[pinCount] = E.name;
+                    
+            ++pinCount;
+        }
+    }
+
+    if (pinCount)
+    {
+        printf("# \n");
+        printf("# CREATE PCB PACKAGE OUTLINE\n");
+        printf("# \n");
+
+        printf("GRID mil;\n");
+        printf("DISPLAY -20;\n\n");
+        printf("DISPLAY 51;\n\n");
+        printf("SET WIRE_BEND 2;\n");
+        
+        B.wires(W)
+        {
+            if (W.layer == 20)
+            {
+                printf("CHANGE LAYER 51;\n");
+                DrawWire(W);
+            }
+        }
+    }
+    
+    return pinCount;
+}
+
+void MakeTPSymbol()
+{
+    printf("# \n");
+    printf("# CREATE THE TEST POINT PAD SYMBOL\n");
+    printf("# \n");
+    printf("Edit '%s.sym';\n", nameSymbol);
+    printf("Pin '%s' io dot long R0 pad 0 (0 0);\n", nameSymbol);
+    printf("Layer 95;\n");
+    printf("Change Size 1.778;\n");
+    printf("Change Ratio 10;\n");
+    printf("Change Align bottom left;\n");
+    printf("Change Font proportional;\n");
+    printf("Text '>NAME' R0 (6.6675 -0.9525);\n");
+}
+
+void MakeTPDevice()
+{
+    int i;
+
+    if (pinCount < 1)
+        return;
+
+    printf("# \n");
+    printf("# CREATE PCB DEVICE FOR POGOPINS\n");
+    printf("# \n");
+    printf("EDIT '%s.dev'\n", namePkgDev);
+    printf("GRID MIL\n");
+    printf("Prefix 'X';\n");
+    printf("Description '<b>POGO PIN PCB</b>';\n");
+    printf("Value On;\n");
+
+    real y = 0.0;
+
+    for (i=0; i < pinCount; i++)
+    {
+        printf("Add %s '%s' Always 1 (0 %.2f);\n", nameSymbol, pinNames[i], y); 
+        y -= 100;       
+    }
+
+    printf("Package '%s' '''''';\n", namePkgDev);
+
+    printf("Technology '';\n");
+
+    string strConnect = "Connect ";
+
+    for (i=0; i < pinCount; i++)
+    {
+        string tmp;
+        sprintf(tmp, " '%s.%s' '%s'", pinNames[i], nameSymbol, pinNames[i]);
+        strConnect = strConnect + tmp;
+        if ((i % 6) == 5)
+            strConnect += "\\\n        ";
+    }
+
+    printf("%s;\n\n", strConnect);
+}
+
+/*
+ * ULP Main
+ */
+
+void menue()
+{
+    dlgDialog("Make Pogo Package") {
+        dlgGroup("Pogo Pin Package") {
+            dlgHBoxLayout { dlgLabel("Pad Diameter (mil) :"); dlgRealEdit(padDiameter); }
+            dlgHBoxLayout { dlgLabel("Pad Drill Size (mil) :"); dlgRealEdit(padDrillSize); }
+        }
+        dlgGroup("Test Point Device/Symbol") {
+            dlgHBoxLayout { dlgLabel("Package/Device Name :"); dlgStringEdit(namePkgDev); }
+            dlgHBoxLayout { dlgLabel("Symbol Pin Name :"); dlgStringEdit(nameSymbol); }
+        }
+        dlgPushButton("+&OK")     { dlgAccept(); return; }
+        dlgPushButton("-&Cancel") { dlgReject(); exit (0);}
+    };
+}
+
+if (board) board(B)
+{
+    int pinCount;
+    
+    menue();
+    
+    // Get filename
+    string fileName = dlgFileSave("Save File", filesetext(B.name, "_MakeLibPogoPackage.scr"), "*.scr");
+    if (fileName == "") exit(0);
+    
+    output(fileName)
+    {
+        printf("# Auto Generated at %s<br>\n", t2string(time()));
+        printf("# %s;\n", EAGLE_SIGNATURE);
+        printf("# ADD TEST POINT HOLES TO LIBRARY PACKAGE\n");
+        printf("# Origin = (0.0,0.0)\n");
+        printf("# Units used = ");
+        printf("#\n");
+
+
+        if (MakePogoPackage(B) == 0)
+        {
+           dlgMessageBox("\nNo SMD testpoints with 'POGOPIN' attribute found!\n");
+        }
+        else
+        {
+            MakeTPSymbol();
+            MakeTPDevice();
+        }
+    }
+}
+else
+{
+    dlgMessageBox("\n    Start this ULP in a Board    \n");
+    exit (0);
+}

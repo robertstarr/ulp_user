@@ -1,0 +1,281 @@
+
+
+#usage "<b>Add via's to BGA V1.0</b>\n"
+       "<p>"
+       "Adds via's and traces to BGA pads for easier routing "
+       "<p>"
+       "<author>Author: Jim Thurman (tlj@pcez.com) </author>"
+
+string HelpText =
+ "This ULP will generate via and connecting trace patterns on BGA's. It was written to "
+ "produce a special pattern which has a via adjacent to each pad in one corner with a "
+ "wire connecting them. This often makes it easier for the router to complete a board with "
+ "large BGA's on it. The router can't 'trap' itself by making surface connections that prevent "
+ "it from being able to get to a central pad. This method of adding via's to a BGA pattern rather "
+ "then as part of the library pattern eliminates the problem of DRC violations. Multiple components "
+ "can be in the list with different settings. To add a component: "
+ "<p>   1. First select the unit of measure."
+ "<p>   2. Then select the x,y displacement of via from each pad"
+ "<p>   3. Then double click on one or more components to select"
+ "<p> The trace width, layer, and via size drawn are the set values for the net class and layer of the "
+ "given pad and its signal. To delete a component from the list select it from the list on the right "
+ "and then hit the 'Delete' button. To add a component with different settings. Change the x and y "
+ "settings and then select the component. Clicking on each component in the 'selected components list' "
+ "will show the settings for that component in the below. When you hit 'Ok' with components selected "
+ "the program asks for the name of the output file. The file created is a script file ('.scr'). The "
+ "program will then exit. "
+ "<p>Running the script file will place the via's and traces. If the board is fully 'ripped-up' these "
+ "traces can be restored by simply running the script file again."
+;
+
+//*****************************************************************************************************************************
+//*****************************************************************************************************************************
+void DisplayHelp(void) {
+	dlgDialog("Library Merge Help") {
+		dlgHBoxLayout dlgSpacing(400);
+		dlgHBoxLayout {
+			dlgVBoxLayout dlgSpacing(300);
+			dlgTextView(HelpText);
+ 		}
+ 		dlgHBoxLayout {
+ 			dlgStretch(1);
+ 			dlgPushButton("-Close") dlgReject();
+ 		}
+ 	};
+}
+//******************************************************************************************************
+// get file path of any file open.
+//******************************************************************************************************
+string get_project_path() {
+ if (library) library(B) return(filedir(B.name));
+ if (board) board(B) return(filedir(B.name));
+ if (schematic) schematic(B) return(filedir(B.name));
+}
+//**************************************************************************************************
+// convert the grid unit code to text
+//**************************************************************************************************
+string GridUnitToString(int GridUnit) {
+	string str1;
+
+	switch(GridUnit) {
+		case GRID_UNIT_MIC: 	str1="mic";		 		break;
+		case GRID_UNIT_MM:	str1="mm"; 				break;
+		case GRID_UNIT_MIL:	str1="mil";				break;
+		case GRID_UNIT_INCH:	str1="inch";			break;
+		default: str1="INVALID";						break;
+	}
+	return(str1);
+}
+//**************************************************************************************************
+// convert the grid unit code to text
+//**************************************************************************************************
+real SelUnitToMM(int GridUnit,real Value) {
+	real Result;
+	string TempStr;
+
+	switch(GridUnit) {
+		case 0: 	Result=Value/1000;		 		break;
+		case 1:	Result=Value; 				break;
+		case 2:	Result=Value*25.4/1000;				break;
+		case 3:	Result=Value*25.4;			break;
+			default: Result=0;
+	}
+	return(Result);
+}
+//*****************************************************************************************************************************
+//*****************************************************************************************************************************
+void main() {
+	int x,y,z;
+	int NumElements;																// number of board elements
+	int Selected;																	// element selected from list
+	int CurrentGridUnit;															// units grid set for at start of program
+	int SelectedNames;															// number of devices selected
+	int SelName;																	// index of name selected in select list
+	int Units;																		// units selected from selection box
+	int SelUnit;																	// redisplay on select from list value
+	int SelectUnits[];															// units selected for each component selected
+	int Sigs;																		// number of signals on board
+	int SigInx[];																	// index used to access board signal data after sort
+	int CurrentLayer;																// layer currently being used
+	real ContactX,ContactY;														// signal contact x,y
+	real r;																			// temporary 
+	real XDisplacement,YDisplacement;										// displacement of via adjusted to mm
+	real SelectXDisp[],SelectYDisp[];										// via displacement for selected component
+	real EndX,EndY;																// Via final position and wire end point
+	real SignalWidths[];															// width of signals on board
+	real SignalDrills[];															// drill sizes for signals on board
+	real CurrentDrill;															// current drill size for write out
+	string FileName;																// file name to write to
+	string ElementNames[];														// elements in board
+	string SelectNames[];														// component names selected
+	string NetName;																// net name for wire and via
+	string SignalNames[];														// signal names on board
+	string BoardDirectory;														// board's directory
+	UL_ELEMENT element;															// element pointer
+	UL_PACKAGE Pkg;																// package pointer
+	UL_CONTACT contact;															// contact pointer
+
+	CurrentDrill=0;																// no current drill
+	SelectedNames=0;																// no selected names
+	SelName=-1;																		// no index to selected names
+	Units=0;																			// units default to microns (1/1000 mm)
+	if (board) {																	// if this was run from a board window
+		board (brd) {																// access the board
+			Sigs=0;																
+			brd.signals(Signal) {												// go through the signals on board
+				if (Signal.name) {
+					SignalNames[Sigs]=Signal.name;							// save signal name
+					SignalWidths[Sigs]=Signal.class.width;					//    width
+					SignalWidths[Sigs]/=10000;
+					SignalDrills[Sigs]=Signal.class.drill;					//    and drill size
+					SignalDrills[Sigs]/=10000;
+					Sigs++;
+				}
+			}
+			sort(Sigs,SigInx,SignalNames,SignalWidths,SignalDrills);	// sort this data for later binary search
+			NumElements=0;											
+			brd.elements(element) {												// go through the elements on the board
+				ElementNames[NumElements++]=element.name;					// get their names
+			}
+			dlgDialog("Component ID") {										// make the dialog box
+				dlgVBoxLayout {
+					dlgLabel("Create script file for BGA via's. ");		// general instructions
+					dlgLabel("   1. First select the unit of measure.");
+					dlgLabel("   2. Then select the x,y displacement of via from each pad");
+					dlgLabel("   3. Then double click on one or more components to select");
+					dlgLabel("   4. Then hit 'Ok'.");
+				}
+				dlgHBoxLayout {
+					dlgVBoxLayout {
+						dlgLabel("Component ID:");									
+						dlgListBox(ElementNames,Selected) {					// the component list
+							SelectNames[SelectedNames]=ElementNames[Selected];	// this component has been selected
+							SelectXDisp[SelectedNames]=XDisplacement;
+							SelectYDisp[SelectedNames]=YDisplacement;
+							SelectUnits[SelectedNames]=Units;
+							SelectedNames++;
+							SelName=-1;
+						}
+					}
+					dlgVBoxLayout {
+						dlgLabel("Selected Components");
+						dlgListBox(SelectNames,SelName) {					// the selected components list for display or deletion
+							XDisplacement=SelectXDisp[SelName];				// display the current values for the selected component
+							YDisplacement=SelectYDisp[SelName];
+							SelUnit=SelectUnits[SelName];
+						}
+						dlgPushButton("Delete") {
+							if (SelName>=0) {										// if a name was selected from the list
+									for (y=SelName;y<SelectedNames;y++) {	// copy all elements beyond back one
+										SelectNames[y]=SelectNames[y+1];
+										SelectXDisp[y]=SelectXDisp[y+1];
+										SelectYDisp[y]=SelectYDisp[y+1];
+										SelectUnits[y]=SelectUnits[y+1];
+									}
+									SelectedNames--;								// one fewer element in list
+									SelectNames[SelectedNames]="";
+							} else {
+								dlgMessageBox("No item selected. Click on selected component to delete");
+							}
+							SelName=-1;
+						}
+					}
+				}
+				dlgVBoxLayout {
+					dlgHBoxLayout {
+						dlgLabel("Via X Displacement:");
+						dlgRealEdit(XDisplacement);									// x displacement of via
+					}
+					dlgHBoxLayout {
+						dlgLabel("Via Y Displacement:");
+						dlgRealEdit(YDisplacement);									// y displacement of via    
+					}
+					dlgGroup("Units") {
+						dlgRadioButton("mics",SelUnit) {Units=SelUnit;}			// units the user wants to use
+						dlgRadioButton("mm",SelUnit)   {Units=SelUnit;}
+						dlgRadioButton("mils",SelUnit) {Units=SelUnit;}
+						dlgRadioButton("inch",SelUnit) {Units=SelUnit;}
+ 					}
+				}
+				dlgHBoxLayout {
+					dlgStretch(1);
+					dlgPushButton("&OK")    {											// 'Ok' selected
+						if (SelectedNames>0) {											// if there are component names in our select list
+							project.board(b) BoardDirectory=filedir(b.name);	// get board directory
+							FileName = dlgFileSave("Choose file name to save",BoardDirectory, "All files (*)");
+							if (strlen(FileName)>0) {									// file name entered
+								output(FileName, "wt") {								// open for output
+									CurrentGridUnit=brd.grid.unit;					// save currently set grid. This will be the final grid unit after the script is run
+									printf("GRID mm;\n");								// change grid to default for internal database
+									printf("SET WIRE_BEND 2;\n");						// straight
+									CurrentLayer=1;
+									printf("LAYER 1;\n");								// wires all go on surface
+									brd.elements(element) {
+										x=0;
+										while ((x<SelectedNames) && (SelectNames[x]!=element.name)) x++;
+										if (x<SelectedNames) {
+											Pkg=element.package;
+											Pkg.contacts(contact) {										// signal(net) name
+											   if (contact.signal) {		
+													status("Writing out "+element.name+" "+contact.signal);
+													NetName=contact.signal;
+
+													y=Sigs/2;								// do binary search of signal names matching this name to get trace width and drill size
+													r=y;
+													r=ceil(r/2);
+													while (r>=1) {
+														if (SignalNames[SigInx[y]]>contact.signal) {	// current name greater than target
+															y-=r;
+															r=ceil(r/2);
+														} else {
+															if (SignalNames[SigInx[y]]<contact.signal) { // current name less than target
+																y+=r;
+																r=ceil(r/2);
+															} else {
+																r=0;							// got match
+															}
+														}
+													}
+													if (SignalNames[SigInx[y]]==contact.signal) {	// names match
+														if (contact.smd) {
+															if (CurrentLayer!=contact.smd.layer) {									
+																CurrentLayer=contact.smd.layer;
+																printf("LAYER %d;\n",CurrentLayer);		// new wire layer to match pads layer
+															}
+															ContactX=contact.x;
+															ContactY=contact.y;
+															ContactX/=10000;
+															ContactY/=10000;
+															EndX=ContactX+SelUnitToMM(SelectUnits[x],SelectXDisp[x]);
+															EndY=ContactY+SelUnitToMM(SelectUnits[x],SelectYDisp[x]);
+															printf("WIRE '%s' %f (%f %f) (%f %f);\n",NetName,SignalWidths[SigInx[y]],ContactX,ContactY,EndX,EndY);
+															if (SignalDrills[y]!=CurrentDrill) {
+																CurrentDrill=SignalDrills[SigInx[y]];
+																printf("CHANGE DRILL %f;\n",CurrentDrill);
+															}
+															printf("VIA '%s' round (%f %f);\n",NetName,EndX,EndY);
+														} else {
+															dlgMessageBox("Contact isn't smd, ignored");
+														}
+													} else {
+														dlgMessageBox("Internal error - couldn't find signal name in classes");
+													}
+												}
+											}
+										}
+									};
+									printf("GRID %s;\n",GridUnitToString(CurrentGridUnit));
+								};
+								dlgAccept();
+							}
+						} else dlgReject();
+					}
+					dlgPushButton("&Cancel") dlgReject();
+					dlgPushButton("&Help")	DisplayHelp();
+				}
+			};
+		}
+ 	} else {
+		dlgMessageBox("This program generates Via and connecting trace patterns on boards. It must be run from a board");
+	}
+}

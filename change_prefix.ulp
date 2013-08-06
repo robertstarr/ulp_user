@@ -1,0 +1,200 @@
+#usage	"<b>Opens each library in turn and checks each device prefix in the currently open\n"
+	"library for the specified prefix. If found, the prefix is changed to the new\n"
+	"specified prefix.</b>"
+	"<p>"
+	"Opens a dialog that requests the prefix to change and the new prefix."
+
+
+string oldprefix = "", newprefix = "" ;
+
+int result;
+
+
+
+
+
+string checkstring(string s)
+{
+	char c;
+	int l = strlen(s);
+	s = strupr(s);
+
+	for (int i = 0; i < l; i++)
+	{
+		c = s[i];
+		if (c < 'A' || c > 'Z')
+		{
+			s = "";
+			i = l;
+		}
+	}
+
+	return s;
+}
+
+
+
+
+
+int getprefixxes(void)
+{
+	result = dlgDialog("Change All Prefixxes")
+	{
+		dlgGridLayout
+		{
+			dlgCell(0, 0, 0, 1)
+				dlgLabel("\nThis ULP opens each library in turn and checks each device");
+
+			dlgCell(1, 0, 1, 1)
+				dlgLabel("prefix in the currently open library for the specified prefix.");
+
+			dlgCell(2, 0, 2, 1)
+				dlgLabel("If found, the prefix is changed to the new specified prefix.\n");
+
+			dlgCell(4, 0)
+			{
+				dlgStretch(1);
+				dlgLabel("Enter prefix to &change:");
+				dlgStretch(0);
+				dlgStringEdit(oldprefix);
+			}
+
+			dlgCell(4, 1)
+				dlgLabel("                              ");
+
+			dlgCell(5, 0)
+			{
+				dlgStretch(1);
+				dlgLabel("Enter the &new prefix:");
+				dlgStretch(0);
+				dlgStringEdit(newprefix);
+			}
+
+			dlgCell(5, 1)
+				dlgLabel("                              ");
+
+			dlgCell(6, 0)
+				dlgLabel(" ");
+
+			dlgCell(7, 0, 7, 1)
+			{
+				dlgStretch(1);
+				dlgPushButton("+OK")
+				{
+					oldprefix = checkstring(oldprefix);
+					newprefix = checkstring(newprefix);
+					dlgRedisplay();
+
+					if (oldprefix != newprefix && oldprefix != "" && newprefix != "")
+						dlgAccept();
+
+					else
+						dlgMessageBox(":Prefixxes must be different!");
+				}
+
+				dlgStretch(0);
+				dlgSpacing(10);
+				dlgPushButton("-Cancel")
+					dlgReject();
+			}
+		}
+	};
+
+	return result;
+}
+
+
+
+//*****************************************************************************************
+
+//Main routine
+
+string libname, libnames[];
+
+int libopenflag, numlibs, libnum, temp;
+
+string scriptname = path_scr[0] + "/CHANGE_PREFIX.scr";
+
+string exitstring = " ";
+
+string cpupathname = argv[0];
+string libpath = path_lbr[0] + "/";
+string pattern = libpath + "*.lbr";
+numlibs = fileglob(libnames, pattern);
+
+libnum = 0;
+
+if (argv[1] == "")	// First time through
+{
+	result = getprefixxes();
+
+	if (result)
+	{
+		output(scriptname, "wtD")
+		{
+			printf("#Opens and searches each library for the device prefix %s.\n" , oldprefix);
+			printf("#Replaces each occurance with %s and saves the" , newprefix);
+			printf("changes (if any).\n\n\n");
+		}
+
+		libname = libpath + filename(libnames[0]);
+		temp = sprintf(exitstring, "OPEN '%s';\nRUN '%s' %d %s %s\n" , 
+		   libname, cpupathname, libnum, oldprefix, newprefix);
+	}
+
+}
+
+else
+{
+	libnum = strtod(argv[1]);
+	libname = libpath + filename(libnames[libnum]);
+
+	oldprefix = argv[2];
+	newprefix = argv[3];
+
+	output(scriptname, "atD")
+	{
+		libopenflag = 0;
+
+		library(L)
+		{
+			L.devicesets(D)
+			{
+				if (D.prefix == oldprefix)
+				{
+					if (libopenflag == 0)
+					{
+						printf("OPEN '%s';\n\n" , libname);
+						libopenflag = 1;
+					}
+
+					printf("EDIT %s.dev;\n" , D.name);
+					printf("Prefix '%s';\n\n" , newprefix);
+				}
+			}
+		}
+
+		if (libopenflag)
+		{
+			printf("WRITE '%s';\n\n\n" , libname);
+		}
+
+		libnum++;
+		if (libnum < numlibs)
+		{
+			libname = libpath + "/" + filename(libnames[libnum]);
+			temp = sprintf(exitstring, "OPEN '%s';\nRUN '%s' %d %s %s\n" ,
+			   libname, cpupathname, libnum, oldprefix, newprefix);
+		}
+
+		else
+		{
+			printf("CLOSE;");
+			temp = sprintf(exitstring, "SCRIPT '%s'\n" , scriptname);
+		}
+	}
+}
+
+
+exit(exitstring);
+

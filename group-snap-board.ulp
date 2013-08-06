@@ -1,0 +1,252 @@
+#usage "<b>Snap objects in a board</b>\n"
+       "<p>"
+       "Snaps components, wires and vias of the current "
+       "board to a given grid. "
+       "If 'Show script' is checked, you can edit the MOVE commands "
+       "before they are executed. So you are able to exclude certain "
+       "elements from the snap procedure."
+       "<p>"
+       "<author>Author: support@cadsoft.de</author>"
+
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND, EXPRESSED OR IMPLIED
+
+string Version = "Version 1.1"; // 2009-01-28 move step by step
+                                // 1. Packages
+                                // 2. Vias
+                                // 3. Wires    alf@cadsoft.de
+
+real   GridDist = 25.0;
+enum   { unitINCH, unitMIL, unitMM, unitMIC };
+string h, cmd = "";
+int    unit = unitMIL;   // predefined unit, can be changed to unitMM, unitINCH, unitMIC
+int    Result;
+string Status = "";
+string script_name;
+
+int cntm = 0;             // count unsnaped
+
+int n = 0, x[], y[], l[], UsedLayers[];
+
+
+real u2unit(int u) {
+  if (unit == unitMIL)  return u2mil(u);
+  if (unit == unitMM)   return u2mm(u);
+  if (unit == unitINCH) return u2inch(u);
+  if (unit == unitMIC)  return u2mic(u);
+}
+
+
+real snap(int n) {  // returns next grid point
+  return round(u2unit(n) / GridDist)  * GridDist;
+}
+
+
+int isNew(int X, int Y, int L) {
+  for (int i = 0; i < n; i++) {
+    if (x[i] == X && y[i] == Y && (l[i] == L || l[i] == LAYER_VIAS )) return 0;
+  }
+  return 1;
+}
+
+
+void Move(int Layer) {
+  if (UsedLayers[Layer]) {
+    sprintf(h, "DISPLAY NONE %d;\n", Layer);
+    cmd += h;
+    // Snap the signal wires and vias:
+    for (int i = 0; i < n; i++) {
+      if (l[i] == Layer && (u2unit(x[i]) != snap(x[i]) || u2unit(y[i]) != snap(y[i]))) {
+        sprintf(h, "MOVE (%f %f) (%f %f);\n", u2unit(x[i]), u2unit(y[i]), snap(x[i]), snap(y[i]));
+        cmd += h;
+        cntm++;
+      }
+    }
+  }
+  return;
+}
+
+real check_coord(int x, int y) {
+  real v1, v2;
+  v1 = snap(x) - u2unit(x);
+  v2 = snap(y) - u2unit(y);
+  if (v1) return v1;
+  else if(v2) return v2;
+  else return 0;
+}
+
+
+void snap_to_grid(void) {
+  board(B) {
+    script_name = filesetext(B.name, "~snap.scr");
+    // Remember the active layers:
+    int ActiveLayers[];
+    B.layers(L) {
+      ActiveLayers[L.number] = L.visible;
+    }
+    if (unit == unitMIL)  {
+      sprintf(h, "GRID MIL FINEST;\n");
+      cmd += h;
+    }
+    if (unit == unitMM)   {
+      sprintf(h, "GRID MM FINEST;\n");
+      cmd += h;
+    }
+    if (unit == unitINCH) {
+      sprintf(h, "GRID INCH FINEST;\n");
+      cmd += h;
+    }
+    if (unit == unitMIC)  {
+      sprintf(h, "GRID MIC FINEST;\n");
+      cmd += h;
+    }
+    sprintf(h, "SET OPTIMIZING OFF;\n"); // 2009-01-28
+    cmd += h;
+    if (!argv[1]) {  // 1. snap elements
+      // Snap the elements:
+      B.elements(E) {
+      if (ingroup(E)){
+        status("Element: "+E.name);
+        if (u2unit(E.x) != snap(E.x) || u2unit(E.y) != snap(E.y)) {
+          sprintf(h, "MOVE %s (%f %f);\n", E.name, snap(E.x), snap(E.y));
+          cmd += h;
+          cntm++;
+        }
+      }
+      }
+    }
+    // snap check vias
+    if (argv[1] == "V") {  // 2. snap vias
+      // Collect all (unique!) signal via coordinates:
+      B.signals(S) {
+      if (ingroup(S)){
+        status("Signal: "+S.name);
+        S.vias(V) {
+          UsedLayers[LAYER_VIAS] = 1;
+          x[n] = V.x;
+          y[n] = V.y;
+          l[n] = LAYER_VIAS;
+          if(check_coord(V.x, V.y)) n++;
+        }
+      }
+      }
+    }
+    if (argv[1] == "E" && n) {
+      cmd  = "";
+      for (int vn = 0; vn < n; vn++) {
+        sprintf(h, "(%.4f %.4f);\n", u2unit(x[vn]), u2unit(y[vn]) );
+      }
+      cmd+=h;
+      sprintf(h, "Kann %d VIAs nicht snapen\n", n);
+      dlgMessageBox(h+cmd, "OK");
+      exit(-1);
+    }
+    // snap check wires
+    if (argv[1] == "W") {   // 3. snap wires
+      // Collect all (unique!) signal wire coordinates:
+      B.signals(S) {
+      if (ingroup(S)){
+        status("Signal: "+S.name);
+        S.wires(W) {
+          UsedLayers[W.layer] = 1;
+          if (isNew(W.x1, W.y1, W.layer)) {
+            x[n] = W.x1;
+            y[n] = W.y1;
+            l[n] = W.layer;
+            if (check_coord(W.x1, W.y1)) n++;
+          }
+          if (isNew(W.x2, W.y2, W.layer)) {
+            x[n] = W.x2;
+            y[n] = W.y2;
+            l[n] = W.layer;
+            if (check_coord(W.x2, W.y2)) n++;
+          }
+        }
+      }
+      }
+    }
+
+    // Go through the used layers (this avoids problems with wires on different
+    // layers that are selected at the same coordinates):
+    for (int u = LAYER_TOP; u <= LAYER_BOTTOM; u++) {
+      Move(u);
+    }
+    Move(LAYER_VIAS);
+
+    // Reactivate the active layers:
+    sprintf(h, "DISPLAY");
+    cmd += h;
+    for (int j = 1; j < 256; j++) {
+      if (ActiveLayers[j]) {
+        sprintf(h, " %d", j);
+        cmd += h;
+      }
+    }
+    sprintf(h, ";\n");
+    cmd += h;
+    if (!argv[1]) {
+      sprintf(h, "RUN '%s' 'V' %d %.4f;\n", argv[0], unit, GridDist);
+    }
+    else if (argv[1] == "V") {
+      sprintf(h, "RUN '%s' 'W' %d %.4f;\n", argv[0], unit, GridDist);
+    }
+    else if (argv[1] == "W") {
+      sprintf(h, "RUN '%s' 'E' %d %.4f;\n", argv[0], unit, GridDist);
+    }
+    else if (argv[1] == "E") {
+      exit(0);
+    }
+  }
+  return;
+}
+
+
+//---- main ----------------------------------------------------------------------
+
+if (!board) {
+  dlgMessageBox(usage + "<hr><b>ERROR: No board!</b><p>\nThis program can only work in the board editor.");
+  exit(1);
+}
+
+if (argc == 4) {
+  unit = strtol(argv[2]);
+  GridDist = strtod(argv[3]);
+  snap_to_grid();
+}
+
+else {
+  dlgDialog("Snap Packages/Wires/Vias") {
+    dlgHBoxLayout {
+      dlgHBoxLayout {
+        dlgGroup("Unit") {
+          dlgRadioButton("&inch", unit);
+          dlgRadioButton("&mil",  unit);
+          dlgRadioButton("&mm",   unit);
+          dlgRadioButton("&mic",  unit);
+          dlgSpacing(20);
+          dlgLabel("Snap grid ");
+          dlgRealEdit(GridDist, 0.0001, 1000);
+        }
+      }
+      dlgSpacing(10);
+      dlgVBoxLayout {
+        dlgSpacing(10);
+        dlgLabel(Status, 1);
+        dlgHBoxLayout {
+          dlgPushButton("+&Snap") {
+            Status = "Busy...";
+            dlgRedisplay();
+            snap_to_grid();
+            dlgAccept();
+          }
+          dlgPushButton("-&Cancel") exit(0);
+        }
+        dlgSpacing(7);
+      }
+    }
+  };
+}
+
+output(script_name, "wtD") printf(cmd);
+string s;
+sprintf(s, "SCRIPT '%s'\n;GRID LAST;\n%s;\n", script_name, h);
+exit(s);

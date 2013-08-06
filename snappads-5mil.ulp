@@ -1,0 +1,99 @@
+#usage "<b>Snap pads and smds in a package</b>\n"
+       "<p>"
+       "Snaps pads and SMDs in the package editor to a given grid "
+       "(different grids in x and y direction selectable)."
+       "<p>"
+       "<author>Author: support@cadsoft.de</author>"
+
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND, EXPRESSED OR IMPLIED
+
+string  h, cmd;
+real    GridDistH = 5.0, GridDistV = 5.0;
+enum    {unitINCH, unitMIL, unitMM, unitMIC};
+int     unit = unitMIL;   // predefined unit, can be changed to unitMM, unitINCH, unitMIC
+int     show_script;
+int     Result;
+int     sym = 1;
+int     version_4_0 = 0;
+
+// get project path, if in board or schematic, otherwise library path
+string get_project_path() {
+string s = "", p = "";;
+  if (library)  { library(L)   s = L.name;}
+  if (board)    { board(B)     s = B.name;}
+  if (schematic){ schematic(S) s = S.name;}
+  char c = '/';
+  int pos = strrchr(s, c);
+  if (pos >= 0) {
+     p = strsub(s, 0, pos + 1);
+     }
+  return p;
+}
+
+real u2unit(int u) {
+  if (unit == unitMIL)  return u2mil(u);
+  if (unit == unitMM)   return u2mm(u);
+  if (unit == unitINCH) return u2inch(u);
+  if (unit == unitMIC)  return u2mic(u);
+}
+
+real snapH(int n) {  // returns next grid point
+  return round(u2unit(n) / GridDistH)   * GridDistH;
+}
+
+real snapV(int n) {  // returns next grid point
+  return round(u2unit(n) / GridDistV)   * GridDistV;
+}
+
+void snappads(void) {
+
+  if (unit == unitMIL)  {h = ""; sprintf(h, "GRID MIL FINEST;\n");  cmd += h;}
+  if (unit == unitMM)   {h = ""; sprintf(h, "GRID MM FINEST;\n");   cmd += h;}
+  if (unit == unitINCH) {h = ""; sprintf(h, "GRID INCH FINEST;\n"); cmd += h;}
+  if (unit == unitMIC)  {h = ""; sprintf(h, "GRID MIC FINEST;\n");  cmd += h;}
+  h = ""; //sprintf(h, "DISPLAY NONE TOP PADS;\n");  cmd += h;
+
+  library(L) {
+    if (package) package(PAC) {
+         PAC.contacts(C) {
+           h = "";
+           sprintf(h, "MOVE (%f %f) (%f %f);\n", u2unit(C.x), u2unit(C.y), snapH(C.x), snapV(C.y));
+           cmd += h;
+           }
+       }
+    else {
+      dlgMessageBox("<b>No package loaded!</b>", "OK");
+      }
+    }
+  h = ""; sprintf(h, "GRID LAST;\n"); cmd += h;
+
+if (!version_4_0) {
+   exit(cmd);
+   }
+else {
+   output(get_project_path()+"$$$.scr", "wt") printf("%s", cmd);
+   exit("SCRIPT '"+get_project_path()+"$$$.scr';\n");
+   }
+}
+
+
+//------- main -----------
+
+if ((EAGLE_VERSION == 4 && EAGLE_RELEASE == 0) || (EAGLE_VERSION == 3 && EAGLE_RELEASE >96))
+   version_4_0 = 1; // used for workaround
+
+if (!library) {
+   dlgMessageBox(usage + "<hr><b>ERROR: No package!</b><p>\nThis program can only work in the package editor.");
+   exit(1);
+   }
+
+library(L) {
+  if (package) package(PAC) {
+     }
+  else {
+    dlgMessageBox("<b>No package loaded!</b>", "OK");
+    exit(1);
+    }
+
+  snappads();
+}

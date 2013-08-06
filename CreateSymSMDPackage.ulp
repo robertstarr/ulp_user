@@ -1,0 +1,258 @@
+#usage "en: <h3>Generate symmetric SMD packages</h3>\n"
+            "This ULP works within a library.<br>"
+            "This ULP needs the following files for work: <ul>"
+            "<li>CreateSymSMDSources/globals.hul</li>"
+            "<li>CreateSymSMDSources/functionMisc.cul</li>"
+            "<li>CreateSymSMDSources/functionDialog.cul</li>"
+            "<li>CreateSymSMDSources/functionGenerateScripts.cul</li>"
+            "<li>CreateSymSMDSources/images/EP-Measure.png</li>"
+            "<li>CreateSymSMDSources/images/Pad-MeasureNRd.png</li>"
+            "<li>CreateSymSMDSources/images/Pad-MeasureRd.png</li>"
+            "<li>CreateSymSMDSources/images/QFP-Measure.png</li>"
+            "<li>CreateSymSMDSources/images/SOP-Measure.png</li></ul>"
+            "For further information see at the descrption while running the ULP<p>"
+            "<b>For experts:</b> You can run the ULP with arguments. The syntax is:<br>"
+            "<b> run CreateSymSMDPackage [packageName NumberOfPins newPackage unit [A] B B1 P [L H "
+            "Pin1Roundness K LineWidth [Le He]]]</b><br>"
+            "The meanings of variables are:<ul>"
+            "<li>packageName ... name of the Package (must not contain any whitespaces)</li>"
+            "<li>NumberOfPins ... number of pins</li>"
+            "<li>newPackage ... 0|1 choose 1 if a new package should be generated choose 0 if not</li>"
+            "<li>unit ... The unit for the following dimensions can be either <b>mic</b>, <b>mm</b>, "
+            "<b>mil</b> or <b>inch</b></li>"
+            "<li>A ... dimension of the side without pads (only used for double sided packages)</li>"
+            "<li>B ... package's witdth including the pads</li>"
+            "<li>B1 ... package's width excluding the pads</li>"
+            "<li>P ... pitch of neighbouring pads</li>"
+            "<li>L ... width of SMD pad</li>"
+            "<li>H ... Height of SMD pad</li>"
+            "<li>Pin1Roundness ... roundness for first pin in percent</li>"
+            "<li>K ... Offset between case and start of SMD pad</li>"
+            "<li>Linewidth ... linewidth for the outline dimension's drawing</li>"
+            "<li>Le ... width of exposed pad</li>"
+            "<li>He ... height of exposed pad</li>"
+            "</ul>"
+            "<p><author>Author: peukert@sios.de</author>",
+       "de: <h3>Erstellen von symmetrischen SMD-Bauteilen</h3>\n"
+            "Das ULP benötigt eine Bibliothek.<br>"
+            "Das ULP benötigt die folgenden Dateien: <ul>"
+            "<li>CreateSymSMDSources/globals.hul</li>"
+            "<li>CreateSymSMDSources/functionMisc.cul</li>"
+            "<li>CreateSymSMDSources/functionDialog.cul</li>"
+            "<li>CreateSymSMDSources/functionGenerateScripts.cul</li>"
+            "<li>CreateSymSMDSources/images/EP-Measure.png</li>"
+            "<li>CreateSymSMDSources/images/Pad-MeasureNRd.png</li>"
+            "<li>CreateSymSMDSources/images/Pad-MeasureRd.png</li>"
+            "<li>CreateSymSMDSources/images/QFP-Measure.png</li>"
+            "<li>CreateSymSMDSources/images/SOP-Measure.png</li></ul>"
+            "Details entnehmen Sie bitte dem Beschreibungstab, wenn das ULP gestartet wird.<p>"
+            "<b>Für Fortgeschrittene:</b> Sie können das ULP auch mit Argumenten aufrufen.<br>"
+            "Die Syntax lautet:<br>"
+            "<b> run CreateSymSMDPackage [packageName PinAnzahl newPackage Einheit [A] B B1 P [L H "
+            "Pin1Rundheit K Strichstärke [Le He]]]</b><br>"
+            "Die Bedeutung der einzelnen Variablen:<ul>"
+            "<li>packageName ... Bauteilname (darf keine Leerzeichen enthalten)</li>"
+            "<li>PinAnzahl ... Pinzahl</li>"
+            "<li>newPackage ... 0|1 (1 erstellt neues Package / 0 nimmt das aktuelle)</li>"
+            "<li>Einheit ... Die Maßeinheit für alle weiteren Abmessungen. Gültige Werte sind"
+            " <b>mic</b>, <b>mm</b>, <b>mil</b> oder <b>inch</b></li>"
+            "<li>A ... Abmessung der Seite ohne Pads (nur bei zweireihingen Packages)</li>"
+            "<li>B ... Bauteilbreite inklusive Pads</li>"
+            "<li>B1 ... Bauteilbreite exklusive Pads</li>"
+            "<li>P ... Abstand benachbarter Pads</li>"
+            "<li>L ... Breite des SMD Pads</li>"
+            "<li>H ... Höhe des SMD Pads</li>"
+            "<li>Pin1Rundheit ... Rundheit vom Pin 1 in Prozent</li>"
+            "<li>K ... Abstand zwischen Bauteilrand und Beginn des SMD Pads</li>"
+            "<li>Strichstärke ... Strichstärke für die Umrisszeichnung</li>"
+            "<li>Le ... Breite vom Exposed Pad</li>"
+            "<li>He ... Höhe vom Exposed Pad</li>"
+            "</ul>"
+            "<p><author>Autor: peukert@sios.de</author>"
+            
+#include "CreateSymSMDSources/globals.hul"
+#include "CreateSymSMDSources/functionMisc.cul"
+#include "CreateSymSMDSources/functionDialog.cul"
+#include "CreateSymSMDSources/functionGenerateScripts.cul"
+
+
+// main
+if(library) {
+   int result=0, nPad=0;
+   string strOut="";
+   switch(argc) {
+      case 1: // without args run the dialog
+         result = showDialog();
+      break;
+      case 15: // QFP with EP
+         exposedPad     = 1;
+         sopLe          = strtod(argv[13]);
+         sopHe          = strtod(argv[14]);
+      case 13: // QFP with Advanced Settings
+         sopL           = strtod(argv[8]);
+         sopH           = strtod(argv[9]);
+         pad1Rd         = strtol(argv[10]);
+         sopK           = strtod(argv[11]);
+         sopLineW       = strtod(argv[12]);
+      case 8: // QFP with default Settings
+         qfpOrSop    = 1;
+         useDefault  = (argc<12)? 1 : 0;
+         sopGridSel  = 1;
+         sopPackageName = argv[1];
+         sopNumPins     = strtol(argv[2]);
+         sopNewPackage  = strtol(argv[3]);
+         if(sopNewPackage>1) {
+            sopNewPackage = 1;
+         }
+         strOut         = argv[4];
+         sopB           = strtod(argv[5]);
+         sopB1          = strtod(argv[6]);
+         sopP           = strtod(argv[7]);
+         result         = 3;
+      break;
+      case 16: // SOP with EP
+         exposedPad     = 1;
+         sopLe          = strtod(argv[14]);
+         sopHe          = strtod(argv[15]);
+      case 14: // SOP with Advanced Settings
+         sopL           = strtod(argv[9]);
+         sopH           = strtod(argv[10]);
+         pad1Rd         = strtol(argv[11]);
+         sopK           = strtod(argv[12]);
+         sopLineW       = strtod(argv[13]);
+      case 9: // SOP with default Settings
+         qfpOrSop    = 0;
+         useDefault  = (argc<12)? 1 : 0;
+         sopGridSel  = 1;
+         sopPackageName = argv[1];
+         sopNumPins     = strtol(argv[2]);
+         sopNewPackage  = strtol(argv[3]);
+         if(sopNewPackage>1) {
+            sopNewPackage = 1;
+         }
+         strOut         = argv[4];
+         sopA           = strtod(argv[5]);
+         sopB           = strtod(argv[6]);
+         sopB1          = strtod(argv[7]);
+         sopP           = strtod(argv[8]);
+         result         = 3;
+      break;
+      default:
+         dlgMessageBox(tr(":Wrong number of input arguments."));
+      break;
+   } // switch argc
+   // if started in user mode
+   if(result==3) {
+      result = 0;
+      sopGridSel =1;
+      for(nPad=0;nPad<4;nPad++) {
+         if(strstr(strOut,strSopGrid[nPad])+1) sopGridSel=nPad;
+      }
+      if(qfpOrSop) { // QFP package
+         if(sopNumPins%4) {
+            dlgMessageBox(tr(":The number of pins must be a multiple of 4."),tr("+OK"));
+         } else {
+            result=2;
+         }
+      } else {
+         if(sopNumPins%2){
+            // Error Number of Pins must be a multiple of 2
+            dlgMessageBox(tr(":The number of pins must be a multiple of 2."),tr("+OK"));
+         } else {
+            result=1;
+         }
+      }
+      if(result) {
+         if((package) && (!sopNewPackage)) {
+            nPad=0;
+            package(PAC) {
+               PAC.contacts(C) {
+                  nPad++;
+               }
+            }
+            if(nPad) {
+               dlgMessageBox(tr(":The package must not contain any pads."),tr("+OK"));
+               result=0;
+            }
+         }
+         if((!sopNewPackage) && (!package)) {
+            if(dlgMessageBox(tr(";Create a new package?"),tr("+Yes"),tr("-No"))==0) {
+               sopNewPackage=1;
+            } else {
+               result=0;
+            }
+         }
+         if(sopNewPackage) {
+            nPad=0;
+            library(L){
+               L.packages(PAC){
+                  if(PAC.name==strupr(sopPackageName)) {
+                     // package already exist ==> ask for overwrite
+                     nPad=1;
+                  }
+               }
+            }
+            if(nPad) {
+               nPad=0;
+               library(L){
+                  L.devicesets(S){
+                     S.devices(D){
+                        if(D.package){
+                           if(D.package.name == strupr(sopPackageName)) {
+                              nPad=1;
+                           }
+                        }
+                     }
+                  }  
+               }
+               if(nPad) { // Package wird bereits verwendet 
+                  dlgMessageBox(tr(":The package is used in other devices."),tr("+OK"));
+                  result=0;
+               } else { // Package wird noch nicht verwendet
+                  if(dlgMessageBox(tr(";Package already exist. Overwrite?"),tr("+Yes"),tr("-No"))==0) {
+                     sopOverwrite=1;
+                  } else {
+                     result=0;
+                  }                           
+               }
+            }                        
+         } 
+      }
+   } // if (result==3)
+   
+   // convert everything into mm
+   sopGridSel = SopChangeUnit(1, sopGridSel);
+   if(useDefault){
+      setDefault();
+   }
+   strOut="";
+   if(sopOverwrite) {
+      sprintf(strOut,"remove %s.pac;\n",sopPackageName);
+   }
+   sopPackageName = strupr(sopPackageName);
+   switch(result){
+      case 1: // SOP package
+         sprintf(strOut,"%s%s", strOut, createSOP(sopPackageName, sopNumPins, sopP, sopA, sopB, sopB1,
+             sopL, sopH, sopK, sopLineW, pad1Rd, sopNewPackage));
+         
+      break;
+      case 2: // QFP package
+         sprintf(strOut,"%s%s", strOut, createQFP(sopPackageName, sopNumPins, sopP, sopB, sopB1, sopL,
+            sopH, sopK, sopLineW, pad1Rd, sopNewPackage));
+                  
+      break;
+      default : // return if cancel is pressed or an error occored
+         exit(0);
+      break;
+   }
+   // Exposed Pad when choosen
+   if(exposedPad) {
+      sprintf(strOut,"%s\nSmd 'EP' %.4f %.4f -0 R0 (0 0);",//
+         strOut, sopHe, sopLe);
+   }
+   sprintf(strOut,"%s\nGrid Last;",strOut);
+   sprintf(strOut,"%s\nWindow fit;",strOut);
+   exit(strOut);
+} else { // if not library
+   dlgMessageBox(tr("This ULP needs a library."));
+}

@@ -1,0 +1,63 @@
+#usage "<b>Change library device prefix strings</b>\n"
+       "<p>This script loops through all packages in a library and changes the devices prefixes to a new user specified value.<p>"
+       "<author>Author: http://www.bobstarr.net</author>"
+
+string ulp_path = "";
+string script_change = "";
+int Result = 0;
+
+string old_prefix = "IC";
+string new_prefix = "U";
+
+void menue(void) {
+   int err = 0;
+   int newWidth;
+   int minLimit = 0;
+   int maxLimit = 0;
+
+   dlgDialog("Change All Text Sizes/Ratios") {
+      //dlgStretch(1);
+         dlgGroup("Change Device Prefix") {
+            dlgHBoxLayout {   dlgLabel("Old Prefix :\t"); dlgStringEdit(old_prefix);   }
+            dlgHBoxLayout {   dlgLabel("New Prefix :\t"); dlgStringEdit(new_prefix);   }
+         }
+      //dlgStretch(1);
+      dlgPushButton("+&OK") { dlgAccept(); return; }
+      dlgPushButton("-&Cancel") { dlgReject(); exit (0);}
+   };
+}
+
+if (library) {
+   char bkslash = '/';
+   int pos = strrchr(argv[0], bkslash);
+   if (pos >= 0) {
+      ulp_path = strsub(argv[0], 0, pos + 1);
+   }
+   int n = 0;
+   library(L) {
+   int posb = strrchr(argv[0], bkslash);
+   if (posb >= 0) {
+      ulp_path = strsub(argv[0], 0, posb + 1);
+   }
+
+   menue();
+
+   script_change = filesetext(L.name, "~~~.scr");
+
+   output(script_change, "wtD") {
+      int firstf = 1;
+
+      L.devicesets(D) {
+
+         printf("EDIT %s.dev;\n", D.name);
+
+         if (D.prefix == old_prefix)
+            printf("PREFIX %s;\n", new_prefix);
+      }
+   }
+   }
+   exit ("SCRIPT '" + script_change + "';\n");
+} else {
+   dlgMessageBox("\n*** Start this ULP in a Library ***\n");
+   exit (0);
+}

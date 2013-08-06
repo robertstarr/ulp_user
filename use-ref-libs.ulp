@@ -1,0 +1,64 @@
+#usage "<qt><b>Use Board Referenced Libs</b><p>\n"
+       "This ULP scans all elements and determines which libraries are used by a board.\n"
+       "Afterwards all libraries are dropped and only the libraries referenced by the board\n"
+       "are selected via the USE command\n"
+       "THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND, "
+       "EXPRESSED OR IMPLIED.<p>\n"
+       "<author>Author: http://www.bobstarr.net</author></qt>"
+
+#require 4.1106
+
+string Version = "Version 1.0.6";   // 2006.10.05
+
+string fname = "";
+
+string Lbr[];
+int    cLbr[];
+int    cntLbr = 0;
+
+// main
+if (board) {
+
+  board(B) {
+
+    int n;
+
+    status("Scanning Elements");
+
+    fname = filesetext(B.name, "_use_libs.scr");
+
+    output(fname, "wtD"){
+
+      printf("# drop all libs in use\n");
+      printf("use -*;\n");
+
+      B.elements(E) {
+
+      // Element Libraries *********
+      for (n = 0; n <= cntLbr; n++) {
+        if (Lbr[n] == E.package.library) {
+          cLbr[n]++;
+          break;
+        }
+      }
+      if (n > cntLbr) {
+        cntLbr++;
+        Lbr[cntLbr] = E.package.library;
+        cLbr[cntLbr]++;
+      }
+    }
+
+    int x = 0;
+    for ( n = 0; n <= cntLbr; n++) {
+      if (cLbr[n]) {
+        x++;
+        printf("use %s.lbr\n", Lbr[n]);
+      }
+    }
+
+  }
+  }
+  exit ("script '" + fname + "';\n");
+}
+
+else dlgMessageBox("Start this  ULP from a Board", "OK");

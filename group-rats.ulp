@@ -1,0 +1,54 @@
+#usage "This ULP allows you to select a group of parts in a schematic<p>"
+       "and then it executest the ratsnest command for all parts selected<p>"
+       "in the board editor.<p>"
+       "<author>http://www.bobstarr.net</author>"
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// Copyright (C) 2013, Robert E. Starr (http://www.bobstarr.net)
+// 
+// REVISION HISTORY:
+//
+// v1.00 - 04/29/2013 (RES) - Initial Release
+//
+//////////////////////////////////////////////////////////////////////////////
+//
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
+// EXPRESSED OR IMPLIED. IF YOU DON'T LIKE IT, DON'T USE IT!
+//
+//////////////////////////////////////////////////////////////////////////////
+
+string c, cmd;
+int count = 0;
+
+if (schematic) schematic(SCH) {
+
+    cmd = "BOARD; RATS ";
+
+    SCH.sheets(S) {
+        S.nets(N)
+        {
+            N.segments(SEG)
+            {            
+                SEG.pinrefs(PR)
+                {
+                    if (ingroup(PR.instance))
+                    {
+                        sprintf(c, "'%s' ", N.name);
+                        cmd+= c;
+                        ++count;
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    cmd += ";\n";
+    //dlgMessageBox(cmd);
+
+    if (!count)
+        dlgMessageBox("No items found in selected group!");
+    else    
+        exit(cmd);
+}

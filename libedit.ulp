@@ -1,0 +1,507 @@
+#usage "<b>Library Edit</b><p>\n"
+ "This ULP will display and print the symbol/package/device relationships in a library "
+ "as well as allow the user to change names or delete entries. Hitting the Save To File "
+ "button will cause a listing of the symbols and packages along with any devices that "
+ "use them and a list of all devices with the symbols and packages they are using. "
+ "<author>Jim Thurman JThurman@onbalance.com </author>"
+// Version 1.1
+
+string HelpText =
+ "This ULP will display and print the symbol/package/device relationships in a library "
+ "and allow the user to change names or delete entries. Hitting the Save To File button "
+ "will cause a listing of the symbols and packages along with any devices that use them "
+ "and a list of all devices with the symbols and packages they are using. "
+ "<\p>"
+ "The symbol list box contains a list of all of the symbols in the library. The number "
+ "to the right is the number of devices that use that symbol. This number makes it easy "
+ "to spot symbols that aren't used or are only used by one device. Double clicking on a "
+ "symbol name will cause a dialog box to appear with a list of the devices that use that "
+ "symbol. At the bottom is the current name with a button that will change the name. Also "
+ "selecting the delete button will cause the symbol to be deleted from the library. The "
+ "View button will cause the Library editor to display that symbol and cause this program "
+ "to restart. This may take several seconds with large libraries. "
+ "<p>"
+ "The package list box contains a list of all of the packages in the library. The number "
+ "to the right is the number of devices that use that package. Double clicking on a "
+ "package name will cause a dialog box to appear with a list of the devices that use that "
+ "package. At the bottom is the current name with a button that will change the name. Also "
+ "selecting the delete button will cause the package to be deleted from the library. The "
+ "View button will cause the Library editor to display that package and cause this program "
+ "to restart. This may take several seconds with large libraries. "
+ "<\p>"
+ "The device list box contains a list of all of the devices in the library. Double clicking "
+ "on a device name will cause a second dialog box to come up with a list of the symbols and "
+ "packages that are used by the device. At the bottom is a rename box and button as well as "
+ "a delete button. The View button will cause the Library editor to display that device and "
+ "cause this program to restart. This may take several seconds with large libraries. "
+ "<\p>"
+ "Name changes or deletions are added to a script command file. When the highest level dialog "
+ "box is exited the user will be asked if they want to run this script making the changes "
+ "requested. If No is selected the Library will be unchanged. If Yes, the requested changes will "
+ "be made by running the script."
+ "<\p>"
+ "Since this program can't display the actual symbol/package/device, I use it with another copy "
+ "of Eagle running the Library editor on the same library to display an image of a symbol/package/"
+ "device that I am curious about. This has to be done very carefully as the second invocation "
+ "of the Library editor isn't able to keep up with the changes made unless the Library is "
+ "reloaded from time to time."
+ "<\p>"
+ "When deleting a symbol or package and the device(s) that use them be sure to delete the device "
+ "first. Then the symbol or package. Otherwise Eagle will generate a 'being used' error message "
+ "on the symbol/package as the device that uses them is still present."
+;
+
+int CommandMsgFlag;									// indicates an initial message stating that the changes will be made on exit has been displayed
+int PackageNum;														// number of packages in library
+int SymbolNum;														// number of symbols in library
+int DeviceNum;														// number of devices in library
+int Num;																// temporary copy of index number
+int SymbolDevNums[];												// number of devices using symbol
+int PackageDevNums[];												// number of devices using package
+string PackageNames[];													// names of packages in library
+string SymbolNames[];													// names of symbols in library
+string SymbolNameLookup[];											// names of symbols with index number for lookup
+string SymbolDevs[];													// names of devices using this symbol
+string PackageNameLookup[];											// package names with index appended for lookup
+string PackageDevs[];													// names of devices using this package
+string DeviceNames[];													// names of devices in library
+string DevicePackages[];												// names of packages used by device
+string DeviceSymbols[];												// names of symbols used by device
+
+//******************************************************************************************************
+// writes out the help box
+//******************************************************************************************************
+void DisplayHelp(void) {
+	dlgDialog("Library Information Help") {
+		dlgHBoxLayout dlgSpacing(400);
+		dlgHBoxLayout {
+			dlgVBoxLayout dlgSpacing(300);
+			dlgTextView(HelpText);
+ 		}
+ 		dlgHBoxLayout {
+ 			dlgStretch(1);
+ 			dlgPushButton("-Close") dlgReject();
+ 		}
+ 	};
+}
+//******************************************************************************************************
+// get file path of any file open.
+//******************************************************************************************************
+string get_project_path() {
+ if (library) library(B) return(filedir(B.name));
+ if (board) board(B) return(filedir(B.name));
+ if (schematic) schematic(B) return(filedir(B.name));
+}
+//**************************************************************************************************
+// if an initial 'operations will be performed on exit' message hasn't been displayed, then display.
+//**************************************************************************************************
+void ChkCommandMsg(string Message) {
+	if (CommandMsgFlag==0) {
+		dlgMessageBox(Message);
+		CommandMsgFlag=1;
+	}
+}
+//**************************************************************************************************
+// Read in the library and store symbol, package, and device names. Then establish relationships
+//**************************************************************************************************
+void ReadLibrary(void) {
+	string TempAry[];										// temporary arrays for splitting strings
+	string TempStr;
+
+	library(Lib) {																				// assign a variable to this library
+		status("Reading in symbols");														// display status in lowest line of Eagle as this program takes several seconds in large libraries
+		Lib.symbols(S) {																		// go through the source library symbols looking for unique names
+			SymbolNames[SymbolNum]=S.name;												// save this package in the array as it isn't in the destination library
+			sprintf(TempStr,"%s\t%d",S.name,SymbolNum+1);							// name with index for lookup
+			SymbolNameLookup[SymbolNum]=TempStr;
+			SymbolDevs[SymbolNum]="";														// devices using this symbol aren't know yet
+			SymbolDevNums[SymbolNum]=0;													// number of devices using this symbol
+			SymbolNum++;
+		}
+		status("Reading in packages");													// update status
+		Lib.packages(P) {																		// go through all source packages
+			if (P.name) {																		// if package has name
+				PackageNames[PackageNum]=P.name;											// save package name
+				sprintf(TempStr,"%s\t%d",P.name,PackageNum+1);						// name with index number for lookup
+				PackageNameLookup[PackageNum]=TempStr;
+				PackageDevs[PackageNum]="";												// devices using this package
+				PackageDevNums[PackageNum]=0;												// number of devices using this package
+				PackageNum++;
+			}
+		}
+		status("Reading in devices");														// update status
+		Lib.devicesets(DS) {																	// go through source library device sets
+			DeviceNames[DeviceNum]=DS.name;												// device name
+			DevicePackages[DeviceNum]="";													// packages in this device
+			DeviceSymbols[DeviceNum]="";													// symbols in this device
+			DS.devices(D) {																	// scan all devices
+				if (D.package) {																// device has a package
+					TempStr=lookup(PackageNameLookup,D.package.name,1);			// find package in package array
+					Num=strtol(TempStr);														// array number of package
+					if (Num>0) {																// this should always be true to my knowledge
+						strsplit(TempAry,DevicePackages[DeviceNum],'\t');			// break up device packages array
+						if (lookup(TempAry,D.package.name,0)=="") {					// this index not found
+							if (strlen(DevicePackages[DeviceNum])>0) DevicePackages[DeviceNum]+="\t"; // this isn't first string - add a tab
+							DevicePackages[DeviceNum]+=D.package.name;				// add package name to device package list
+						}
+						strsplit(TempAry,PackageDevs[Num-1],'\t');					// break up devices using this package list
+						if (lookup(TempAry,DS.name,0)=="") {							// this device not in this packages list (certainly shouldn't be)
+							if (strlen(PackageDevs[Num-1])>0) PackageDevs[Num-1]+="\t";	// if this isn't first element, add tab
+							PackageDevs[Num-1]+=DS.name;									// add this device to list of devices using this package
+							PackageDevNums[Num-1]++;										// number of devices using this package (for display list)
+						}
+					} else {
+						dlgMessageBox("Internal error - package name match but index number not greater than 0");
+					}
+				}
+				D.gates(G) {																	// go through gates associated with this device
+					Num=strtol(lookup(SymbolNameLookup,G.symbol.name,1));			// find devices symbol in list
+					if (Num>0) {																// name found
+						strsplit(TempAry,DeviceSymbols[DeviceNum],'\t');			// look for symbol name if device's symbol list
+						if (lookup(TempAry,G.symbol.name,0)=="") {					// symbol index not found for this device
+							if (strlen(DeviceSymbols[DeviceNum])>0) DeviceSymbols[DeviceNum]+="\t";	// not first element, add tab
+							DeviceSymbols[DeviceNum]+=G.symbol.name;					// add
+						}
+						strsplit(TempAry,SymbolDevs[Num-1],'\t');						// break up devices using this symbol list
+						if (lookup(TempAry,DS.name,0)=="") {							// look for device name in list
+							if (strlen(SymbolDevs[Num-1])>0) SymbolDevs[Num-1]+="\t";	// not first element in list, add tab
+							SymbolDevs[Num-1]+=DS.name;									// add this device name to symbol
+							SymbolDevNums[Num-1]++;
+						}
+					} else {
+						dlgMessageBox("internal error - devices symbol not found in symbol list");
+					} 
+				}
+			}
+
+
+			DS.gates(G) {																		// search through upper level gates
+				Num=strtol(lookup(SymbolNameLookup,G.symbol.name,1));				// look for symbol name 
+				if (Num>0) {
+					strsplit(TempAry,DeviceSymbols[DeviceNum],'\t');				// list of symbols in this device
+					if (lookup(TempAry,G.symbol.name,0)=="") {						// symbol not found
+						if (strlen(DeviceSymbols[DeviceNum])>0) DeviceSymbols[DeviceNum]+="\t";
+						DeviceSymbols[DeviceNum]+=G.symbol.name;						// add symbol name to device's symbols list
+					}
+					strsplit(TempAry,SymbolDevs[Num-1],'\t');							// list of devices using this symbol 
+					if (lookup(TempAry,DS.name,0)=="") {								// look for name
+						if (strlen(SymbolDevs[Num-1])>0) SymbolDevs[Num-1]+="\t";
+						SymbolDevs[Num-1]+=DS.name;										// add this device to symbol's list
+					}
+				} 
+			}
+			DeviceNum++;
+		}
+	}
+}
+//**************************************************************************************************
+// This program assumes that a library is open and it is the destination library. Since a ULP can't 
+// open and close libraries arbitraritly, the program uses the 'exit' function with a parameter of 
+// the next ULP to run. It creates temporary ULP's the open the source library and then activate the
+// script it generates
+//**************************************************************************************************
+int x,y,n;																// miscellaneous
+int RunNum;
+int Length;															// current output line length
+int SelectedSymbol;													// selected symbol number
+int SelectedItem;													// selected item number were we won't use it
+int SelectedPackage;												// selected package number
+int SelectedDevice;													// selected device number
+int CommandWritten;													// flag indicating a change was made to library
+int SortFlag;															// prevents user from re-sorting tables as code isn't made to handle that
+string CurrentView;													// object name currently being viewed
+string CurrentType;													// type of object currently being viewed
+string TempStr;														// temporary
+string TempAry[],TempAry1[];										// temporary arrays for splitting strings
+string WorkPath;															// default path for command file
+string CommandFile;														// final command file name
+string FileName;															// library data list file name
+string SymbolList[];													// symbol names with number of devices using it appended for display
+string PackageList[];													// package names with number of devices using it appended for display
+
+WorkPath = get_project_path(); 															// path for temp file
+x=strchr(WorkPath,':');																	// get colon
+if (x>0) WorkPath=strsub(WorkPath,0,x+2);											// if there is a colon then this is just the drive and root '\'
+CommandFile=WorkPath+"Temp.scr";														// file name to write script to 
+CommandWritten=0;																			// nothing been written to script file so far
+CommandMsgFlag=0;																			// initial 'changes will be made at end' message flag
+SortFlag=0;																					// prevent user from re-sorting tables as selection indexes used for various arrays
+
+if (library) {																				// check to see if a library file is open
+	CurrentView="";
+	if (argc>1) {
+		CurrentView=argv[1];															// run number argument, if any
+		CurrentType=argv[2];
+	}
+	ReadLibrary();
+	for (x=0;x<SymbolNum;x++) {
+		sprintf(SymbolList[x],"%s\t%d",SymbolNames[x],SymbolDevNums[x]);		// construct symbol list with number of devices using it
+	}
+	for (x=0;x<PackageNum;x++) {
+		sprintf(PackageList[x],"%s\t%d",PackageNames[x],PackageDevNums[x]);	// construct package list with number of devices using it
+	}
+
+	SelectedSymbol=0;
+	SelectedPackage=0;
+	SelectedDevice=0;
+	if (CurrentType=="S") {
+		for (x=0;x<SymbolNum;x++) if (SymbolNames[x]==CurrentView) SelectedSymbol=x;
+	} else {
+		if (CurrentType=="P") {
+			for (x=0;x<PackageNum;x++) if (PackageNames[x]==CurrentView) SelectedPackage=x;
+		} else {
+			if (CurrentType=="D") {
+				for (x=0;x<DeviceNum;x++) if (DeviceNames[x]==CurrentView) SelectedDevice=x;
+			}
+		}
+	}
+	
+	output(CommandFile,"wt") {																		// open command file for output
+		dlgDialog("Library information - double click on item for more information") {	// main dialog 
+			dlgHBoxLayout {
+				dlgListView("Names\tDevices",SymbolList,SelectedSymbol,SortFlag) {	// list of symbols with number of devices using it
+					TempStr=SymbolNames[SelectedSymbol];										// name of symbol
+					dlgDialog("Devices that use symbol:"+TempStr) {							// create second dialog box with devices
+						dlgHBoxLayout {
+							strsplit(TempAry,SymbolDevs[SelectedSymbol],'\t');				// devices using this symbol
+							dlgListView("Devices",TempAry,SelectedItem,SortFlag);
+ 						}
+						dlgHBoxLayout {
+							dlgStringEdit(TempStr);													// edit symbol name box
+							dlgPushButton("Rename symbol") {										// rename button
+								x=1;
+								if (lookup(SymbolNames,TempStr,0)!="") {						// is new name already in symbol list?
+									if (dlgMessageBox("Symbol name already exists. Are you sure?","&Yes", "&No") == 1) x=0;	// yes, verify user wants to do this
+								}
+								if (x==1) {																// rename symbol ok
+									printf("RENAME %s.sym %s.sym;\n",SymbolNames[SelectedSymbol],TempStr); // write command to script file
+									CommandWritten=1;													// indicate something in script file
+									ChkCommandMsg("Name will be changed on exit");			// display this message if none like is already displayed
+									dlgAccept();														// end this dialog
+								}
+							}
+						}
+						dlgHBoxLayout {
+							dlgPushButton("View") {
+								sprintf(TempStr,"EDIT %s.sym;RUN LibEdit.ulp %s S;\n",SymbolNames[SelectedSymbol],SymbolNames[SelectedSymbol]);									// construct script command
+								exit(TempStr);																			// exit this program and run script file
+							}
+							dlgPushButton("Delete") {										// delete button pushed
+								x=1;
+								if (SymbolDevNums[SelectedSymbol]>0) {							// is there a device using this symbol?
+									if (dlgMessageBox("Symbol is being used, are you sure?","&Yes", "&No") == 1) x=0; // yes, verify
+								}
+								if (x==1) {																// ok to remove symbol									
+									printf("REMOVE %s.sym;\n",SymbolNames[SelectedSymbol]);	// write command to script
+									CommandWritten=1;
+									ChkCommandMsg("Symbol will be deleted on exit");
+									dlgAccept();
+								}
+							}
+							dlgPushButton("-&Quit") {												// quit button pushed
+								dlgReject();															// end dialog
+							};
+						}
+					};
+				}
+				dlgListView("Packages\tDevices",PackageList,SelectedPackage,SortFlag) {	// list of packages with number of devices using them
+					TempStr=PackageNames[SelectedPackage];
+					dlgDialog("Devices that use package:"+TempStr) {							// open new dialog box
+						dlgHBoxLayout {
+							strsplit(TempAry,PackageDevs[SelectedPackage],'\t');				// devices using this package
+							dlgListView("Devices",TempAry,SelectedItem,SortFlag);
+						}
+						dlgHBoxLayout {
+							dlgStringEdit(TempStr);														// rename box
+							dlgPushButton("Rename package") {										// rename button pushed
+								x=1;
+								if (lookup(PackageNames,TempStr,0)!="") {							// is name already is package list?
+									if (dlgMessageBox("Package is being used, are you sure?","&Yes", "&No") == 1) x=0;	// yes, verify
+								}
+								if (x==1) {																	// ok to rename package
+									printf("RENAME %s.pac %s.pac;\n",PackageNames[SelectedPackage],TempStr);	// write script command
+									CommandWritten=1;
+									ChkCommandMsg("Name will be changed on exit");
+									dlgAccept();															// close dialog
+								} 
+							}
+						}
+						dlgHBoxLayout {
+							dlgPushButton("View") {
+								sprintf(TempStr,"EDIT %s.pac;RUN LibEdit.ulp %s P;\n",PackageNames[SelectedPackage],PackageNames[SelectedPackage]);									// construct script command
+								exit(TempStr);																			// exit this program and run script file
+							}
+							dlgPushButton("Delete") {										// delete package button pushed
+								x=1;
+								if (PackageDevNums[SelectedPackage]>0) {							// is there a device using this package
+									if (dlgMessageBox("Package is being used, are you sure?","&Yes", "&No") == 1) x=0; // verify
+								}
+								if (x==1) {																	// ok to remove package
+									printf("REMOVE %s.pac;\n",PackageNames[SelectedPackage]);	// write script command
+									CommandWritten=1;
+									ChkCommandMsg("Package will be deleted on exit");
+									dlgAccept();
+								}
+							}
+							dlgPushButton("-&Quit") {													// quit button
+								dlgReject();
+							};
+						}
+					};
+				}
+				dlgListView("Devices",DeviceNames,SelectedDevice,SortFlag) {		// list of devices in library
+					TempStr=DeviceNames[SelectedDevice];
+					dlgDialog("Symbols and Packages used in device:"+TempStr) {		// open dialog listing symbols and packages used by this device
+						dlgHBoxLayout {
+							strsplit(TempAry,DeviceSymbols[SelectedDevice],'\t');		// symbols used by this device
+							strsplit(TempAry1,DevicePackages[SelectedDevice],'\t');	// packages used by this device
+							dlgListView("Symbols",TempAry,SelectedItem,SortFlag);
+							dlgListView("Packages",TempAry1,SelectedItem,SortFlag);
+						}
+						dlgHBoxLayout {
+							dlgStringEdit(TempStr);												// rename box
+							dlgPushButton("Rename device") {									// rename button pushed
+								printf("RENAME %s.dev %s.dev;\n",DeviceNames[SelectedDevice],TempStr);	// write script command
+								CommandWritten=1;
+								ChkCommandMsg("Name will be changed on exit");
+								dlgAccept();
+							}
+						}
+						dlgHBoxLayout {
+							dlgPushButton("View") {
+								sprintf(TempStr,"EDIT %s.dev;RUN LibEdit.ulp %s D;\n",DeviceNames[SelectedDevice],DeviceNames[SelectedDevice]);									// construct script command
+								exit(TempStr);																			// exit this program and run script file
+							}
+							dlgPushButton("Delete device") {									// delete button pushed
+								if (dlgMessageBox("Are you sure you want to delete this device?","&Yes", "&No") == 0) { // verify
+									printf("REMOVE %s.dev;\n",DeviceNames[SelectedDevice]);
+									CommandWritten=1;
+									ChkCommandMsg("Device will be deleted on exit");
+									dlgAccept();
+								}
+							}
+							dlgPushButton("-&Quit") {											// quit button
+								dlgReject();
+							};
+						}
+					};
+				}
+			}
+			dlgHBoxLayout {
+				dlgStretch(1);
+				dlgPushButton("&Save To File") {												// save to file button pushed
+					FileName = dlgFileSave("File Name",WorkPath,"*.txt *.*");		// get output file name
+					if (FileName) {																// we have a file name
+						x=fileglob(TempAry,FileName);											// check to see if already there
+						if (x>0) {
+							x=dlgMessageBox("File '" + FileName + "' exists\n\nOverwrite?", "+&Yes", "-&No"); // verify overwrite
+						}
+						if (x==0) {																	// ok to write file
+							output(FileName, "wt") {											// write configuration file
+								printf("Symbols:\n");											// start with symbols
+								for (x=0;x<SymbolNum;x++) {									// go through all symbols
+									printf("   %s",SymbolNames[x]);							// symbol name
+									if (strlen(SymbolDevs[x])>0) {							// there are devices using this symbol
+										printf("\n      In Devices:");						// print devices
+										n=strsplit(TempAry,SymbolDevs[x],'\t');			// list of devices
+										Length=17;													// current line length
+										for (y=0;y<n;y++) {										// go through list of devices
+											if (Length>17) printf(",");						// if not first name, print comma
+											printf("%s",TempAry[y]);							// print name
+											Length+=strlen(TempAry[y])+1;						// compute new length
+											if (Length>80) {										// if at maximum line length
+												printf("\n                 ");				// start new line and indent
+												Length=17;											// new line length
+											}
+										}
+										printf("\n");												// end of lines listing devices using this symbol
+									} else {
+										printf("   Not used by any devices.\n");			// replace device list with this message
+									}
+								}
+
+								printf("\nPackages:\n");										// list packages
+								for (x=0;x<PackageNum;x++) {									// go through all packages
+									printf("   %s",PackageNames[x]);							// print name
+									if (strlen(PackageDevs[x])>0) {							// there are devices using this package
+										printf("\n      In Devices:");	
+										n=strsplit(TempAry,PackageDevs[x],'\t');			// list of devices using this package
+										Length=17;													// start line length
+										for (y=0;y<n;y++) {										// go through all devices
+											if (Length>17) printf(",");						// not first item, print comma
+											printf("%s",TempAry[y]);							// print device name
+											Length+=strlen(TempAry[y])+1;						// compute new line length
+											if (Length>80) {										// if length beyond maximum
+												printf("\n                 ");				// start new line
+												Length=17;
+											}
+										}
+										printf("\n");
+									} else {
+										printf("   Not used by any devices.\n");			// print this is not devices using this package
+									}
+								}
+
+								printf("\nDevices:\n");											// print list of devices
+								for (x=0;x<DeviceNum;x++) {									// go through all devices
+									printf("   %s",DeviceNames[x]);							// print device name
+									if (strlen(DeviceSymbols[x])>0) {						// there are symbols being used by this device
+										printf("\n      Uses Symbols:");						
+										n=strsplit(TempAry,DeviceSymbols[x],'\t');		// list of symbols being used by this device
+										Length=19;													// line length
+										for (y=0;y<n;y++) {										// go through all symbols
+											if (Length>19) printf(",");
+											printf("%s",TempAry[y]);							// print symbol
+											Length+=strlen(TempAry[y])+1;
+											if (Length>80) {
+												printf("\n                   ");				// new line
+												Length=19;
+											}
+										}
+									} else {
+										printf("\n      No Symbols");							// indicate no symbols being used by this device (probably not possible)
+									}
+										
+									if (strlen(DevicePackages[x])>0) {						// there are packages being used by this device
+										printf("\n      Uses Packages:");
+										n=strsplit(TempAry,DevicePackages[x],'\t');		// list of packages
+										Length=20;
+										for (y=0;y<n;y++) {										// go through list
+											if (Length>20) printf(",");
+											printf("%s",TempAry[y]);							// print package name
+											Length+=strlen(TempAry[y])+1;
+											if (Length>80) {
+												printf("\n                    ");			// new line
+												Length=20;
+											}
+										}
+									} else {
+										printf("\n      No Packages");						// this device isn't using any packages
+									}
+									printf("\n");
+								}
+							}
+						}
+					}
+				}
+				dlgPushButton("&Help") DisplayHelp();										// display help for this program
+				dlgPushButton("-&Quit") {														// exit
+					dlgReject();
+				}
+			}
+		};
+	}
+	if (CommandWritten==1) {																	// a line has been written out to script file
+		if (dlgMessageBox("Changes to the library have been made. Perform them?","&Yes", "&No") == 0) {	// verify execution
+			library(Lib) {
+				TempStr=Lib.name;
+				dlgMessageBox(TempStr);
+			}
+			sprintf(TempStr,"OPEN %s;SCRIPT %s;\n",TempStr,CommandFile);			// construct script command. Open command seems to block error when deleting object currently in edit window.
+			exit(TempStr);																			// exit this program and run script file
+		}
+	}
+} else {
+	dlgMessageBox("Displays and edits library data. Run in Library editor with open Library.");	// this program is run from the library editor
+};
+		

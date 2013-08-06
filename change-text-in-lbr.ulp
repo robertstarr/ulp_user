@@ -1,0 +1,121 @@
+#usage "<b>Change lib package name/value text sizes</b>\n"
+       "<p>This script loops through all packages in a library and changes the text size and ratio to new user specified values. "
+       "<author>Author: rtzaudio@mindspring.com</author>"
+
+string ulp_path = "";
+string script_change = "";
+
+int Result = 0;
+string grid = "GRID MIL FINEST;\n";
+
+// new text sizes/ratios in mils
+
+real tPlaceSize    = 40;
+int  tPlaceRatio   = 18;
+
+real tNamesSize    = 40;
+int  tNamesRatio   = 18;
+
+real tValuesSize   = 32;
+int  tValuesRatio  = 10;
+
+real tDocSize      = 32;
+int  tDocRatio     = 10;
+
+void DoPackage(UL_PACKAGE P) {
+
+    real dx, dy;
+
+    P.texts(T) {
+        dx = u2mil(T.x);
+        dy = u2mil(T.y);
+        if (T.layer == 21) {
+            // Change tPlace layer text
+	    printf("CHANGE SIZE %.3f (%.3f %.3f);\n", tPlaceSize, dx, dy);
+            printf("CHANGE RATIO %d (%.3f %.3f);\n", tPlaceRatio, dx, dy);
+        } else if (T.layer == 25) {
+            // Change tNames layer text
+	    printf("CHANGE SIZE %.3f (%.3f %.3f);\n", tNamesSize, dx, dy);
+            printf("CHANGE RATIO %d (%.3f %.3f);\n", tNamesRatio, dx, dy);
+        } else if (T.layer == 27) {
+            // Change tValues layer text
+	    printf("CHANGE SIZE %.3f (%.3f %.3f);\n", tValuesSize, dx, dy);
+            printf("CHANGE RATIO %d (%.3f %.3f);\n", tValuesRatio, dx, dy);
+        } else if (T.layer == 51) {
+            // Change tValues layer text
+            printf("CHANGE SIZE %.3f (%.3f %.3f);\n", tDocSize, dx, dy);
+            printf("CHANGE RATIO %d (%.3f %.3f);\n", tDocRatio, dx, dy);
+        }
+    }
+}
+
+
+void menue(void) {
+   int err = 0;
+   int newWidth;
+   int minLimit = 0;
+   int maxLimit = 0;
+
+   dlgDialog("Change All Text Sizes/Ratios") {
+      //dlgStretch(1);
+         dlgGroup("tPlace Text") {
+            dlgHBoxLayout {   dlgLabel("New size (2-100 mils) :\t"); dlgRealEdit(tPlaceSize, 10.0, 100.0);   }
+            dlgHBoxLayout {   dlgLabel("New ratio  (8-21%) :\t"); dlgIntEdit(tPlaceRatio, 8, 21);   }
+         }
+         dlgGroup("tNames Text") {
+            dlgHBoxLayout {   dlgLabel("New size (2-100 mils) :\t"); dlgRealEdit(tNamesSize, 10.0, 100.0);   }
+            dlgHBoxLayout {   dlgLabel("New ratio  (8-21%) :\t"); dlgIntEdit(tNamesRatio, 8, 21);   }
+         }
+         dlgGroup("tValues Text") {
+            dlgHBoxLayout {   dlgLabel("New size (2-100 mils) :\t"); dlgRealEdit(tValuesSize, 10.0, 100.0);   }
+            dlgHBoxLayout {   dlgLabel("New ratio (8-21%) :\t"); dlgIntEdit(tValuesRatio, 8, 21);   }
+         }
+         dlgGroup("tDoc Text") {
+            dlgHBoxLayout {   dlgLabel("New size (2-100 mils) :\t"); dlgRealEdit(tDocSize, 10.0, 100.0);   }
+            dlgHBoxLayout {   dlgLabel("New ratio (8-21%) :\t"); dlgIntEdit(tDocRatio, 8, 21);   }
+         }
+      //dlgStretch(1);
+      dlgPushButton("+&OK") { dlgAccept(); return; }
+      dlgPushButton("-&Cancel") { dlgReject(); exit (0);}
+   };
+}
+
+if (library) {
+   char bkslash = '/';
+   int pos = strrchr(argv[0], bkslash);
+   if (pos >= 0) {
+      ulp_path = strsub(argv[0], 0, pos + 1);
+   }
+   int n = 0;
+   library(L) {
+   int posb = strrchr(argv[0], bkslash);
+   if (posb >= 0) {
+      ulp_path = strsub(argv[0], 0, posb + 1);
+   }
+
+   menue();
+
+   script_change = filesetext(L.name, "~~~.scr");
+
+   output(script_change, "wtD") {
+      printf("DISPLAY 21 25 27 51;\n");
+      int firstf = 1;
+      L.packages(P) {
+         printf("EDIT %s.PAC;\n", P.name);
+         if (firstf) {
+           printf("%s",grid);
+           firstf = 0;
+         }
+
+         DoPackage(P);
+      }
+
+      printf("GRID DEFAULT;\n");
+      printf("DISPLAY NONE 1 16 17 21 25 26 27 28 51; write;\n");
+   }
+   }
+  exit ("SCRIPT '" + script_change + "';\n");
+} else {
+   dlgMessageBox("\n*** Start this ULP in a Library ***\n");
+   exit (0);
+}

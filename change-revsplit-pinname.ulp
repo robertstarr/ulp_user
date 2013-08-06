@@ -1,0 +1,87 @@
+#usage "<b>Reverse token delimited symbol pin name order</b>\n"
+       "<p>This script loops through all pins in a symbol and reverses the order of pin name fields delimeted by a token<p>"
+       "<author>Author: http://www.bobstarr.net</author>"
+
+string ulp_path = "";
+string script_change = "";
+
+string grid = "GRID MIL 100;\n";
+
+int Result = 0;
+
+string tFind = "/";
+
+// new text sizes/ratios in mils
+
+void DoSymbol(UL_SYMBOL S) {
+    string name;
+    string array[];
+
+    S.pins(P) {
+
+        //if ((P.angle != 180) && (P.angle != 270)) 
+        //    continue;
+
+        if (P.angle != 180)
+            continue;
+
+        name = P.name;
+        
+        int cnt = strsplit(array, name, tFind[0]); 
+
+        if (cnt) {
+            string ar2[];
+            int n = cnt - 1;
+            for (int i=0; i < cnt; i++)
+               ar2[i] = array[n--];
+            name = strjoin(ar2, tFind[0]);
+
+            printf("NAME '%s' (%f %f);", name, u2mil(P.x), u2mil(P.y));
+        }
+    } 
+}
+
+void menue(void) {
+   dlgDialog("Rev Split Pin Names") {
+         dlgGroup("Split Token Char") {
+            dlgHBoxLayout { dlgLabel("Split fields at: \t"); dlgStringEdit(tFind); }
+         }
+      dlgPushButton("+&OK")     { dlgAccept(); return; }
+      dlgPushButton("-&Cancel") { dlgReject(); exit (0);}
+   };
+}
+
+if (library) {
+   char bkslash = '/';
+   int pos = strrchr(argv[0], bkslash);
+   if (pos >= 0) {
+      ulp_path = strsub(argv[0], 0, pos + 1);
+   }
+   int n = 0;
+   library(L) {
+   int posb = strrchr(argv[0], bkslash);
+   if (posb >= 0) {
+      ulp_path = strsub(argv[0], 0, posb + 1);
+   }
+
+   menue();
+
+   script_change = filesetext(L.name, "~~~.scr");
+
+   output(script_change, "wtD") {
+      printf("DISPLAY 95 96;\n");
+      printf("%s",grid);
+
+      if (symbol) symbol(S) {
+         DoSymbol(S);
+      }
+
+      //printf("write;\n");
+      printf("GRID DEFAULT;\n");
+   }
+   }
+  exit ("SCRIPT '" + script_change + "';\n");
+} else {
+   dlgMessageBox("\n*** Start this ULP in a Library ***\n");
+   exit (0);
+}

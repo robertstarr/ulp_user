@@ -1,0 +1,466 @@
+#usage "<b>Migrate rcl parts to rc-master-smd.lbr</b> - v1.02 (03/11/2010)<p>"
+       "This ULP generates a script to migrate parts from rcl.lbr "
+       "to rc-master.lbr or rc-master-smd.lbr."
+       "<p>"
+       "<author>http://www.bobstarr.net</author>";
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// MIGRATE RC-MASTER.LBR
+//
+// Copyright (C) 2010, Robert E. Starr (http://www.bobstarr.net)
+// 
+// REVISION HISTORY:
+//
+// v1.00 - 02/18/2010 (RES) - Initial Release
+//
+// v1.01 - 02/18/2010 (RES) - Added new RCL types
+//
+// v1.02 - 03/11/2010 (RES) - Bug fix in xlate_rc_master() lookup loop.
+//
+//////////////////////////////////////////////////////////////////////////////
+//
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
+// EXPRESSED OR IMPLIED.
+//
+//////////////////////////////////////////////////////////////////////////////
+
+string strVersion   = "1.02";
+
+string _strFileName;
+
+int _nScriptExec    = 0;   // execute script automatically after generating
+int _nMigrateTo     = 0;   // 0=rc-master.lbr, 1=rc-master-smd.lbr
+
+//////////////////////////////////////////////////////////////////////////////
+// Check device for any thru-hole pads.
+
+int is_thru_hole(UL_DEVICE D)
+{
+    int count = 0;
+
+    if (D.package)
+    {
+        D.package.contacts(C)
+        {
+            if (C.pad)
+                ++count;
+        }
+    }
+
+    return count;
+} 
+
+//////////////////////////////////////////////////////////////////////////////
+// Translate old rc-master.lbr package names to new rc-master-smd.lbr names
+
+string xlate_rc_master(string old_name)
+{
+    string xlate_tab[] = {
+        "CP_3216-18R:CP_3216",
+        "CP_3216-18W/T:CP_3216",
+        "CP_3216-TE-A:CP_3216",
+        "CP_3528-21R/T:CP_3528",
+        "CP_3528-21W/T:CP_3528",
+        "CP_3528-TE-B:CP_3528",
+        "CP_6032-28R/T:CP_6032",
+        "CP_6032-28W/T:CP_6032",
+        "CP_6032-TE-C:CP_6032",
+        "CP_7343-TE-D:CP_7343"
+    };
+
+    int i=0;
+    string a[];
+    string temp;
+    string name = old_name;
+
+    do 
+    {
+        if (strsplit(a, xlate_tab[i], ':'))
+        {
+            if (name == a[0])
+            {
+                temp = a[1];
+                break;
+            }
+        }
+
+        i++;
+
+    } while (xlate_tab[i]);
+
+    return temp;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Translate rcl.lbr package names to rc-master-smd.lbr package names
+
+string xlate_rcl_name(string old_name)
+{
+    string xlate_tab[] = {
+        // *** SMD NON-POLARIZED CAPACITOR PACKAGES ***
+        "C-USC0402:C_0402",
+        "C-USC0402K:C_0402",
+        "C-USC0402MP:C_0402MP",
+        "C-USC0603:C_0603",
+        "C-USC0603K:C_0603",
+        "C-USC0603MP:C_0603MP",
+        "C-USC0805:C_0805",
+        "C-USC0805K:C_0805",
+        "C-USC0805MP:C_0805MP",
+        "C-USC1206:C_1206",
+        "C-USC1206K:C_1206",
+        "C-USC1206MP:C_1206MP",
+        "C-USC1210:C_1210",
+        "C-USC1210K:C_1210",
+        "C-USC1210MP:C_1210MP",
+        "C-USC1608:C_1608",
+        "C-USC1608MP:C_1608MP",
+        "C-USC1808:C_1808",
+        "C-USC1808MP:C_1808",
+        "C-USC1812:C_1812",
+        "C-USC1812K:C_1812",
+        "C-USC1812MP:C_1812MP",
+        "C-USC1825:C_1825",
+        "C-USC1825K:C_1825",
+        "C-USC1825MP:C_1825MP",
+        "C-USC1206K :C_1206",
+        "C-USC2012:C_2012",
+        "C-USC2012MP:C_2012MP",
+        "C-USC2220K:C_2220",
+        "C-USC2220MP:C_2220MP",
+        "C-USC2225K:C_2225",
+        "C-USC2225MP:C_2225MP",
+        "C-USC3216:C_3216",
+        "C-USC3216MP:C_3216MP",
+        "C-USC3225:C_3225",
+        "C-USC3225MP:C_3225MP",
+        "C-USC4532:C_4532",
+        "C-USC4532MP:C_4532MP",
+        "C-USC4564:C_4564",
+        "C-USC4564MP:C_4564MP",
+        // *** LINEAR PHOTONICS VARIANTS ***
+        "C-USC0603_LP2:C_0603",
+        "C-USC0805_LP:C_0805",
+        "R-US_R0603_LP2:R_0603",
+        "R-US_R0805_LP:R_0805",
+        // *** SMD POLARIZED CAPACITOR PACKAGES ***
+        "CPOL-USA/3216-18R:CP_3216",
+        "CPOL-USA/3216-18W:CP_3216",
+        "CPOL-USB/3528-21R:CP_3528",
+        "CPOL-USB/3528-21W:CP_3528",
+        "CPOL-USC/6032-28R:CP_6032",
+        "CPOL-USC/6032-28W:CP_6032",
+        "CPOL-USC0805/T:CP_0805/T",
+        "CPOL-USC3216-18/T:CP_3216",
+        "CPOL-USC3216/T:CP_3216",
+        "CPOL-USC3528-21/T:CP_3528",
+        "CPOL-USC3528/T:CP_3528",
+        "CPOL-USC6032-28/T:CP_6032",
+        "CPOL-USC6032/T:CP_6032",
+        "CPOL-USC7343/T:CP_7343",
+        "CPOL-USCT3216:CP_3216",
+        "CPOL-USCT3528:CP_3528",
+        "CPOL-USCT6032:CP_6032",
+        "CPOL-USCT7343:CP_7343",
+        "CPOL-USD/7343-31R:CP_7343",
+        "CPOL-USD/7343-31W:CP_7343",
+        "CPOL-USE/7260-38R:CP_7260",
+        "CPOL-USE/7260-38W:CP_7260",
+        "CPOL-USA:CP_SV-A",
+        "CPOL-USB:CP_SV-B",
+        "CPOL-USC:CP_SV-C",
+        "CPOL-USD:CP_SV-D",
+        "CPOL-USE:CP_SV-E/F",
+        "CPOL-USF:CP_SV-E/F",
+        "CPOL-USG:CP_SV-G",
+        "CPOL-USH:CP_SV-H",
+        "CPOL-USJ:CP_SV-J",
+        "CPOL-USK:CP_SV-K",
+        // *** THRU-HOLE FROM CAPPAN40 ***
+        "C-PR-2,0X5:CP_E-020X050",
+        "C-PR-2,5X6:CP_E-025X060",
+        "C-PR-2,5X7,5:CP_E-025X075",
+        "C-PR-2,5X8,5:CP_E-025X085",
+        "C-PR-3,5X8:CP_E-035X080",
+        // *** SMD RESISTOR PACKAGES ***
+        "R-US_R0402:R_0402",
+        "R-US_R0402MP:R_402MP",
+        "R-US_R0603:R_0603",
+        "R-US_R0603MP:R_0603MP",
+        "R-US_R0805:R_0805",
+        "R-US_R0805MP:R_0805MP",
+        "R-US_R0805W:R_0805",
+        "R-US_R1005:R_1005",
+        "R-US_R1005MP:R_1005MP",
+        "R-US_R1206:R_1206",
+        "R-US_R1206MP:R_1206MP",
+        "R-US_R1206W:R_1206",
+        "R-US_R1210:R_1210",
+        "R-US_R1210MP:R_1210MP",
+        "R-US_R1210W:R_1210",
+        "R-US_R2010:R_2010",
+        "R-US_R2010MP:R_2010MP",
+        "R-US_R2010W:R_2010",
+        "R-US_R2012:R_2012",
+        "R-US_R2012MP:R_2012MP",
+        "R-US_R2012W:R_2012",
+        "R-US_R2512:R_2512",
+        "R-US_R2512MP:R_2512MP",
+        "R-US_R2512W:R_2512",
+        "R-US_R3216:R_3216",
+        "R-US_R3216MP:R_3216MP",
+        "R-US_R3216W:R_3216",
+        "R-US_R3225:R_3225",
+        "R-US_R3225MP:R_3225MP",
+        "R-US_R3225W:R_3225",
+        "R-US_R4527:R_4527",
+        "R-US_R5025:R_5025",
+        "R-US_R5025MP:R_5025MP",
+        "R-US_R5025W:R_5025",
+        "R-US_R6332:R_6332",
+        "R-US_R6332MP:R_6332MP",
+        "R-US_R6332W:R_6332",
+        "R-US_M1206:R_1206",
+        // *** SMD INDUCTOR PACKAGES ***
+        "L-USL0402:L_0402",
+        "L-USL0402MP:L_0402MP",
+        "L-USL0603:L_0603",
+        "L-USL0603MP:L_0603MP",
+        "L-USL0603CS:L_0603CS",
+        "L-USL0805:L_0805",
+        "L-USL0805MP:L_0805MP",
+        "L-USL1206:L_1206",
+        "L-USL1206MP:L_1206MP",
+        "L-USL1210:L_1210",
+        "L-USL1210MP:L_1210MP",
+        "L-USL2012:L_2012",
+        "L-USL2012MP:L_2012MP",
+        // *** THRU-HOLD RESISTOR PACKAGES ***
+        "R-US_0204/2V:R_X0207/2V",
+        "R-US_0204/5:R_X0204/5",
+        "R-US_0204/7:R_X0204/7",
+        "R-US_0207/2V:R_X0207/2V",
+        "R-US_0207/5V:R_X0207/5V",
+        "R-US_0207/7:R_X0207/7",
+        "R-US_0207/10:R_X0207/10",
+        "R-US_0207/10B:R_X0207/10B",
+        "R-US_0207/10C:R_X0207/10C",
+        "R-US_0207/12:R_X0207/12",
+        "R-US_0207/15:R_X0207/15",
+        "R-US_0309/10:R_X0309/10",
+        "R-US_0309/12:R_X0309/12",
+        "R-US_0309/12B:R_X0309/12B",
+        "R-US_0309/14:R_X0309/14",
+        "R-US_0309/14B:R_X0309/14B",
+        "R-US_0309/15:R_X0309/15",
+        "R-US_0309/15B:R_X0309/15B",
+        "R-US_0309/V:R_X0309/V",
+        "R-US_0411/3V:R_X0411/3V",
+        "R-US_0411/12:R_X0411/12",
+        "R-US_0411/15:R_X0411/15",
+        "R-US_0414/5V:R_X0414/5V",
+        "R-US_0414/15:R_X0414/15",
+        "R-US_0613/5V:R_X0613/5V",
+        "R-US_0613/15:R_X0613/15",
+        "R-US_0617/5V:R_X0617/5V",
+        "R-US_0617/17:R_X0617/17",
+        "R-US_0617/22:R_X0617/22",
+        "R-US_0617/24:R_X0617/24",
+        "R-US_0817/7V:R_X0817/7V",
+        "R-US_0817/22:R_X0817/22",
+        "R-US_0922/22:R_X0922/22",
+        // *** SUPER OLD LIBRARY R.LBR ***
+        "0207/10:R_X0207/10",
+        "0309/12:R_X0309/12",
+        "0309/14:R_X0309/14",
+        "0414/15:R_X0414/15"
+    };
+
+    int i=0;
+    string a[];
+    string temp;
+    string name = old_name;
+
+    // force EU names to US to simplify
+    if (strstr(name, "-EU", 1) == 1)
+    {
+        name[2] = 'U';
+        name[3] = 'S';
+    }
+    if (strstr(name, "CPOL-EU", 0) == 0)
+    {
+        name[5] = 'U';
+        name[6] = 'S';
+    }
+
+    do 
+    {
+        if (strsplit(a, xlate_tab[i], ':'))
+        {
+            if (name == a[0])
+            {
+                temp = a[1];
+                break;
+            }
+        }
+
+        i++;
+
+    } while (xlate_tab[i]);
+
+    return temp;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Script Entry Point
+
+if (schematic)
+{
+    schematic(SCH)
+    {
+        _strFileName = filesetext(SCH.name, "_MigrateRCMaster.scr");
+
+        int Result = dlgDialog("Migrate rc-master")
+        {
+            dlgLabel("This ULP generates a script to migrate r/c/l parts from\n"
+                     "'rcl.lbr' or 'rc-master.lbr to the newer 'rc-master-smd.lbr'.");
+            dlgSpacing(12);
+
+            dlgHBoxLayout
+            {
+                dlgGroup("Migrate To")
+                {
+                    dlgRadioButton("Migrate to 'rc-master.lbr'", _nMigrateTo);
+                    dlgRadioButton("Migrate to 'rc-master-smd.lbr'", _nMigrateTo);
+                }
+            }
+
+            dlgHBoxLayout
+            {
+                dlgPushButton("OK") dlgAccept();
+                dlgPushButton("-Cancel") dlgReject();
+                dlgCheckBox("&Execute Script", _nScriptExec);
+            }
+        };
+
+        if (!Result)
+            exit(0);
+
+        output(_strFileName, "wtD")
+        {
+            string libname;
+            sprintf(libname, "%s.lbr", (_nMigrateTo == 0) ? "rc-master" : "rc-master-smd");
+
+            printf("# 'generated by migrate-rc-master.ulp v%s<br>\n", strVersion);
+            printf("# '%s;\n\n", EAGLE_SIGNATURE);
+            printf("SET UNDO_LOG OFF;\n");
+            printf("# Migrate parts to '%s'\n", libname);
+            printf("USE -*;\n");
+            printf("USE %s;\n", libname);
+
+            SCH.sheets(S)
+            {
+                printf("#\n# SHEET %d - MIGRATE PARTS\n#\n", S.number);
+                printf("EDIT .s%d\n", S.number);
+
+                // Check all parts on each sheet and replace as needed
+
+                S.parts(P)
+                {
+                    if (P.device.package && P.name)
+                    {
+                        string dev;
+
+                        if ((P.device.library == "rcl") || (P.device.library == "cap-pan40") ||
+                            (P.device.library == "resistor") || (P.device.library == "R") || (P.device.library == "r"))
+                        {
+
+	                  //printf("# LIB(%s), NAME(%s) DEVNAME(%s)\n", P.device.library, P.name, P.device.name);
+
+                            // ***************************************************************
+                            // * Translate rcl.lbr parts to rc-master or rc-master-smd
+                            // ***************************************************************
+
+                            if ((_nMigrateTo > 0) && is_thru_hole(P.device))
+                            {
+                                printf("# NO THRU-HOLE PACKAGES IN RC-MASTER-SMD.LBR, USE RC-MASTER.LBR INSTEAD!): (%s) %s;\n", P.name, P.device.name);
+                            }
+                            else
+                            {
+                                dev = xlate_rcl_name(P.device.name);
+
+                                if (dev)
+                                {
+                                    //printf("# Replace (%s) %s with %s\n", P.name, P.device.name, dev);
+                                    printf("REPLACE %s %s;\n", P.name, dev);
+                                }
+                                else
+                                {
+                                    printf("# UNKNOWN RCL.LBR PACKAGE (%s) %s;\n", P.name, P.device.name);
+                                }
+                            }
+                        }
+                        else if ((P.device.library == "rc-master") && (_nMigrateTo == 1))
+                        {
+                            // ***************************************************************
+                            // * Translate rc-master parts to rc-master-smd if possible
+                            // ***************************************************************
+
+                            if (is_thru_hole(P.device))
+                            {
+                                printf("# SKIPPING THRU-HOLE PACKAGE: (%s) %s;\n", P.name, P.device.name);
+                            }
+                            else
+                            {
+                                dev = xlate_rc_master(P.device.name);
+
+                                if (dev)
+                                {
+                                    //printf("# Replace (%s) %s with %s\n", P.name, P.device.name, dev);
+                                    printf("REPLACE %s %s;\n", P.name, dev);
+                                }
+                                else
+                                {
+                                    printf("REPLACE %s %s;\n", P.name, P.device.name);
+                                }
+                            }
+                        }
+                        else if ((P.device.library == "rc-master-smd") && (_nMigrateTo == 0))
+                        {
+                            // ***************************************************************
+                            // * Translate rc-master-smd parts to rc-master if possible
+                            // ***************************************************************
+
+                            dev = xlate_rc_master(P.device.name);
+
+                            if (dev)
+                            {
+                                //printf("# Replace (%s) %s with %s\n", P.name, P.device.name, dev);
+                                printf("REPLACE %s %s;\n", P.name, dev);
+                            }
+                            else
+                            {
+                                printf("REPLACE %s %s;\n", P.name, P.device.name);
+                            }
+                        }
+                    }
+                }
+            }
+
+            printf("EDIT .s1\n");
+            printf("SET UNDO_LOG ON;\n");
+        }
+
+        if (_nScriptExec)
+            exit ("SCRIPT '" + _strFileName + "';");
+        else
+            exit(0);
+    }
+}
+else
+{
+    dlgMessageBox("Start this ULP in Schematic!", "OK");
+}
+
+// End-Of-File

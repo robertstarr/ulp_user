@@ -1,0 +1,295 @@
+/****************************************************************
+This globals.hul is a subroutine for the CreateSymSMDPackage.ulp
+Do not edit, remove or delete.
+*****************************************************************/
+
+
+// Globals
+
+// Pics
+string picMeasure       ="<img src=\"CreateSymSMDSources/images/SOP-Measure.png\">";
+string picSopMeasure    ="<img src=\"CreateSymSMDSources/images/SOP-Measure.png\">";
+string picQfpMeasure    ="<img src=\"CreateSymSMDSources/images/QFP-Measure.png\">";
+string picPadMeasure    ="<img src=\"CreateSymSMDSources/images/Pad-MeasureRd.png\">";
+string picPadMeasureRd  ="<img src=\"CreateSymSMDSources/images/Pad-MeasureRd.png\">";
+string picPadMeasureNRd ="<img src=\"CreateSymSMDSources/images/Pad-MeasureNRd.png\">";
+string picEPMeasure     ="<img src=\"CreateSymSMDSources/images/EP-Measure.png\">";
+
+// Variables for Package
+real sopA = 5.0, sopB = 6.4, sopB1 = 4.4, sopP=0.65;
+real sopL, sopH, sopK = 0.25, sopLineW = 0.254, sopLe, sopHe;
+string sopPackageName = "TSSOP16";
+string strSopGrid[] = {"mic","mm","mil","inch"};
+string strSopUnit=strSopGrid[1];
+int    sopNumPins = 16, sopNewPackage = 0, sopGridSel=1, sopGridSelOld=1, qfpOrSop=0, useDefault=1;
+int    firstPinRounded = 1, pad1Rd = 80, pad1RdOld, sopOverwrite=0, exposedPad=0;
+
+// Variables for unit conversion
+real _mic2u = (EAGLE_VERSION<6)? 10:320;
+
+// Translation
+string textHelpEN = "<h3>Generate a symmetric SMD package</h3>\
+                  <p>\
+                  If you are not sure which settings you have to make plase start the <b>wizard</b>.\
+                  This will guide you into 3 or rather 4 steps to a result.<ol><li>\
+                  Choose a <b>package style</b> and the <b>number of pins</b>.</li><li>\
+                  Enter the <b>package name</b> or take the automaticly suggested name.\
+                  Choose <b>Create a new package</b> if you want to do so.<br>\
+                  <b>Hint: </b>If you not work in a opened package or if the opened package contain\
+                  any contacts you are not able to continue when <b>Create a new package</b> \
+                  is left blank.<br>\
+                  If library always includes a package with the same name it will be overwritten only when\
+                  it is not used in any devices. Accordant pop ups will be shown.</li><li>\
+                  Enter the dimensions like they are shown in the drawing beside.<br>\
+                  If <b>Use default settings for pads and line width</b> is checked the button <b>Next</b>\
+                  will guide to the summary page<br>\
+                  If not in the next step advanced settings with the SMD pad can be done.</li><li>\
+                  If the distance between the case and the start of SMD pad <b>K</b> is smaller than \
+                  0.1 mm the outlines will be made with the layer <b>tDocu</b>. Otherwise the layer \
+                  <b>tPlace</b> will be choosen.<br>\
+                  If the <b>Exposed pad on center</b> is selected an exposed pad with the dimensions \
+                  Le x He will be set on the origin of the package.</li><li>\
+                  Before <b>Finish</b> all information will be summarized in a table.</li></ol><p>\
+                  <b>Important: </b>Please confirm potential questions with <b>Yes</b>. If not the generated\
+                  script will not work correct.<p>\
+                  <b>Attention: </b> If you make <b>Advanced settings</b> without the wizard please make\
+                  sure the option <b>Use default settings for pads and line width</b> is <b>not</b> checked. \
+                  before <b>OK</b> is pressed. In the other case the settings will be discarded.<p>\
+                  The meanings of variables are:<ul type=square>\
+                  <li>General settings<ul type=disc>\
+                  <li>A ... dimension of the side without pads (only used for double sided packages)</li>\
+                  <li>B ... package's witdth including the pads</li>\
+                  <li>B1 ... package's width excluding the pads</li>\
+                  <li>P ... pitch of neighbouring pads</li>\
+                  </ul></li><li>Advanced Settings<ul type=disc>\
+                  <li>L ... width of SMD pad</li>\
+                  <li>H ... Height of SMD pad</li>\
+                  <li>K ... Offset between case and start of SMD pad</li>\
+                  <li>Le ... width of exposed pad</li>\
+                  <li>He ... height of exposed pad</li>\
+                  <li>Roundness ... roundness for first pin in percent</li>\
+                  <li>Linewidth ... linewidth for the outline dimension's drawing</li>\
+                  </ul></li></ul><p>\
+                  If no pictures are shown in the dialogs please make sure the folder <b>images</b>\
+                  will be in the directory <b>CreateSymSMDSources</b> like the ULP. It should include the graphic files:\
+                  <ul>\
+                  <li>EP-Measure.png</li>\
+                  <li>QFP-Measure.png</li>\
+                  <li>Pad-MeasureNRd.png</li>\
+                  <li>Pad-MeasureRd.png</li>\
+                  <li>SOP-Measure.png</li></ul>\<p>\
+                  <b>Example: </b>Choose Quad sided package, Package name PQFP240, Number of Pins = \
+                  240, B=34.6 mm, B1=32.0 mm, P=0.5 mm and default settings. The result is a 240 pins\
+                  PQFP package";
+
+string textHelpDE = "<h3>Erstellen eines symmetrischen SMD-Bauteils</h3>\
+                  Falls Sie sich nicht sicher sind, was Sie einstellen müssen, starten Sie zunächst \
+                  den <b>Wizard</b>.<br>Dieser führt Sie in 3 bzw. 4 Schritten ans Ziel<p>\
+                  <ol><li>\
+                  Wählen Sie zunächst den <b>Gehäusetyp</b> und die <b>Pinzahl </b>.</li><li>\
+                  Geben Sie dann den <b>Packagenamen</b> ein oder übernehmen Sie den automatischen \
+                  Vorschlag. Wählen Sie ob ein neues Package erstellt werden soll.<br>\
+                  <b>Hinweis: </b> Wenn Sie sich nicht in einem Package befinden, oder das Package \
+                  enthält bereits Pads, kann nur fortgesetzt werden, wenn ein <b>neues Package</b> \
+                  gewählt wurde.<br>\
+                  Wenn schon ein Package mit dem gleichen Namen vorhanden ist, kann es nur\
+                  überschrieben werden, wenn es noch nicht in einem Bauteil verwendet wird. Es \
+                  erfolgen entsprechende Abfragen und Meldungen.</li><li>\
+                  Geben Sie die Abmessungen gemäß den Beschriftungen in der nebenstehenden Zeichnung ein.<br>\
+                  Ist der Haken bei <b>Voreingestellte Werte für Pads und Strichdicke verwenden</b> \
+                  gesetzt, kommt man mit <b>Weiter</b> zur Zusammenfassung.<br> Andernfalls können \
+                  im nächsten Schritt weitere Abmessungen für das SMD-Pad vorgenommen werden.</li><li>\
+                  Ist der Abstand zwischen dem Gehäuse und dem SMD-Pad <b>K</b> kleiner als 0,1 mm \
+                  (also auch negativ), so erfolgt die Zeichnung der Umrisse mit dem Layer <b>tDocu</b>. \
+                  Ist <b>K</b> größer als 0,1 mm, werden die Umrisse im Layer <b>tPlace</b> vorgenommen.<br>\
+                  Wenn <b>Exposed Pad in Bauteilmitte</b> ausgewählt ist, dann wird ein Exposed Pad \
+                  mit den Abmessungen Le x He im Package-Ursprung gesetzt.</li>\
+                  <li>Vor dem Fertigstellen werden alle Angaben zum Erstellen des Packages tabellarisch \
+                  zusammengefasst.</li></ol><p>\
+                  <b>Wichtig: </b>Bitte bestätigen Sie alle evtl. anfallenden Abfragen mit <b>Ja</b>,\
+                  da anderenfalls das Script zum Erstellen nicht richtig ausgeführt wird.<p>\
+                  <b>Achtung :</b>Wenn Sie <b>Erweiterte Einstellungen</b> ohne den Wizard vornehmen, \
+                  achten Sie bitte darauf, dass vorm Bestätigen mit <b>OK</b> die Auswahl unter\
+                  <b>Voreingestellte Werte für Pads und Strichstärke verwenden</b> nicht mehr angehakt \
+                  ist. Anderenfalls werden alle erweiterten Einstellungen wieder verworfen.<p>\
+                  Die Bedeutung der einzelnen Variablen:<ul type=square>\
+                  <li>Allgemeine Einstellungen<ul type=disc>\
+                  <li>A ... Abmessung der Seite ohne Pads (nur bei zweireihingen Packages)</li>\
+                  <li>B ... Bauteilbreite inklusive Pads</li>\
+                  <li>B1 ... Bauteilbreite exklusive Pads</li>\
+                  <li>P ... Abstand benachbarter Pads</li>\
+                  </ul></li><li>Erweiterte Einstellungen<ul type=disc>\
+                  <li>L ... Breite des SMD Pads</li>\
+                  <li>H ... Höhe des SMD Pads</li>\
+                  <li>K ... Abstand zwischen Bauteilrand und Beginn des SMD Pads</li>\
+                  <li>Le ... Breite vom Exposed Pad</li>\
+                  <li>He ... Höhe vom Exposed Pad</li>\
+                  <li>Rundheit ... Rundheit vom Pin 1 in Prozent</li>\
+                  <li>Strichstärke ... Strichstärke für die Umrisszeichnung</li>\
+                  </ul></li></ul><p>\
+                  Wenn in Ihren Dialogen keine Bilder angezeigt werden, überprüfen Sie bitte, ob sich im  \
+                  Verzeichnis <b>CreateSymSMDSources</b> ein Unterordner mit dem Namen <b>images</b> \
+                  befindet. In diesem Unterordner müssen die folgenden Grafikdateien vorhanden sein:\
+                  <ul>\
+                  <li>EP-Measure.png</li>\
+                  <li>QFP-Measure.png</li>\
+                  <li>Pad-MeasureNRd.png</li>\
+                  <li>Pad-MeasureRd.png</li>\
+                  <li>SOP-Measure.png</li></ul>\<p>\
+                  <b>Beispiel: </b>Wählen Sie Quadratisches Gehäuse, Packagename PQFP240, Pinzahl = \
+                  240, B=34.6 mm, B1=32.0 mm, P=0.5 mm und Voreinstellungen. Das Ergebnis ist ein 240 Pin\
+                  PQFP Package";
+
+string I18N[]={
+   "en\v"
+   "de\v"
+   ,
+   "+OK\v"
+   "+OK\v"
+   ,
+   "-Cancel\v"
+   "-Abbrechen\v"
+   ,
+   "Summary:\v"
+   "Zusammenfassung:\v"
+   ,
+   "Package style\v"
+   "Typ\v"
+   ,
+   "Quad sided\v"
+   "Quadratisch\v"
+   ,
+   "double sided\v"
+   "Zweihreihig\v"
+   ,
+   "Package name\v"
+   "Packagename\v"
+   ,
+   "Dimensions\v"
+   "Maße\v"
+   ,
+   "Create a new package\v"
+   "Neues Package erstellen\v"
+   ,
+   "Overwrite existing package\v"
+   "Bestehendes Package überschreiben\v"
+   ,
+   "Use default settings for pads and line width\v"
+   "Voreingestellte Werte für Pads und Strichstärke verwenden\v"
+   ,
+   "First pin rounded\v"
+   "Erstes Pin abgerundet\v"
+   ,
+   "Roundness\v"
+   "Rundheit\v"
+   ,
+   "Linewidth\v"
+   "Strichstärke\v"
+   ,
+   "Wizard\v"
+   "Wizard\v"
+   ,
+   "Step\v"
+   "Schritt\v"
+   ,
+   "of\v"
+   "von\v"
+   ,
+   "Summary\v"
+   "Zusammenfassung\v"
+   ,
+   "Package\v"
+   "Gehäuse\v"
+   ,
+   "Double sided package\v"
+   "zweireihiges Gehäuse\v"
+   ,
+   "Quad sided package\v"
+   "Quadratisches Gehäuse\v"
+   ,
+   "Number of pins\v"
+   "Pinzahl\v"
+   ,
+   "+Next >\v"
+   "+Weiter >\v"
+   ,
+   ":The number of pins must be a multiple of 4.\v"
+   ":Die Anzahl der Pins muss durch 4 teilbar sein.\v"
+   ,
+   ":The number of pins must be a multiple of 2.\v"
+   ":Die Anzahl der Pins muss durch 2 teilbar sein.\v"
+   ,
+   "< &Back\v"
+   "< &Zurück\v"
+   ,
+   ":The package must not contain any pads.\v"
+   ":Das Package, indem das Bauteil erstellt wird, darf vorher keine Pads enthalten.\v"
+   ,
+   ";Create a new package?\v"
+   ";Neues Gehäuse erstellen?\v"
+   ,
+   "+Yes\v"
+   "+Ja\v"
+   ,
+   "-No\v"
+   "-Nein\v"
+   ,
+   ":The package is used in other devices.\v"
+   ":Das Package wird bereits in anderen Bauteilen verwendet.\v"
+   ,
+   ";Package already exist. Overwrite?\v"
+   ";Das Package existiert schon. Soll es überschrieben werden?\v"
+   ,
+   "Dimensions in\v"
+   "Maße in\v"
+   ,
+   "Package\v"
+   "Gehäuse\v"
+   ,
+   "SMD pad\v"
+   "SMD Pad\v"
+   ,
+   "Distances and line width\v"
+   "Abstände und Strichstärke\v"
+   ,
+   "Linewidth\v"
+   "Strichstärke\v"
+   ,
+   "+Finish\v"
+   "+Fertigstellen\v"
+   ,
+   "Generate a symmetric SMD package\v"
+   "Erstellen von symmetrischen SMD Gehäusen\v"
+   ,
+   "General\v"
+   "Allgemein\v"
+   ,
+   "General settings\v"
+   "Allgemeine Einstellungen\v"
+   ,
+   "&Wizard\v"
+   "&Wizard\v"
+   ,
+   "Advanced settings\v"
+   "Erweiterte Einstellungen\v"
+   ,
+   "Documentation\v"
+   "Beschreibung\v"
+   ,
+   "Exposed pad on center\v"
+   "Exposed Pad in Bauteilmitte\v"
+   ,
+   "Exposed pad\v"
+   "Exposed Pad\v"
+   ,
+   ":Wrong number of input arguments.\v"
+   ":Die Anzahl der Argumente ist nicht korrekt.\v"
+   ,
+   ":The package name must not included any white space or one of the following signs: '.', ';'.\v"
+   ":Der Packagename darf keine Leerzeichen oder eins der folgenden Zeichen enthalten: '.', ';'.\v"
+   ,
+   "This ULP needs a library.\v"
+   "Dieses Ulp funktioniert nur in Bibliotheken.\v"
+};
+
+int i16Lang= strstr(I18N[0], language()) / 3; // = 0; // EN

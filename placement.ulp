@@ -1,0 +1,306 @@
+#usage "<b>Placement Data generation</b>\n"
+       "<p>"
+       "Generates one file with top and bottom layers "
+
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND, EXPRESSED OR IMPLIED
+
+if (board) board(B) 
+{
+  	// Get filename
+
+	string fname = filesetext(B.name, "_Placement~~~.scr");
+
+  	string fileName = dlgFileSave("Save File", fname, "*.scr");
+
+  	if (fileName == "") exit(0);
+
+  	output(fileName)
+  	{
+		printf ("# Layer = Top\n");
+		printf ("# Units used = ");
+
+		if (B.grid.unit == GRID_UNIT_MIC) 
+		{
+			printf ("microns\n");
+		}
+
+		if (B.grid.unit == GRID_UNIT_MM) 
+		{
+			printf ("mm\n");
+		}
+	
+		if (B.grid.unit == GRID_UNIT_MIL) 
+		{
+			printf ("mil\n");
+		}
+	
+		if (B.grid.unit == GRID_UNIT_INCH) 
+		{
+			printf ("inch\n");
+		}
+	
+	   B.elements(E) 
+	   {
+	 		int wasSmd,
+	     	xmax =-2147483648,
+	     	xmin = 2147483647,
+	     	ymax = xmax,
+	     	ymin = xmin;
+	
+	      	wasSmd = 0;
+	
+	        E.package.contacts(C) 
+	    	{
+				if ((C.smd && C.smd.layer == 1)) 
+				{
+	       			wasSmd = 1;
+	        		if (C.x > xmax) xmax = C.x;
+	        		if (C.y > ymax) ymax = C.y;
+	        		if (C.x < xmin) xmin = C.x;
+	        		if (C.y < ymin) ymin = C.y;
+	      		}
+	     	}
+	
+	       if (wasSmd) 
+	       {
+				real x,y;
+	
+				switch (B.grid.unit)
+				{
+					case GRID_UNIT_MIC:
+						x = u2mic ((xmin + xmax) / 2);
+						y = u2mic ((ymin + ymax) / 2);
+						break;
+					case GRID_UNIT_MIL:
+						x = u2mil ((xmin + xmax) / 2);
+						y = u2mil ((ymin + ymax) / 2);
+						break;
+					case GRID_UNIT_MM:
+						x = u2mm ((xmin + xmax) / 2);
+						y = u2mm ((ymin + ymax) / 2);
+						break;
+					case GRID_UNIT_INCH:
+						x = u2inch ((xmin + xmax) / 2);
+						y = u2inch ((ymin + ymax) / 2);
+						break;
+				}
+				
+				string value = E.value, name = E.package.name;
+				int index = 0;
+		
+				while ((index = strchr (value,' ',index)) >= 0)
+				{
+					value[index] = '_';
+				}
+			
+				index = 0;
+		
+				while ((index = strchr (name,' ',index)) >= 0)
+				{
+					name[index] = '_';
+				}
+		
+				if (strlen (value) == 0) value = "none";
+				if (strlen (name) == 0) value = "none";
+	
+		   		printf("MOVE '%s' (%5.4f %5.4f); ROTATE R%f '%s'\n",
+					E.name, x, y,
+					E.angle, E.name);	
+			}
+		}
+	
+		printf ("\n\n# Layer = Bottom\n");
+		printf ("# Units used = ");
+	
+		if (B.grid.unit == GRID_UNIT_MIC) 
+		{
+			printf ("microns\n");
+		}
+	
+		if (B.grid.unit == GRID_UNIT_MM) 
+		{
+			printf ("mm\n");
+		}
+	
+		if (B.grid.unit == GRID_UNIT_MIL) 
+		{
+			printf ("mil\n");
+		}
+	
+		if (B.grid.unit == GRID_UNIT_INCH) 
+		{
+			printf ("inch\n");
+		}
+	
+	   	B.elements(E) 
+	   	{
+		  	int wasSmd,
+		         xmax =-2147483648,
+		         xmin = 2147483647,
+		         ymax = xmax,
+		         ymin = xmin;
+		
+		 	wasSmd = 0;
+	
+	        E.package.contacts(C) 
+	    	{
+	      		if (C.smd && C.smd.layer == 16) 
+	      		{
+		           	wasSmd = 1;
+		
+		            if (C.x > xmax) xmax = C.x;
+		            if (C.y > ymax) ymax = C.y;
+		            if (C.x < xmin) xmin = C.x;
+		            if (C.y < ymin) ymin = C.y;
+	      		}
+	     	}
+	
+	   		if (wasSmd) 
+	   		{
+				real x,y;
+	
+				switch (B.grid.unit)
+				{
+					case GRID_UNIT_MIC:
+						x = u2mic ((xmin + xmax) / 2);
+						y = u2mic ((ymin + ymax) / 2);
+						break;
+					case GRID_UNIT_MIL:
+						x = u2mil ((xmin + xmax) / 2);
+						y = u2mil ((ymin + ymax) / 2);
+						break;
+					case GRID_UNIT_MM:
+						x = u2mm ((xmin + xmax) / 2);
+						y = u2mm ((ymin + ymax) / 2);
+						break;
+					case GRID_UNIT_INCH:
+						x = u2inch ((xmin + xmax) / 2);
+						y = u2inch ((ymin + ymax) / 2);
+						break;
+				}
+	
+				string value = E.value, name = E.package.name;
+				int index = 0;
+		
+				while ((index = strchr (value,' ',index)) >= 0)
+				{
+					value[index] = '_';
+				}
+		
+				index = 0;
+		
+				while ((index = strchr (name,' ',index)) >= 0)
+				{
+					name[index] = '_';
+				}
+	
+				if (strlen (value) == 0) value = "none";
+				if (strlen (name) == 0) value = "none";
+		 			
+		   		printf("MOVE '%s' (%5.4f %5.4f); ROTATE R%f '%s'\n",
+					E.name, x, y,
+					E.angle, E.name);	
+			}
+	   	}
+	   	
+	  	printf ("\n\n# Layer = Non-Surface Mount\n");
+		printf ("# Units used = ");
+	
+		if (B.grid.unit == GRID_UNIT_MIC) 
+		{
+			printf ("microns\n");
+		}
+	
+		if (B.grid.unit == GRID_UNIT_MM) 
+		{
+			printf ("mm\n");
+		}
+	
+		if (B.grid.unit == GRID_UNIT_MIL) 
+		{
+			printf ("mil\n");
+		}
+	
+		if (B.grid.unit == GRID_UNIT_INCH) 
+		{
+			printf ("inch\n");
+		}
+	
+	   	B.elements(E) 
+	   	{
+		  	int wasSmd,
+		         xmax =-2147483648,
+		         xmin = 2147483647,
+		         ymax = xmax,
+		         ymin = xmin;
+		
+		 	wasSmd = 0;
+	
+	        E.package.contacts(C) 
+	    	{
+	      		if (!C.smd) 
+	      		{
+		           	wasSmd = 1;
+		
+		            if (C.x > xmax) xmax = C.x;
+		            if (C.y > ymax) ymax = C.y;
+		            if (C.x < xmin) xmin = C.x;
+		            if (C.y < ymin) ymin = C.y;
+	      		}
+	     	}
+	
+	   		if (wasSmd) 
+	   		{
+				real x,y;
+	
+				switch (B.grid.unit)
+				{
+					case GRID_UNIT_MIC:
+						x = u2mic ((xmin + xmax) / 2);
+						y = u2mic ((ymin + ymax) / 2);
+						break;
+					case GRID_UNIT_MIL:
+						x = u2mil ((xmin + xmax) / 2);
+						y = u2mil ((ymin + ymax) / 2);
+						break;
+					case GRID_UNIT_MM:
+						x = u2mm ((xmin + xmax) / 2);
+						y = u2mm ((ymin + ymax) / 2);
+						break;
+					case GRID_UNIT_INCH:
+						x = u2inch ((xmin + xmax) / 2);
+						y = u2inch ((ymin + ymax) / 2);
+						break;
+				}
+	
+				string value = E.value, name = E.package.name;
+				int index = 0;
+		
+				while ((index = strchr (value,' ',index)) >= 0)
+				{
+					value[index] = '_';
+				}
+		
+				index = 0;
+		
+				while ((index = strchr (name,' ',index)) >= 0)
+				{
+					name[index] = '_';
+				}
+	
+				if (strlen (value) == 0) value = "none";
+				if (strlen (name) == 0) value = "none";
+		 			
+		   		printf("MOVE '%s' (%5.4f %5.4f); ROTATE R%f '%s'\n",
+					E.name, x, y,
+					E.angle, E.name);	
+			}
+	   	} 	
+	   	
+ 	}
+}
+else 
+{
+   dlgMessageBox("\n    Start this ULP in a Board    \n");
+   exit (0);
+}

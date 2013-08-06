@@ -1,0 +1,117 @@
+#usage "<b>ShowGroup Version 1.0</b>\n"
+"<p>Highlight selected components in schematics when working in board<br>"
+"or visa versa.</p>"
+"<p><br><i><u> How to use:</u></i><br>"
+"Select a group of components in board and then<br>"
+"<b>RUN ShowGroup.ulp</b><br>"
+"The selected componets are showed in the schematics surounded by a square<br>"
+"It also works the oposit way selecting components in <br>"
+"the schematics to locate the on the board<br></p>"
+"<p>This program are free of charge and are used on your own risk<br>"
+"If you make improvments, please share it</p>"
+"<author>Author: Øyvind.Eggen@jotron.com</author>"
+
+/*
+History
+20090827: Verson 1.0  
+First release. 
+oyvind.eggen@jotron.com
+*/
+
+
+int nSheets;
+string sEName[];
+int nEPage[];
+string cmd;
+string s;
+int nGroupCount;
+int multipleSheets;
+
+if (schematic)
+{
+   cmd = "EDIT .brd;\nwindow fit; show @ ";
+   schematic(S)    		{
+      S.parts(P)        {
+         P.instances(I) {
+            if ( ingroup(I) && (I.name != "GND") && (strchr(I.name, '$') == -1)) {
+               sprintf(s, "%s ", I.name);
+               cmd += s;
+               nGroupCount++;
+            }
+         }
+      }
+   }
+   if (nGroupCount) 
+   { // Group are not empty
+      exit (cmd + "\n");
+   }
+   else
+   {  // Empty group
+      dlgMessageBox(usage, "OK");   
+   }
+}  //if(schematic)
+else
+{
+   project.board(B) {
+      B.elements(E) {
+         if (ingroup(E) &&  (E.name != "GND") && (strchr(E.name, '$') == -1)) {
+            sEName[nGroupCount] = E.name;
+            nGroupCount++;
+         }
+      }
+   }
+   
+   if (nGroupCount) 
+   { // Group are not empty
+      int lastSheet=-1;
+      for (int i=0; i< nGroupCount; i++)
+      { // Loop through the selected components to check if thay are all on the same sheet.
+         project.schematic(S) {
+            S.sheets(SH) {
+               SH.parts(PA) {
+                  if (PA.name == sEName[i]) {
+                     PA.instances(IN) {  
+                        nEPage[i] = IN.sheet;
+                        if (IN.sheet) {
+                           if ((lastSheet == -1) && (IN.sheet))  {
+                              lastSheet = IN.sheet; // First sheet
+                           }
+                           if ((lastSheet != -1) && (lastSheet != IN.sheet))  {
+                              lastSheet = IN.sheet;
+                              multipleSheets = 1;  // The grouped components are on several sheets.
+                           }
+                           
+                        }                        
+                     }
+                  }
+               }
+            }
+         }
+      }
+      if (!multipleSheets)  {
+         // Only one sheet to show
+         // Switch to this sheet and highlight the components
+         sprintf (cmd, "EDIT .s%d;\nwindow fit; show @ ", lastSheet);;
+      }
+      else {
+         // Components are spread on more than one sheet.
+         // Run show command from current sheet.
+         sprintf (cmd, "EDIT .sch;\nwindow fit; show @ ");;
+      }
+      
+      for (i=0; i< nGroupCount; i++)
+      { // Add all the components to the command
+         sprintf(s, "%s ", sEName[i]);
+         cmd += s;
+      }
+
+      if (nGroupCount) 
+      { // Execute the command
+         exit (cmd + "\n");
+      }
+      else
+      {
+         dlgMessageBox(usage, "OK");   
+      }
+   }//if(nGroupCount) 
+}

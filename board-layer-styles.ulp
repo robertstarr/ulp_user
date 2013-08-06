@@ -1,0 +1,40 @@
+#usage "<qt><b>Export Board Layer Styles</b><p>\n"
+       "This ULP scans all elements and determines which layers & layers styles are used a board.\n"
+       "A script is created with the layers settings that can be used to load the layer\n"
+       "configuration into a new board.\n"
+       "<p>THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND, "
+       "EXPRESSED OR IMPLIED.<p>\n"
+       "<author>Author: http://www.bobstarr.net</author></qt>"
+
+#require 4.1106
+
+string Version = "Version 1.0.0";
+
+string fname = "";
+
+// main
+if (board)
+{
+    board(B)
+    {
+        int n;
+
+        fname = filesetext(B.name, "_layer_styles.scr");
+
+        output(fname, "wtD"){
+        
+        B.layers(L)
+        {
+            if (L.used)
+            {
+                printf("Layer %3d %s;\n", L.number, L.name);
+                printf("Set Color_Layer %d %d;\n", L.number, L.color);
+                printf("Set Fill_Layer %d %d;\n", L.number, L.fill);
+            }
+        }
+    }
+  }
+  exit ("script '" + fname + "';\n");
+}
+
+else dlgMessageBox("Start this  ULP from a Board", "OK");

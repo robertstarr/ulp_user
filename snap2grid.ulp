@@ -1,0 +1,593 @@
+#usage "<table border=1 cellpadding=3 >"
+       "<tr><th>DESCRIPTION:</th>"
+       "<td>Snaps the origins of components in the current group to a specified grid resolution.  "
+       "Can be used within any of the EAGLE editors (board, schematic, library, etc.), though "
+       "not all editor content can be snapped.</td></tr>"
+       "<tr><th>USAGE:</th><td><tt>RUN Snap2Grid.ulp <b>[OPTIONS] [UNITS]</b></tt></td></tr>"
+       "<tr><th><tt>OPTIONS:</tt><td>"
+       "<tt>-q</tt>  Suppresses the default confirmation dialog</td>"
+       "<p><tt>-h, -?, help</tt>  Displays this usage info</td></tr>"
+       "<tr><th><tt>UNITS:</tt></th><td>Snap grid units: must be a member of the set {<tt>mic mm mil inch</tt>}</td></tr>"
+       "<tr><th>EXAMPLE:</th><td><tt>RUN Snap2Grid.ulp inch</tt> (default to snap grid in inches)"
+                             "<p><tt>RUN Snap2Grid.ulp -q mic</tt> (default to microns, don't show confirmation dialog)"
+                             "<p><tt>RUN Snap2Grid.ulp undo</tt> (undo the last Snap2Grid operation)</tt></td></tr>"
+       "<tr><th>AUTHOR:</th><td><author>Dave Billin (dave.billin@gmail.com)</author></td></tr>"
+       "<tr><th>VERSION:</th><td>1.0.0 <i> (January 8, 2012)</i></td></tr>"
+       "</table>"
+
+
+//-----------------------------------------------------------------
+// This is the default unit type offered in the snap grid
+// selection dialog.  If you work mainly with a particular
+// unit, you may want to change this to one of the following
+// values so that you don't have to re-select units every time:
+//
+//      GRID_UNIT_MIC       --> default to microns
+//      GRID_UNIT_MM        --> default to millimeters
+//      GRID_UNIT_MIL       --> default to mils
+//      GRID_UNIT_INCH      --> default to inches
+//-----------------------------------------------------------------
+int DefaultUnitID = GRID_UNIT_MIL;
+
+
+
+
+
+
+
+//============================
+// LOCAL FUNCTIONS
+//============================
+
+//===================================================================
+// FUNCTION: SnapQuantize
+//
+// DESCRIPTION:
+//  Quantizes an input coordinate value by a specified grid 
+//  resolution, (i.e. thereby 'snapping' the coordinate value to the
+//  nearest multiple of that resolution)
+//
+// PARAM: SourceValue
+//	Value to be quantized
+//
+// PARAM: QFactor
+//	Quantization base value
+//
+// RETURNS:
+//	SourceValue quantized (i.e. rounded up/down) to the nearest 
+//	multiple of QFactor.  
+//===================================================================
+real SnapQuantize( real SourceValue, real QFactor )
+{
+	// Quantization base must be non-negative
+	if (QFactor == 0)
+	{
+		dlgMessageBox("[ERROR in SnapQuantize()] QFactor cannot equal zero!");
+		exit(EXIT_FAILURE);
+	}
+	QFactor = abs(QFactor);
+
+	real SourceSign = (SourceValue >= 0) ? 1 : -1; // Sign of SourceValue
+	real SourceMag = abs(SourceValue);			// Magnitude of SourceValue
+	int Quotient = SourceMag / QFactor;			// Integer quotient
+	real LesserQuant = QFactor * Quotient;		// Next lesser quantization level
+	real GreaterQuant = LesserQuant + QFactor;	// Next greater quantization level
+	real ReturnVal;								// Quantized value to return
+
+	if (SourceMag == LesserQuant)		
+	{
+		// CASE: SourceValue is already quantized - do nothing
+		ReturnVal = SourceValue;
+	}
+	else
+	{
+		if ( abs(SourceMag - LesserQuant) > abs(GreaterQuant - SourceMag) )
+		{
+			// CASE: Snap to the next greater quantization level
+			ReturnVal = GreaterQuant * SourceSign;
+		}
+		else
+		{
+			// CASE: Snap to the next lesser quantization level
+			ReturnVal = LesserQuant * SourceSign;
+		}
+	}
+
+	return ReturnVal;
+}
+
+
+/*
+// UNIT TEST CODE to verify SnapQuantize():
+
+string sTest[] = { "0", "1", "2", "3", "4", "5", "6", "7" };
+sprintf( sTest[0], "2.0 : 0.5 = %f", SnapQuantize(2, 0.5) );
+sprintf( sTest[1], "-2.0 : 0.5 = %f", SnapQuantize(-2, 0.5) );
+sprintf( sTest[2], "0.1 : 0.5 = %f", SnapQuantize(0.1, 0.5) );
+sprintf( sTest[3], "-0.1 : 0.5 = %f", SnapQuantize(-0.1, 0.5) );
+sprintf( sTest[4], "0.8 : 0.5 = %f", SnapQuantize(0.8, 0.5) );
+sprintf( sTest[5], "-0.8 : 0.5 = %f", SnapQuantize(-0.8, 0.5) );
+sprintf( sTest[6], "0.75 : 0.5 = %f", SnapQuantize(0.75, 0.5) );
+sprintf( sTest[7], "-0.75 : 0.5 = %f", SnapQuantize(-0.75, 0.5) );
+
+int UnitTestResult = dlgDialog("Unit Test") 
+{
+	dlgVBoxLayout
+	{
+		for (int i = 0; i < 8; i++)
+		{
+			dlgLabel(sTest[i]);
+		}
+	}
+	dlgHBoxLayout 
+	{
+		dlgPushButton("+OK")    dlgAccept();
+		dlgPushButton("Cancel") dlgReject();
+	}
+};
+exit(EXIT_SUCCESS);
+*/
+
+
+
+//===================================================================
+// FUNCTION: GetDocumentType
+//
+// DESCRIPTION:
+//  Returns an integer identifier specifying the type of document
+//  this ULP is being called from:
+//
+// RETURNS:
+//      DOC_BOARD       - if ULP was called from the board editor
+//      DOC_SCHEMATIC   - if ULP was called from the schematic editor
+//      DOC_LIBRARY     - if ULP was called from the library editor
+//      DOC_DEVICE      - if ULP was called from the device editor
+//      DOC_PACKAGE     - if ULP was called from the package editor
+//      DOC_SYMBOL      - if ULP was called from the symbol editor
+//      -1 otherwise
+//===================================================================
+// Document type ID's
+enum { DOC_BOARD, DOC_SCHEMATIC, DOC_LIBRARY, DOC_DEVICE, DOC_PACKAGE, DOC_SYMBOL };
+
+int GetDocumentType( void )
+{
+    int Rc = -1;
+    if (board) Rc = DOC_BOARD;
+    if (schematic) Rc = DOC_SCHEMATIC;
+    if (library) Rc = DOC_LIBRARY;
+    if (deviceset) Rc = DOC_DEVICE;
+    if (package) Rc = DOC_PACKAGE;
+    if (symbol) Rc = DOC_SYMBOL;
+    return Rc;
+}
+
+
+
+//===================================================================
+// FUNCTION: GetEditorFilePath
+// 
+// DESCRIPTION: 
+//  Returns a string containing the path and filename of the file 
+//  loaded in the editor where this ULP was run from
+//===================================================================
+string GetEditorFilePath( void )
+{
+    if (board)
+    {
+        board(B)
+            return B.name;
+    }
+    if (schematic)
+    {
+        schematic(S)
+            return S.name;
+    }
+
+    if (library)
+    {
+        library(L)
+            return L.name;
+    }
+}
+
+
+
+
+//======================
+// TABLES:
+//======================
+// Some string tables
+string sUnitTable[] = { "mic", "mm", "mil", "inch" };
+string sDocTypeTable[] = { "board", "schematic", "library", "device", "package", "symbol" };
+
+// Table used to convert between internal Eagle coordinate units and grid units
+real UnitConversionTable[] = 
+          { 1.0 / u2mic(1),   /* microns --> internal units */
+            1.0 / u2mm(1),    /* mm      --> internal units */
+            1.0 / u2mil(1),   /* mil     --> internal units */
+            1.0 / u2inch(1)   /* inches  --> internal units */
+          };
+
+
+
+//======================
+// VARIABLES:
+//======================
+int DocTypeID = GetDocumentType();   // Type of editor this ULP was called from
+string sUndoCommands;               // Commands to/from undo history
+
+
+// Nothing to do in the library editor
+if (DocTypeID == DOC_LIBRARY)   exit(EXIT_SUCCESS);
+
+
+//================================
+// Set up undo history file path
+//================================
+string sUndoFilePath = filedir(GetEditorFilePath()) + ".s2g-" + 
+                       sDocTypeTable[DocTypeID] + "-undo";
+
+
+//====================================================
+// Parse command-line arguments
+//====================================================
+int ShouldSuppressConfirm = 0;  // 1 = suppresses confirmation dialog; 0 shows it
+int ShouldAttemptUndo = 0;      // 1 = attempt to undo last operation; 0 don't undo
+if (argc > 1)
+{
+    for (int idx = 1; idx < argc; idx++)
+    {
+        string arg = strlwr(argv[idx]); // Remove case ambiguity
+
+        if ( arg  == "-q" )     // OPTION to suppress confirmation dialog
+        {
+            ShouldSuppressConfirm = 1;
+            continue;
+        }
+
+        else if ( (arg == "-h") || (arg == "-?") || (arg == "help") )
+        {
+            dlgMessageBox("<h2>Snap2Grid.ulp</h2>" + usage);
+            exit(EXIT_SUCCESS);
+        }
+
+        else if ( arg == "undo" )    // OPTION undo the last Snap2Grid execution
+        {
+            ShouldAttemptUndo = 1;
+        }
+        else
+        {
+            int UnitsFound = 0;
+
+            // Default unit arguments
+            for (int i = 0; i < 4; i++)
+            {
+                if (arg == sUnitTable[i])
+                {
+                    DefaultUnitID = i;
+                    UnitsFound = 1;
+                    break;
+                }
+            }
+
+            if (UnitsFound == 0)
+            {
+                dlgMessageBox(":Invalid argument: '" + arg + "'");
+                exit(EXIT_FAILURE);
+            }
+        }
+    }
+}
+
+
+
+//====================================================
+// Get the current grid units
+//====================================================
+int CurrentGridUnitID;
+switch (DocTypeID)
+{
+    case DOC_BOARD:
+        board(B)
+            CurrentGridUnitID = B.grid.unit;
+        break;
+
+    case DOC_SCHEMATIC:
+        schematic(SCH)
+            CurrentGridUnitID = SCH.grid.unit;
+        break;
+
+    // The library editors don't offer a way to 
+    // query the current grid setting, so use the
+    // default unit ID
+    default:
+        CurrentGridUnitID = DefaultUnitID;
+}
+
+
+//====================================================
+// Attempt to UNDO the last run of this ULP in the 
+// current editor
+//====================================================
+if (ShouldAttemptUndo)
+{
+    int NumBytesRead = fileread(sUndoCommands, sUndoFilePath);
+    
+    // If we successfully read commands from the undo file, 
+    // return them so that they will be executed.
+    // Clear the undo history to prevent accidental repeat execution
+    if (NumBytesRead > 0)
+    {
+        // Append a command to restore the current grid units
+        sUndoCommands += "GRID " + sUnitTable[CurrentGridUnitID] + ";\n";
+
+        // Clear the undo history
+        output(sUndoFilePath, "w")
+            printf("");
+
+        // Return undo commands to move parts
+        exit(sUndoCommands);
+    }
+    else
+    {
+        dlgMessageBox(":No UNDO history exists!");
+        exit(EXIT_SUCCESS);
+    }
+}
+
+
+
+
+//====================================================
+// Open a dialog and allow the user to specify a
+// desired grid resolution to snap to
+//====================================================
+real DesiredGrid = 5;               // Desired snap grid (default)
+int uDesiredGrid;
+int SelectedUnitID = DefaultUnitID; // Units of desired snap grid
+int Result = dlgDialog("Target Grid") 
+{
+	dlgHBoxLayout
+	{
+		dlgLabel("Enter Desired Grid Resolution");
+	}
+	dlgHBoxLayout
+	{
+		dlgRealEdit(DesiredGrid, 0.0001, 100);
+		dlgComboBox(sUnitTable, SelectedUnitID);
+	}
+	dlgHBoxLayout 
+	{
+		dlgPushButton("+OK")
+        {
+            // Convert desired grid to internal grid resolution
+            dlgAccept();
+        }
+		dlgPushButton("Cancel") dlgReject();
+	}
+};
+
+if (Result != 1)   // Handle CANCEL request
+{
+    exit(EXIT_SUCCESS);
+}
+
+
+
+//==========================================================
+// Gather names and origins of parts in the current group
+//==========================================================
+int NumParts = 0;         // Count of parts to move
+string sPartName[];       // Names of parts to move
+int uPartX[], uPartY[];   // Original X,Y origins (internal units)
+
+switch (DocTypeID)
+{
+    case DOC_BOARD:
+        board(B)
+        B.elements(E)
+        {
+            if ( ingroup(E) )
+            {
+                sPartName[NumParts] = E.name;
+                uPartX[NumParts] = E.x;
+                uPartY[NumParts] = E.y;
+                NumParts++;
+            }
+        }
+        break;
+
+    case DOC_SCHEMATIC:
+        sheet(S)
+        S.parts(P)
+        {
+            if ( ingroup(P) )
+            {
+                P.instances(E)
+                {
+                    sPartName[NumParts] = E.name;
+                    uPartX[NumParts] = E.x;
+                    uPartY[NumParts] = E.y;
+                    NumParts++;
+                }
+            }
+        }
+        break;
+
+    case DOC_DEVICE:
+        deviceset(DSET)
+        DSET.devices(D)
+        D.gates(E)
+        {
+            if ( ingroup(E) )
+            {
+                sPartName[NumParts] = E.name;
+                uPartX[NumParts] = E.x;
+                uPartY[NumParts] = E.y;
+                NumParts++;
+            }
+        }
+        break;
+
+    case DOC_PACKAGE:
+        package(P)
+        P.contacts(E)
+        {
+            if ( ingroup(E) )
+            {
+                sPartName[NumParts] = E.name;
+                uPartX[NumParts] = E.x;
+                uPartY[NumParts] = E.y;
+                NumParts++;
+            }
+        }
+
+    case DOC_SYMBOL:
+        symbol(S)
+        S.pins(E)
+        {
+            if ( ingroup(E) )
+            {
+                sPartName[NumParts] = E.name;
+                uPartX[NumParts] = E.x;
+                uPartY[NumParts] = E.y;
+                NumParts++;
+            }
+        }
+}
+
+
+
+//==========================================================
+// Assemble strings of editor commands to move the origins 
+// of the grouped parts to snapped coordinates and to undo 
+// the operation
+//==========================================================
+string sPartCommands;
+string sSummaryTableContent;    // Rows of an HTML summary table
+
+// Start with a command to set grid units to the desired snap units
+sPartCommands += "GRID " + sUnitTable[SelectedUnitID] + ";\n";
+sUndoCommands += "GRID " + sUnitTable[SelectedUnitID] + ";\n";
+
+// Compose an editor command to move each part to its snapped coordinates
+for (int i = 0; i < NumParts; i++)
+{
+    string sTemp;
+
+    // Convert origin coordinates to the desired grid units
+    real OriginalX = uPartX[i] * 1.0 / UnitConversionTable[SelectedUnitID];
+    real OriginalY = uPartY[i] * 1.0 / UnitConversionTable[SelectedUnitID];
+    
+    // Snap origin coordinates to the desired grid resolution
+    real SnappedX = SnapQuantize(OriginalX, DesiredGrid);
+    real SnappedY = SnapQuantize(OriginalY, DesiredGrid);
+
+    // Compose an editor command to move the part
+    sprintf( sTemp, "MOVE %s (%f %f);\n", sPartName[i], SnappedX, SnappedY);
+    sPartCommands += sTemp;
+
+    // Compose an editor command to undo the move
+    sprintf( sTemp, "MOVE %s (%f %f);\n", sPartName[i], OriginalX, OriginalY);
+    sUndoCommands += sTemp;
+
+    sprintf( sTemp, "<tr><td><center>%s</center></td><td><center>(%f, %f)</center></td><td><center>(%f, %f)</center></td></tr>",
+             sPartName[i], OriginalX, OriginalY, SnappedX, SnappedY );
+    sSummaryTableContent += sTemp;
+}
+
+// Append a command to restore the current grid
+sPartCommands += "GRID " + sUnitTable[CurrentGridUnitID] + ";\n";
+
+
+
+
+//=======================================
+// Display confirmation dialog
+//=======================================
+Result = 1;
+
+if (ShouldSuppressConfirm == 0)
+{
+    Result = dlgDialog("SnapGroup Results") 
+    {
+        dlgVBoxLayout
+        {
+            dlgTabWidget
+            {
+                dlgTabPage("Summary")
+                {
+                    dlgVBoxLayout
+                    {
+                        string sSnapGrid;
+                        sprintf( sSnapGrid, "<b>Snap Grid</b> = %f %s", DesiredGrid, 
+                                 sUnitTable[SelectedUnitID] );
+
+                        dlgLabel(sSnapGrid);
+                        
+
+                        //================================================
+                        // Build an HTML table to display the results:
+                        //================================================
+
+                        // Assemble Table header
+                        string sUnitParen = "[" + sUnitTable[SelectedUnitID] + "]";
+                        string sSummaryTableHeader;
+                        sSummaryTableHeader += "<tr>";
+                        sSummaryTableHeader += "<th>Name:</th>";
+                        sSummaryTableHeader += "<th>Original (x,y) " + sUnitParen + "</th>";
+                        sSummaryTableHeader += "<th>Snapped (x,y) " + sUnitParen + "</th>";
+                        sSummaryTableHeader += "</tr>";
+
+                        // Display the table
+                        string sSummaryTable = "<table width=600 border=1 cellpadding=3>";
+                        sSummaryTable += sSummaryTableHeader + sSummaryTableContent + "</table>";
+                        dlgTextView(sSummaryTable);
+
+                        // The following label is needed to force the dialog window to an initial
+                        // width that matches that of the table being displayed.  This is a hack 
+                        // to get around an idiosyncrasy of the EAGLE ULP interpreter...
+                        string sBar = "_______________";
+                        sBar = sBar + sBar + sBar + sBar + sBar + sBar + sBar;
+                        dlgLabel(sBar);
+
+                    }
+                }
+
+
+                dlgTabPage("Editor Commands")
+                {
+                    dlgLabel("<h3>These commands will be issued if the OK button is clicked</h3>");
+                    //dlgTextView(sEditorCommands);
+                    dlgTextView(sPartCommands);
+                }
+
+            }
+
+            dlgHBoxLayout 
+            {
+                dlgStretch(1);
+                dlgPushButton("+OK")    dlgAccept();
+                dlgPushButton("Cancel") dlgReject();
+            }
+        }
+    };
+}
+
+
+//=======================================
+// Write undo commands to file and 
+// return editor commands to move the
+// parts to snapped origins
+//=======================================
+if (Result == 1)
+{
+    // Write undo commands to file
+    output(sUndoFilePath, "w")
+    {
+        printf(sUndoCommands);
+    }
+
+    exit(sPartCommands);
+}
+

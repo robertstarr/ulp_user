@@ -1,0 +1,110 @@
+#usage "<qt><b>Generate README.TXT file for a board</b><p>\n"
+       "Generates a generic README.TXT file for a board.\n"
+       "<p>THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND, "
+       "EXPRESSED OR IMPLIED.<p>\n"
+       "<author>Author: http://www.bobstarr.net</author></qt>"
+
+#require 4.1106
+
+string fname = "";
+
+if (board)
+{
+    board(B)
+    {
+        int ndx;
+
+        fname = filedir(B.name);
+
+        string name = filename(B.name);
+
+        if ((ndx = strchr(name, '.')) > 0)
+        {
+            name = strsub(name, 0, ndx);
+        }
+
+        output(fname+"README.TXT", "wtD")
+        {
+            
+            printf("These files were generated in RS274-X format using\nCadSoft Eagle %s\n\n", EAGLE_SIGNATURE);
+
+            printf("%s\t\t%s\n\n", name, t2string(time()));
+
+            printf("%s.pdf\t\tFabrication drawing in Adobe PDF format\n", name);
+                  
+            B.layers(L)
+            {
+                if (!L.used)
+                    continue;
+                    
+                switch(L.number)
+                {
+                    case 1:
+                        printf("%s.cmp\t\tGerber Data - Top(Component) side\n", name);
+                        break;
+                        
+                    case 2:
+                    case 3:
+                    case 4:
+                    case 5:
+                    case 6:
+                    case 7:
+                    case 8:
+                    case 9:
+                    case 10:
+                    case 11:
+                    case 12:
+                    case 13:
+                    case 14:
+                    case 15:
+                        printf("%s.ly%d\t\tGerber Data - Internal layer %d\n", name, L.number, L.number);
+                        break;
+                        
+                    case 16:
+                        printf("%s.sol\t\tGerber Data - Bottom(Solder) side\n", name);
+                        break;
+
+                    case 21:
+                        printf("%s.plc\t\tGerber Data - Silk screen Top(Component) side\n", name);
+                        break;
+                    
+                    case 22:
+                        printf("%s.pls\t\tGerber Data - Silk screen Bottom(Solder) side\n", name);
+                        break;
+
+                    case 29:
+                        printf("%s.stc\t\tGerber Data - Solder stop mask Top(Component) side\n", name);
+                        break;
+
+                    case 30:
+                        printf("%s.sts\t\tGerber Data - Solder stop mask Bottom(Solder) side\n", name);
+                        break;
+
+                    case 31:
+                        printf("%s.spt\t\tGerber Data - Solder paste mask Top(Component) side\n", name);
+                        break;
+
+                    case 32:
+                        printf("%s.spb\t\tGerber Data - Solder paste mask Bottom(Solder) side\n", name);
+                        break;
+
+                    case 46:
+                        printf("%s.mil\t\tGerber Data - Milling slot/outline data\n", name);
+                        break;
+                }
+            }
+
+            printf("%s.drl\t\tDrill rack file\n", name);
+            printf("%s.dri\t\tDrill info file\n", name);
+            printf("%s.drd\t\tDrill data for NC drill station\n", name);
+            printf("%s.gpi\t\tGerber photoplotter info file\n\n", name);
+
+            printf("NOTE: ALL LAYERS GENERATED WITH MIRRORING OFF!\n\n");
+            printf("Layout Contact:\n");
+            printf("---------------\n");
+            printf("Bob Starr\nAtlanta, GA USA\nEmail: rtzaudio@comcast.net\nWeb: http://www.bobstarr.net\nTel: (770) 663-0076\n");
+        }
+    }
+}
+else
+    dlgMessageBox("Start this  ULP from a Board", "OK");

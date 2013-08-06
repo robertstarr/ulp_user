@@ -1,0 +1,454 @@
+#usage "<b>Make Connector Symbols</b> - v1.01 (4/13/11)<p>"
+       "This ULP generates various supply symbols in a library"
+       "<p>"
+       "<author>http://www.bobstarr.net</author>";
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// MAKE SUPPLY SYMBOL/DEVICE
+//
+// Copyright (C) 2011, Robert E. Starr (http://www.bobstarr.net)
+// 
+// REVISION HISTORY:
+//
+// v1.00 - 02/13/2011 (RES) - Initial Release
+//
+// v1.01 - 04/13/2011 (RES) - Added config file to save/restore settings
+//                            after each execution of the script.
+//
+//////////////////////////////////////////////////////////////////////////////
+//
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
+// EXPRESSED OR IMPLIED. IF YOU DON'T LIKE IT, DON'T USE IT!
+//
+//////////////////////////////////////////////////////////////////////////////
+
+string Version = "1.01";
+
+string fileName;
+
+int fScriptExec  = 1;            // execute script automatically after generating
+int fNegative    = 0;
+int nSymbolStyle = 0;
+
+string strSymbolName    = "V+";
+string strIconImage     = "<img src=make-supply-symdev0.png>";
+
+string ConfigFileName   = "make-supply-symdev.cfg";
+
+//////////////////////////////////////////////////////////////////////////////
+// Create the supply symbol
+
+void CreateSupplySymbol()
+{
+    printf("Grid mm;\n");
+    printf("Set Wire_Bend 2;\n");
+
+    printf("Edit '%s.sym';\n", strSymbolName);
+    
+    if (nSymbolStyle==0)         // BAR STYLE
+    {
+        if (fNegative) 
+        {
+            printf("Pin '%s' Sup None Short R270 Off 0 (0 2.54);\n", strSymbolName);
+            printf("Layer 96;\n");
+            printf("Change Size 1.778;\n");
+            printf("Change Ratio 12;\n");
+            printf("Text '>VALUE' R0 (-3.175 -2.54);\n");
+            printf("Layer 94;\n");
+            printf("Wire  0.508 (1.905 0) (-1.905 0);\n");
+        }
+        else
+        {
+            printf("Pin '%s' Sup None Short R90 Off 0 (0 -2.54);\n", strSymbolName);
+            printf("Layer 96;\n");
+            printf("Change Size 1.778;\n");
+            printf("Change Ratio 12;\n");
+            printf("Change Font Proportional;\n");
+            printf("Text '>VALUE' R0 (-3.81 0.635);\n");
+            printf("Layer 94;\n");
+            printf("Change Style Continuous;\n");
+            printf("Wire  0.508 (-1.905 0) (1.905 0);\n");
+        }
+    }
+    else if (nSymbolStyle==1)    // THIN ARROW
+    {
+        if (fNegative) 
+        {
+            printf("Pin '%s' Sup None Short R270 Off 0 (0 2.54);\n", strSymbolName);
+            printf("Layer 96;\n");
+            printf("Change Size 1.778;\n");
+            printf("Change Ratio 12;\n");
+            printf("Text '>VALUE' R0 (-3.175 -3.81);\n");
+            printf("Layer 94;\n");
+            printf("Wire  0.254 (-0.635 0.635) (0.635 0.635) (0 -1.27) (-0.635 0.635);\n");
+            printf("Layer 94;\n");
+            printf("Change Spacing 1.27;\n");
+            printf("Change Pour Solid;\n");
+            printf("Polygon 0.1524  (0 -1.27) (-0.635 0.635) (0.635 0.635) (0 -1.27);\n");
+        }
+        else
+        {
+            printf("Pin '%s' Sup None Short R90 Off 0 (0 -2.54);\n", strSymbolName);
+            printf("Layer 96;\n");
+            printf("Change Size 1.778;\n");
+            printf("Change Ratio 12;\n");
+            printf("Change Font Proportional;\n");
+            printf("Text '>VALUE' R0 (-2.54 1.905);\n");
+            printf("Layer 94;\n");
+            printf("Change Style Continuous;\n");
+            printf("Wire  0.254 (0.635 -0.635) (-0.635 -0.635) (0 1.27) (0.635 -0.635);\n");
+            printf("Layer 94;\n");
+            printf("Change Spacing 1.27;\n");
+            printf("Change Pour Solid;\n");
+            printf("Polygon 0.1524  (0 1.27) (0.635 -0.635) (-0.635 -0.635) (0 1.27);\n");
+        }
+    }
+    else if (nSymbolStyle==2)    // WAVE Symbol
+    {
+        if (fNegative) 
+        {
+            printf("Pin '%s' Sup None Short R270 Off 0 (0 2.54);\n", strSymbolName);
+            printf("Layer 96;\n");
+            printf("Change Size 1.778;\n");
+            printf("Change Ratio 12;\n");
+            printf("Text '>VALUE' R0 (-3.175 -3.175);\n");
+            printf("Layer 94;\n");
+            printf("Wire  0.508 (-1.905 -0.3175) -80.0844 (0 0);\n");
+            printf("Wire  0.508 (1.905 0.3175) -80.0893 (0 0);\n");
+        }
+        else
+        {
+            printf("Pin '%s' Sup None Short R90 Off 0 (0 -2.54);\n", strSymbolName);
+            printf("Layer 96;\n");
+            printf("Change Size 1.778;\n");
+            printf("Change Ratio 12;\n");
+            printf("Change Font Proportional;\n");
+            printf("Text '>VALUE' R0 (-2.54 1.27);\n");
+            printf("Layer 94;\n");
+            printf("Change Style Continuous;\n");
+            printf("Wire  0.508 (1.905 0.3175) -80.0844 (0 0);\n");
+            printf("Wire  0.508 (-1.905 -0.3175) -80.0893 (0 0);\n");
+        }
+    }    
+    else if (nSymbolStyle==3)    // INVERTED Symbol
+    {
+        if (fNegative) 
+        {
+            printf("Pin '%s' Sup None Point R270 Off 0 (0 2.54);\n", strSymbolName);
+            printf("Layer 96;\n");
+            printf("Change Size 1.778;\n");
+            printf("Change Ratio 12;\n");
+            printf("Text '>VALUE' R0 (-1.905 -3.175);\n");
+            printf("Layer 94;\n");
+            printf("Wire  0.1524 (0 2.54) (0 0.635) 0.4064 (1.27 -0.635);\n");
+            printf("Wire  0.4064 (0 0.635) (-1.27 -0.635);\n");
+        }
+        else
+        {
+            printf("Pin '%s' Sup None Point R90 Off 0 (0 -2.54);\n", strSymbolName);
+            printf("Layer 96;\n");
+            printf("Change Size 1.778;\n");
+            printf("Change Ratio 12;\n");
+            printf("Change Font Proportional;\n");
+            printf("Text '>VALUE' R0 (-2.54 1.5875);\n");
+            printf("Layer 94;\n");
+            printf("Change Style Continuous;\n");
+            printf("Wire  0.1524 (0 -2.54) (0 -0.635) 0.4064 (-1.27 0.635);\n");
+            printf("Wire  0.4064 (0 -0.635) (1.27 0.635);\n");
+        }
+    }    
+    else if (nSymbolStyle==4)    // THICK ARROW Symbol
+    {
+        if (fNegative) 
+        {
+            printf("Pin '%s' Sup None Short R270 Off 0 (0 2.54);\n", strSymbolName);
+            printf("Layer 96;\n");
+            printf("Change Size 1.778;\n");
+            printf("Change Ratio 12;\n");
+            printf("Text '>VALUE' R0 (-3.175 -3.81);\n");
+            printf("Layer 94;\n");
+            printf("Wire  0.254 (-0.9525 0.635) (0 -1.27) (0.9525 0.635) (-0.9525 0.635);\n");
+            printf("Layer 94;\n");
+            printf("Change Spacing 1.27;\n");
+            printf("Change Pour Solid;\n");
+            printf("Polygon 0.1524  (0 -1.27) (-0.9525 0.635) (0.9525 0.635) (0 -1.27);\n");
+        }
+        else
+        {
+            printf("Pin '%s' Sup None Short R90 Off 0 (0 -2.54);\n", strSymbolName);
+            printf("Layer 96;\n");
+            printf("Change Size 1.778;\n");
+            printf("Change Ratio 12;\n");
+            printf("Change Font Proportional;\n");
+            printf("Text '>VALUE' R0 (-2.54 1.905);\n");
+            printf("Layer 94;\n");
+            printf("Change Style Continuous;\n");
+            printf("Wire  0.254 (0.9525 -0.635) (0 1.27) (-0.9525 -0.635) (0.9525 -0.635);\n");
+            printf("Layer 94;\n");
+            printf("Change Spacing 1.27;\n");
+            printf("Change Pour Solid;\n");
+            printf("Polygon 0.1524  (0 1.27) (0.9525 -0.635) (-0.9525 -0.635) (0 1.27);\n");
+        }
+    }    
+    else if (nSymbolStyle==5)    // ROUND Symbol
+    {
+        if (fNegative) 
+        {
+            printf("Pin '%s' Sup None Point R270 Off 0 (0 2.54);\n", strSymbolName);
+            printf("Layer 96;\n");
+            printf("Change Size 1.778;\n");
+            printf("Change Ratio 12;\n");
+            printf("Text '>VALUE' R0 (-1.905 -3.175);\n");
+            printf("Layer 94;\n");
+            printf("Wire  0.1524 (0 2.54) (0 0.9525);\n");
+            printf("Layer 94;\n");
+            printf("Circle 0.4064 (0 0.0001) (0.8979 0.0001);\n");
+        }
+        else
+        {
+            printf("Pin '%s' Sup None Point R90 Off 0 (0 -2.54);\n", strSymbolName);
+            printf("Layer 96;\n");
+            printf("Change Size 1.778;\n");
+            printf("Change Ratio 12;\n");
+            printf("Change Font Proportional;\n");
+            printf("Text '>VALUE' R0 (-2.54 1.5875);\n");
+            printf("Layer 94;\n");
+            printf("Change Style Continuous;\n");
+            printf("Wire  0.1524 (0 -2.54) (0 -0.9525);\n");
+            printf("Layer 94;\n");
+            printf("Circle 0.4064 (0 -0.0001) (0.8979 -0.0001);\n");
+        }
+    }    
+    else if (nSymbolStyle==6)    // GND Symbol
+    {
+        printf("Pin '%s' Sup None Point R270 Off 0 (0 2.54);\n", strSymbolName);
+        printf("Layer 96;\n");
+        printf("Change Size 1.778;\n");
+        printf("Change Ratio 12;\n");
+        printf("Change Font Proportional;\n");
+        printf("Text '>VALUE' R0 (-2.2225 -2.54);\n");
+        printf("Layer 94;\n");
+        printf("Change Style Continuous;\n");
+        printf("Wire  0.254 (1.1113 1.5875) (0 1.5875) (-1.1113 1.5875);\n");
+        printf("Wire  0.1524 (0 2.54) (0 1.5875);\n");
+        printf("Wire  0.254 (0.635 0.7938) (-0.635 0.7938);\n");
+        printf("Wire  0.254 (0.1587 0) (-0.1588 0);\n");
+    }    
+    else if (nSymbolStyle==7)    // AGND Symbol
+    {
+        printf("Pin '%s' Sup None Point R270 Off 0 (0 2.54);\n", strSymbolName);
+        printf("Layer 96;\n");
+        printf("Change Size 1.778;\n");
+        printf("Change Ratio 12;\n");
+        printf("Text '>VALUE' R0 (-3.175 -2.54);\n");
+        printf("Layer 94;\n");
+        printf("Wire  0.254 (-0.9525 1.905) (0 0) (0.9525 1.905) (0 1.905) (-0.9525 1.905);\n");
+        printf("Wire  0.1524 (0 2.54) (0 1.905);\n");
+    }
+    else if (nSymbolStyle==8)    // CGND Symbol
+    {
+        printf("Pin '%s' Sup None Point R270 Off 0 (0 2.54);\n", strSymbolName);
+        printf("Layer 96;\n");
+        printf("Change Size 1.778;\n");
+        printf("Change Ratio 12;\n");
+        printf("Text '>VALUE' R0 (-2.54 -2.54);\n");
+        printf("Layer 94;\n");
+        printf("Wire  0.254 (1.905 1.905) (0 1.905) (-1.905 1.905);\n");
+        printf("Wire  0.1524 (0 2.54) (0 1.905);\n");
+        printf("Wire  0.254 (1.905 1.905) (0 0) (-1.905 1.905);\n");
+    }
+    else if (nSymbolStyle==9)    // EGND Symbol
+    {
+        printf("Pin '%s' Sup None Point R270 Off 0 (0 2.54);\n", strSymbolName);
+        printf("Layer 96;\n");
+        printf("Change Size 1.778;\n");
+        printf("Change Ratio 12;\n");
+        printf("Text '>VALUE' R0 (-3.175 -2.54);\n");
+        printf("Layer 94;\n");
+        printf("Wire  0.254 (1.27 1.5875) (0.9524 1.5875) (0.1587 1.5875) (-0.6352 1.5875) (-1.27 1.5875);\n");
+        printf("Wire  0.254 (-0.6352 1.5875) (-1.2701 0);\n");
+        printf("Wire  0.254 (0.1587 1.5875) (-0.4763 0);\n");
+        printf("Wire  0.254 (0.9524 1.5875) (0.3174 0);\n");
+        printf("Wire  0.1524 (0 2.54) (0 1.7463);\n");
+    } 
+           
+    printf("Grid mil;\n\n");
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Create a supply device
+
+void CreateSupplyDevice()
+{
+    printf("GRID MIL\n");
+    printf("EDIT '%s.dev'\n", strSymbolName);
+    printf("Prefix 'V';\n");
+    printf("Description '<b>SUPPLY SYMBOL</b>';\n");
+    printf("Value Off;\n");    
+    printf("Add %s 'G$1' Next 0 (0 0);\n", strSymbolName);
+    printf("Technology '';\n");    
+}
+
+void OnTypeChange()
+{
+    if (nSymbolStyle == 0)
+        strIconImage = "<img src=make-supply-symdev0.png>";
+    else if (nSymbolStyle == 1)
+        strIconImage = "<img src=make-supply-symdev1.png>";
+    else if (nSymbolStyle == 2)
+        strIconImage = "<img src=make-supply-symdev2.png>";
+    else if (nSymbolStyle == 3)
+        strIconImage = "<img src=make-supply-symdev3.png>";
+    else if (nSymbolStyle == 4)
+        strIconImage = "<img src=make-supply-symdev4.png>";
+    else if (nSymbolStyle == 5)
+        strIconImage = "<img src=make-supply-symdev5.png>";
+    else if (nSymbolStyle == 6)
+        strIconImage = "<img src=make-supply-symdev6.png>";
+    else if (nSymbolStyle == 7)
+        strIconImage = "<img src=make-supply-symdev7.png>";
+    else if (nSymbolStyle == 8)
+        strIconImage = "<img src=make-supply-symdev8.png>";
+    else if (nSymbolStyle == 9)
+        strIconImage = "<img src=make-supply-symdev9.png>";
+}
+
+int MainAppDialog()
+{
+    string title = "Make Supply Symbol - v" + Version;
+
+    int nResult = dlgDialog(title)
+    {
+        dlgHBoxLayout
+        {
+            dlgVBoxLayout
+            {
+                dlgGroup("Symbol Style")
+                {
+                    dlgRadioButton("Bar", nSymbolStyle)  OnTypeChange();
+                    dlgRadioButton("Thin Arrow", nSymbolStyle)  OnTypeChange();
+                    dlgRadioButton("Wave", nSymbolStyle)  OnTypeChange();
+                    dlgRadioButton("Inverted", nSymbolStyle)  OnTypeChange();
+                    dlgRadioButton("Thick Arrow", nSymbolStyle)  OnTypeChange();
+                    dlgRadioButton("Round", nSymbolStyle)  OnTypeChange();
+                    dlgRadioButton("Ground Style 1", nSymbolStyle)  OnTypeChange();
+                    dlgRadioButton("Ground Style 2", nSymbolStyle)  OnTypeChange();
+                    dlgRadioButton("Ground Style 3", nSymbolStyle)  OnTypeChange();
+                    dlgRadioButton("Ground Style 4", nSymbolStyle)  OnTypeChange();
+                }
+
+                OnTypeChange();
+            }
+            dlgGroup("Preview")
+            {
+                dlgHBoxLayout
+                {
+                    dlgSpacing(30);
+                    dlgLabel(strIconImage, 1);
+                }
+            }
+        }
+
+        dlgHBoxLayout
+        {
+            dlgGroup("Symbol Name")
+            {
+                dlgGridLayout
+                {
+                    dlgCell(1,0) dlgLabel("Name");
+                    dlgCell(1,1) dlgStringEdit(strSymbolName);
+                    dlgCell(1,2) dlgCheckBox("&Negative Supply Symbol", fNegative);
+                }
+            }
+        }
+        
+        dlgSpacing(12);
+
+        dlgHBoxLayout
+        {
+            dlgPushButton("OK") dlgAccept();
+            dlgPushButton("-Cancel") dlgReject();
+            dlgCheckBox("&Execute Script", fScriptExec);
+        }
+    };
+
+    return nResult;
+}
+
+void LoadConfigSettings()
+{
+    // load the last config settings saved
+    string a[];
+    
+    // Should be 27 lines in config file
+    int n;
+    n = fileread(a, filedir(argv[0])+ConfigFileName);
+
+    if (n == 4)
+    {
+        int i = 0;
+
+        fScriptExec     = strtol(a[i++]);
+        fNegative       = strtol(a[i++]);
+        nSymbolStyle    = strtol(a[i++]);
+    
+        strSymbolName   = a[i++];
+    }
+}
+
+void SaveConfigSettings()
+{
+    // save the config settings 
+    output(filedir(argv[0])+ConfigFileName, "wt")
+    {
+        printf("%d\n", fScriptExec);
+        printf("%d\n", fNegative);
+        printf("%d\n", nSymbolStyle);
+
+        printf("%s\n", strSymbolName);
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Script Entry Point
+
+if (library)
+{
+    library(LBR)
+    {
+        LoadConfigSettings();
+        
+        int nResult = MainAppDialog();
+
+        if (!nResult)
+            exit(0);
+
+        SaveConfigSettings();
+        
+        fileName = filesetext(LBR.name, "_MakeSupplySymDev.scr");
+
+        output(fileName, "wtD")
+        {
+            printf("# Auto Generated at %s<br>\n", t2string(time()));
+            printf("# %s;\n\n", EAGLE_SIGNATURE);
+            printf("SET UNDO_LOG OFF;\n\n");
+
+            CreateSupplySymbol();
+            CreateSupplyDevice();
+
+            printf("SET UNDO_LOG ON;");
+        }
+
+        if (fScriptExec)
+            exit ("SCRIPT '" + fileName + "';");
+        else
+            exit(0);
+    }
+}
+else
+{
+    dlgMessageBox("Start this ULP in the Library Editor!", "OK");
+}
+
+// End-Of-File

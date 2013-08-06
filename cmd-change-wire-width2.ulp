@@ -1,0 +1,168 @@
+#usage "<qt>This ULP changes the wire width of a certain size and changes to a different size.<p>"
+       "Use: run cmd-change-wire-width2.ulp<p>\n"
+       "<hr> "
+       "THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND, EXPRESSED OR IMPLIED.\n"
+       "<author>Author: support@cadsoft.de</author></qt>"
+
+
+
+string Version = "cmd-change-wire-width2.ULP Version 1.0";
+
+string grid[] = { "MIC", "MM", "MIL", "INCH" };
+int Gridval = 2;              // 0=mic 1=mm 2=mil 3=inch    ***  
+                              // choose the value for the units you're working with
+
+real newsize = 7;		// enter new trace width value
+real oldsize = 5;		// enter old trace width size to change
+
+
+string signals[]   = { "" };
+string chsignals[] = { "" };
+int    chngsig     = 0;
+int    lastSigCh   = 0;
+int decs;
+
+int index[];
+int x1[], y1[], x2[], y2[], layer[];
+int usedlayer[];
+int visibleLayer[];
+int n = 1;
+
+string cmd;
+string c;
+
+
+void disp(int l) {
+  sprintf(c, "DISPLAY NONE %d ;\n", l);
+  cmd+= c;
+  }
+
+
+void clearlay() {
+  for (int ly = 0; ly <= 255; ly++) usedlayer[ly] = 0;
+  }
+
+
+void clearsig (int selct) {
+   for (int r = selct; r < lastSigCh; r++) {
+      chsignals[r] = chsignals[r + 1];
+      }
+   chsignals[r + 1] = "";
+   if (lastSigCh) lastSigCh--;
+   return;
+   }
+
+
+void menue() {
+  int Result = dlgDialog("Trace Size") {
+
+      //dlgStretch(1);
+         dlgGroup("Change All Size") {
+            dlgHBoxLayout { dlgLabel("Old Trace Size\t"); dlgRealEdit(oldsize);   }
+            dlgHBoxLayout { dlgLabel("New Trace Size\t"); dlgRealEdit(newsize);   }
+         }
+      //dlgStretch(1);
+      dlgPushButton("+&OK") { dlgAccept(); return; }
+      dlgPushButton("-&Cancel") { dlgReject(); exit (0);}
+      };
+  if (Result == 0) exit (0);
+  return;
+  }
+  
+
+// main  
+if (board) board(B) {
+  int s = 0;
+  B.signals(S) {
+     signals[s] = S.name;
+     s++;
+     }
+  menue();
+
+  clearlay();
+  sprintf(c, "GRID %s FINEST;\n", grid[Gridval]);
+  cmd+= c;
+  sprintf(c, "CHANGE WIDTH %.3f ;\n", newsize);
+  cmd+= c;
+   B.signals(S) {
+
+       real Wwidth;
+       int chgflg = 0;
+
+       S.wires(W) {
+         
+         switch (Gridval) {
+           case 0: Wwidth = u2mic(W.width);
+                   break;
+           
+           case 1: Wwidth = u2mm(W.width);
+                   break;
+           
+           case 2: Wwidth = u2mil(W.width);
+                   break;
+           
+           case 3: Wwidth = u2inch(W.width);
+                   break;
+           }
+
+         if (Wwidth == oldsize) {
+             x1[n] = W.x1;
+             y1[n] = W.y1;
+             x2[n] = W.x2;
+             y2[n] = W.y2;
+             layer[n] = W.layer;
+             ++n;
+             } 
+         }
+     }
+
+   sort(n, index, layer);
+   int dl = 0;      
+   for (int i = 1; i < n; ++i) {
+      if(dl != layer[index[i]]) {
+        dl = layer[index[i]];
+        disp(dl);
+        usedlayer[dl] = 1;
+        }
+      switch (Gridval) {
+         case 0: sprintf(c, "CHANGE WIDTH (%.3f %.3f);\n",
+                           (u2mic(x1[index[i]]) + u2mic(x2[index[i]])) / 2,
+                           (u2mic(y1[index[i]]) + u2mic(y2[index[i]])) / 2 );
+                           cmd+= c;
+                 break;
+         
+         case 1: sprintf(c, "CHANGE WIDTH (%.3f %.3f);\n",
+                           (u2mm(x1[index[i]]) + u2mm(x2[index[i]])) / 2,
+                           (u2mm(y1[index[i]]) + u2mm(y2[index[i]])) / 2 );
+                           cmd+= c;
+                 break;
+         
+         case 2: sprintf(c, "CHANGE WIDTH (%.3f %.3f);\n",
+                           (u2mil(x1[index[i]]) + u2mil(x2[index[i]])) / 2,
+                           (u2mil(y1[index[i]]) + u2mil(y2[index[i]])) / 2 );
+                           cmd+= c;
+                 break;
+         
+         case 3: sprintf(c, "CHANGE WIDTH (%.3f %.3f);\n",
+                           (u2inch(x1[index[i]]) + u2inch(x2[index[i]])) / 2,
+                           (u2inch(y1[index[i]]) + u2inch(y2[index[i]])) / 2 );
+                           cmd+= c;
+                 break;
+         }
+      }
+   
+   cmd += ";\nDISPLAY NONE ";
+   B.layers(L) {
+      if (L.visible) {
+         sprintf(c, "%d", L.number);
+         cmd += " " + c;
+         }
+      }
+
+   sprintf(c, ";\nGRID LAST;\n");
+   cmd+= c;
+   exit (cmd);
+}
+
+else dlgMessageBox("start this ULP in Board", "OK");
+

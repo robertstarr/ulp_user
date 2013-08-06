@@ -1,0 +1,41 @@
+#usage "place >NAME and >VALUE in Package or Symbol if not placed"
+
+string cmd;
+
+if (symbol) {
+  int no_Sname = 1;
+  int no_Svalue = 1;
+  symbol(S) {
+    S.texts(T) {
+      if (T.value == ">NAME" && T.layer == 95) no_Sname = 0;
+      if (T.value == ">VALUE" && T.layer == 96) no_Svalue = 0;
+      if (T.value == ">GATE" && T.layer == 95 || T.value == ">PART" && T.layer == 95) {
+        no_Sname = 0;
+        no_Svalue = 0;
+      }
+    }
+  }
+  if (no_Sname && no_Svalue) {
+    cmd = "GRID MIL;\nCHANGE SIZE 70;\nCHANGE RATIO 8;\nCHANGE LAYER 95;\nTEXT >NAME (0 100);\n GRID LAST;";
+    cmd += "GRID MIL;\nCHANGE SIZE 70;\nCHANGE RATIO 8;\nCHANGE LAYER 96;\nTEXT >VALUE (0 0);\n GRID LAST;";
+  }
+}
+
+if (package) {
+  int no_Pname = 1;
+  int no_Pvalue = 1;
+  package(P) {
+    P.texts(T) {
+      if (T.value == ">NAME" && T.layer == 25) no_Pname = 0;
+      if (T.value == ">VALUE" && T.layer == 27) no_Pvalue = 0;
+    }
+  }
+  if (no_Pname) {
+    cmd = "GRID MIL;\nCHANGE SIZE 40;\nCHANGE RATIO 18;\nCHANGE LAYER 25;\nTEXT >NAME (0 100);\n GRID LAST;";
+  }
+  if (no_Pvalue) {
+    cmd += "GRID MIL;\nCHANGE SIZE 32;\nCHANGE RATIO 10;\nCHANGE LAYER 27;\nTEXT >VALUE (0 0);\n GRID LAST;";
+  }
+}
+
+exit (cmd);

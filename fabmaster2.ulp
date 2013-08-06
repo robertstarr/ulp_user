@@ -1,0 +1,1358 @@
+#usage "<b>Generate EAGLE Output in Fabmaster Format FATF REV 11.1</b><p>\n"
+       "See program text for more information<p>"
+       "ULP Rev. 1.42<br>"
+       "<author>Author: support@cadsoft.de</author>"
+
+string ULPversion = "V1.42";
+
+///////////////////////////////////////////////////////////////////////////////////////////
+//   ASCII Transfer Format (FATF) FABmaster software V8.E - 11 August 2000               //
+//               FABMASTER FATF  REV 11.1                                                //
+//                                                                                       //
+//                                                                                       //
+// Rev.    1.42: quick find pin-name part-name                                           //
+// 2009-12-04    by support@cadsoft.de                                                   //
+//                                                                                       //
+// Rev.    1.41: Corrected LAYER_NAMES definition for BPLACE                             //
+// March    2007 by support@cadsoft.de                                                   //
+//                                                                                       //
+// Revision 1.4: Export Layer 51/52  (Layer table expanded)                              //
+// Febr.    2007 support@cadsoft.de                                                      //
+//                                                                                       //
+// Revision 1.3: Export Wires with Arc, rotated Pads, Pad Shape Long & Offset            //
+//               rotated Packages in 0.1 degree                                          //
+//               export rectangle and circle on layer 1, 16, 21, 22                      //
+//               export polygon filling on klayer 1, 16                                  //
+//               export text on layer 1,16,21,22 as wire (**vector font**)               //
+// Mai      2004 by support@cadsoft.de                                                   //
+///////////////////////////////////////////////////////////////////////////////////////////
+// Revision 1.2: Slightly changed in the output statement, so that the Fabmaster file    //
+//               will be written in the same directory as the brd file is.               //
+// November 2001 by support@cadsoft.de                                                   //
+///////////////////////////////////////////////////////////////////////////////////////////
+// Revision 1.1: Runs with EAGLE version >= 4; top pad shape assumed for all layers;
+//               fixed bug in EAGLE version output
+///////////////////////////////////////////////////////////////////////////////////////////
+// Rudi Hofer, CadSoft, rudi.hofer@cadsoft.de, 9/99
+//
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
+// EXPRESSED OR IMPLIED.
+//
+// This ULP generates output for FABMASTER software which is able to convert the
+// data for automatic mounting and test equipment. The resolution is fixed to 1 mil.
+//
+// To generate the output, load the board and run this ULP from the board window.
+//
+// Restrictions and prerequisites:
+// - Board outline must be defined as wires in dimension layer (directly in
+//   board or in a package).
+// - All coordinates must be positive!!! Please move the board accordingly!!!
+// - Do not use different packages with the same name (avoid REPLACE command).
+// - Padtypes octagon, xlongoct, ylongoct are realized with round shapes.
+// - For polygons no output is generated.
+// - Inner layer Route2..5 may contain tracks.
+// - Inner layer Route6 may contain a power plain (no output generated yet!).
+// - For all other inner layers no output is generated.
+// - On the top and bottom layers only wires and smd pads are output.
+//   Exception: Circles defined in a package are output as filled circles
+//              but do not belong to a signal.
+//
+///////////////////////////////////////////////////////////////////////////////////////////
+
+if (EAGLE_VERSION * 100 + EAGLE_RELEASE < 411) {
+  string h;
+  sprintf(h, "Eagleversion %d %d ", EAGLE_VERSION, EAGLE_RELEASE);
+  dlgMessageBox(h + "This ULP does not run in Eagle Versions older than 4.11", "OK");
+  exit(0);
+}
+
+
+string jobname,
+       layer_name[],
+       padshape[] = {"P_ROUND","P_ROUND","P_ROUND","P_ROUND","P_ROUND"},// if long/offset subst. by round
+       viashape[] = {"P_BLOCK","P_ROUND","P_ROUND","P_ROUND","P_ROUND"},// if long/offset subst. by round
+       padname,
+       shapename[], // package names
+       t[],         // padtypes
+       pst[];       // padstacktypes
+
+real   cx, cy, rx, ry, x, y, x1, x2, y1, y2, r, a1, a2;;
+real   delta = 5;
+
+int    i, new, sx,
+       padcount,
+       pad_is_numeric,
+       // eagle to fabmaster layer conversion
+       // eagle     0, 1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52  ** Feb. 2007 **
+       flayer[] =  {0, 2, 4, 5, 6, 7, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 1, 1, 0,16,16,17, 0, 0,18,19,20,21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,16,17};
+
+string partnumname[]; // 2009-12-03  quick find pin-name part-name
+int    cntnumname = 0;
+
+numeric string areaEname[];
+int    indexareaEname[];
+int    cntindex = 1;
+       // create pad number index list
+numeric string areaEpadname[];
+int    areaPadNumber[];  // the number of pad in FATF format
+int    cntEpad = 1;
+
+
+int    sizes[], ratio[];  // Text fonts
+int    cntt = 0;
+int    boardroundness = 100;  // global roundness (design rules)
+
+int    xmin = 32000, xmax = 0, ymin = 32000, ymax = 0;
+
+int    ht = time();
+
+//-----------------------------------------------------
+string validname (string s) {
+  int i;
+  for (i = 0; s[i]; i++) {
+      if (s[i] == ',') s[i] = '_';
+      if (s[i] == ';') s[i] = '_';
+      if (s[i] == ')') s[i] = '_';
+                                     // add further substitutions here
+  }
+  return s;
+}
+//-----------------------------------------------------
+int fablayer(int l) {
+  return flayer[l];
+}
+
+//-----------------------------------------------------
+int u2u(int x) {   // resolution 1/1000 inch
+  return u2mil(x); // mil
+}
+
+//-----------------------------------------------------
+real deg2arc(int x) { // degree to arc
+  return x*PI/180;
+}
+
+//-----------------------------------------------------
+int u2ang(real x, int mirror) {
+  if (mirror) {
+    real m = 360 - x;
+    if (m > 180) m -= 180;
+    else         m += 180;
+    x = round((360 - m) * 10);  // clockwise in FABMASTER!!!
+  }
+  else {
+    x = round((360 - x) * 10);  // clockwise in FABMASTER!!!
+  }
+  return x;
+}
+
+//----------------------------------------------------
+real Xneu(real Xalt, real Yalt, real Xorigin, real Yorigin, real UserWinkel) {
+  real RADIUS = sqrt(((Xalt - Xorigin) * (Xalt - Xorigin)) + ((Yalt - Yorigin) * (Yalt - Yorigin)));
+  real WinkelNeu;   /* alter Cosinus Winkel = (Xalt - Xorigin) / RADIUS; */
+
+  if ((Xalt > Xorigin) && (Yalt >= Yorigin)) {     /* Quadrant 1 */
+     WinkelNeu = acos((Xalt - Xorigin) / RADIUS) * 57.29578 + UserWinkel;
+     real rad = PI / 180 * WinkelNeu;
+     return (RADIUS * cos(rad));
+  }
+  if ((Xalt < Xorigin) && (Yalt >= Yorigin)) {     /* Quadrant 2 */
+     WinkelNeu = acos((Xalt - Xorigin) / RADIUS) * 57.29578 + UserWinkel;
+     real rad = PI / 180 * WinkelNeu;
+     return (RADIUS * cos(rad));
+  }
+  if ((Xalt < Xorigin) && (Yalt < Yorigin)) {      /* Quadrant 3 */
+     WinkelNeu = 360 - acos((Xalt - Xorigin) / RADIUS) * 57.29578 + UserWinkel;
+     real rad = PI / 180 * WinkelNeu;
+     return (RADIUS * cos(rad));
+  }
+  if ((Xalt > Xorigin) && (Yalt < Yorigin)) {      /* Quadrant 4 */
+     WinkelNeu = 360 - acos((Xalt - Xorigin) / RADIUS) * 57.29578 + UserWinkel;
+     real rad = PI / 180 * WinkelNeu;
+     return (RADIUS * cos(rad));
+  }
+  if ((Xalt == Xorigin) && (Yalt == Yorigin)) {    /* Ursprung   */
+     WinkelNeu = (Xalt - Xorigin) + UserWinkel;
+     real rad = PI / 180 * WinkelNeu;
+     return (RADIUS * cos(rad));
+  }
+  if ((Xalt == Xorigin) && (Yalt > Yorigin)) {     /* 90°        */
+     WinkelNeu = (Xalt - Xorigin + 90) + UserWinkel;
+     real rad = PI / 180 * WinkelNeu;
+     return (RADIUS * cos(rad));
+  }
+  if ((Xalt == Xorigin) && (Yalt < Yorigin)) {     /* 270°       */
+     WinkelNeu = (Xalt - Xorigin + 270)+ UserWinkel;
+     real rad = PI / 180 * WinkelNeu;
+     return (RADIUS * cos(rad));
+  }
+}
+
+real Yneu(real Xalt, real Yalt, real Xorigin, real Yorigin, real UserWinkel) {
+  real RADIUS = sqrt(((Xalt - Xorigin) * (Xalt - Xorigin)) + ((Yalt - Yorigin) * (Yalt - Yorigin)));
+  real WinkelNeu;          /* alter Cosinus Winkel = (Xalt - Xorigin) / RADIUS; */
+
+  if ((Xalt > Xorigin) && (Yalt >= Yorigin)) {     /* Quadrant 1 */
+     WinkelNeu = acos((Xalt - Xorigin) / RADIUS) * 57.29578 + UserWinkel;
+     real rad = PI / 180 * WinkelNeu;
+     return (RADIUS * sin(rad));
+  }
+  if ((Xalt < Xorigin) && (Yalt >= Yorigin)) {     /* Quadrant 2 */
+     WinkelNeu = acos((Xalt - Xorigin) / RADIUS) * 57.29578 + UserWinkel;
+     real rad = PI / 180 * WinkelNeu;
+     return (RADIUS * sin(rad));
+  }
+  if ((Xalt < Xorigin) && (Yalt < Yorigin)) {      /* Quadrant 3 */
+     WinkelNeu = 360 - acos((Xalt - Xorigin) / RADIUS) * 57.29578 + UserWinkel;
+     real rad = PI / 180 * WinkelNeu;
+     return (RADIUS * sin(rad));
+  }
+  if ((Xalt > Xorigin) && (Yalt < Yorigin)) {      /* Quadrant 4 */
+     WinkelNeu = 360 - acos((Xalt - Xorigin) / RADIUS) * 57.29578 + UserWinkel;
+     real rad = PI / 180 * WinkelNeu;
+     return (RADIUS * sin(rad));
+  }
+  if ((Xalt == Xorigin) && (Yalt == Yorigin)) {    /* Ursprung   */
+     WinkelNeu = (Xalt - Xorigin) + UserWinkel;
+     real rad = PI / 180 * WinkelNeu;
+     return (RADIUS * sin(rad));
+  }
+  if ((Xalt == Xorigin) && (Yalt > Yorigin)) {     /* 90°        */
+     WinkelNeu = (Xalt - Xorigin + 90) + UserWinkel;
+     real rad = PI / 180 * WinkelNeu;
+     return (RADIUS * sin(rad));
+  }
+  if ((Xalt == Xorigin) && (Yalt < Yorigin)) {     /* 270°       */
+     WinkelNeu = (Xalt - Xorigin + 270)+ UserWinkel;
+     real rad = PI / 180 * WinkelNeu;
+     return (RADIUS * sin(rad));
+  }
+}
+
+
+//-----------------------------------------------------
+string padtype(UL_ELEMENT E, UL_CONTACT C) {
+  string s;
+  int pdi, x1, y1, x2, y2, r, d;
+  if (C.pad) {
+     pdi = u2u(C.pad.diameter[16]);
+     if (C.pad.shape[16] == PAD_SHAPE_ROUND || C.pad.shape[16] == PAD_SHAPE_OCTAGON || C.pad.shape[16] == PAD_SHAPE_SQUARE) {
+        sprintf(s, "%s (%d);", padshape[C.pad.shape[16]], pdi);
+     }
+     // if long subst. by round use this code
+     else if (C.pad.shape[16] == PAD_SHAPE_LONG) { // substitute y/xlongoct by round
+        pdi = pdi/2;
+        sprintf(s, "%s (%d);", padshape[C.pad.shape[16]], pdi);
+     }
+     // if offset subst. by round use this code
+     else if (C.pad.shape[16] == PAD_SHAPE_OFFSET) { // substitute offset by round
+        pdi = pdi/2;
+        sprintf(s, "%s (%d);", padshape[C.pad.shape[16]], pdi);
+     }
+  }
+  return s;
+}
+
+void get_roundness(UL_ELEMENT E) {
+  E.package.contacts(C) {
+    if (C.smd) {
+      if (C.smd.roundness < boardroundness) boardroundness = C.smd.roundness;
+    }
+  }
+  return;
+}
+
+//-----------------------------------------------------
+int padindex(UL_ELEMENT E,UL_CONTACT C) {
+  int i = 0;
+  for (i = 0; t[i]; i++) {
+      if (t[i] == padtype(E,C))
+         return i+1;
+  }
+  return i; // should not be possible
+}
+
+//-----------------------------------------------------
+string padstacktype(UL_ELEMENT E, UL_CONTACT C) {
+  int px, d;
+  string s;
+  px = padindex(E,C);
+  d = u2u(C.pad.drill);
+  sprintf(s, "P_%d_%d", d, px);
+  return s;
+}
+
+//-----------------------------------------------------
+string PAC_padtype(UL_PACKAGE P, UL_CONTACT C) {
+  string s;
+  int pdi, x1, y1, x2, y2, r, d;
+  if (C.pad) {
+     pdi = u2u(C.pad.diameter[16]);
+     if (C.pad.shape[16] == PAD_SHAPE_ROUND || C.pad.shape[16] == PAD_SHAPE_OCTAGON || C.pad.shape[16] == PAD_SHAPE_SQUARE) {
+        sprintf(s, "%s (%d);", padshape[C.pad.shape[16]], pdi);
+     }
+     // if long subst. by round use this code
+     else if (C.pad.shape[16] == PAD_SHAPE_LONG) { // substitute y/xlongoct by round
+        pdi = pdi/2;
+        sprintf(s, "%s (%d);", padshape[C.pad.shape[16]], pdi);
+     }
+     // if offset subst. by round use this code
+     else if (C.pad.shape[16] == PAD_SHAPE_OFFSET) { // substitute offset by round
+        pdi = pdi/2;
+        sprintf(s, "%s (%d);", padshape[C.pad.shape[16]], pdi);
+     }
+  }
+  return s;
+}
+
+//-----------------------------------------------------
+int PAC_padindex(UL_PACKAGE P,UL_CONTACT C) {
+  int i = 0;
+  for (i = 0; t[i]; i++) {
+      if (t[i] == PAC_padtype(P,C))
+         return i+1;
+  }
+  return i; // should not be possible
+}
+
+//-----------------------------------------------------
+string PAC_padstacktype(UL_PACKAGE P, UL_CONTACT C) {
+  int px, d;
+  string s;
+  px = PAC_padindex(P,C);
+  d = u2u(C.pad.drill);
+  sprintf(s, "P_%d_%d", d, px);
+  return s;
+}
+
+//-----------------------------------------------------
+int padstackindex(UL_PACKAGE P, UL_CONTACT C) {
+  int i = 0;
+  for (i = 0; pst[i]; i++) {
+      if (pst[i] == PAC_padstacktype(P,C))
+         return i+1;
+  }
+  return i; // should not be possible
+}
+
+//-----------------------------------------------------
+string viatype(UL_VIA V) {
+  string s;
+  int pdi, x1, y1, x2, y2;
+  pdi = u2u(V.diameter[16]);
+  if (V.shape[16] == VIA_SHAPE_ROUND || V.shape[16] == VIA_SHAPE_OCTAGON) {
+     sprintf(s, "%s (%d);", viashape[V.shape[16]], pdi);
+  }
+  if (V.shape[16] == VIA_SHAPE_SQUARE) {
+     x1 = round(-pdi/2); y1 = round(-pdi/2);
+     x2 = round(pdi/2);  y2 = round(pdi/2);
+     sprintf(s, "%s (%d,%d,%d,%d);", viashape[V.shape[16]], x1,y1,x2,y2);
+  }
+  return s;
+}
+
+//-----------------------------------------------------
+int viaindex(UL_VIA V) {
+  int i = 0;
+  for (i = 0; t[i]; i++) {
+      if (t[i] == viatype(V))
+         return i+1;
+  }
+  return i; // should not be possible
+}
+
+//-----------------------------------------------------
+string viastacktype(UL_VIA V) {
+  int px, d;
+  string s;
+  px = viaindex(V);
+  d = u2u(V.drill);
+  sprintf(s, "P_%d_%d", d, px);
+  return s;
+}
+
+//-----------------------------------------------------
+int viastackindex(UL_VIA V) {
+  int i = 0;
+  for (i = 0; pst[i]; i++) {
+      if (pst[i] == viastacktype(V))
+         return i+1;
+  }
+  return i; // should not be possible
+}
+
+//-----------------------------------------------------
+string drawpadpoly(int dx, int dy, int xo, int yo, real angle, int roundness, real elong, int padtype) {
+  string s;
+  real a = angle;
+
+  if(roundness) {
+    real r1;
+    int l, r;
+    real rad, rad1, x1, x2, y1, y2;
+    real x_1, y_1, x_2, y_2;
+
+    if (dx <= dy) {
+      r = dx;
+      l = dy;
+    }
+    else {
+      r = dy;
+      l = dx;
+    }
+    r1 = r / 200 * roundness;
+
+    if (roundness == 100) { // rounded pad
+      if (padtype == PAD_SHAPE_OFFSET) {
+        rad  = PI / 180 * a;
+        rad1 = PI / 180 * (a + 180);
+        x1 = 0;
+        y1 = 0;
+        x2 = u2u(cos(rad) * (r*elong/100) );
+        y2 = u2u(sin(rad) * (r*elong/100) );
+      }
+      else if (padtype == PAD_SHAPE_LONG) {
+        rad  = PI / 180 * a;
+        rad1 = PI / 180 * (a + 180);
+        x1 = u2u(cos(rad)  * ((r*elong/100) /2) );
+        y1 = u2u(sin(rad)  * ((r*elong/100) /2) );
+        x2 = u2u(cos(rad1) * ((r*elong/100) /2) );
+        y2 = u2u(sin(rad1) * ((r*elong/100) /2) );
+      }
+      else {  // SMD
+        rad  = PI / 180 * a;
+        rad1 = PI / 180 * (a + 180);
+        x1 = u2u(cos(rad)  * ((l-r) /2) );
+        y1 = u2u(sin(rad)  * ((l-r) /2) );
+        x2 = u2u(cos(rad1) * ((l-r) /2) );
+        y2 = u2u(sin(rad1) * ((l-r) /2) );
+      }
+      sprintf(s, "TRACK (%d(%.0f,%.0f)(%.0f,%.0f))",
+                         u2u(r),
+                         u2u(xo) + x1,
+                         u2u(yo) + y1,
+                         u2u(xo) + x2,
+                         u2u(yo) + y2 );
+    }
+
+    else { // octagon
+      r1 = r * 0.56;
+      sprintf(s, "POLYGON ((%.0f,%.0f)(%.0f,%.0f)\n        (%.0f,%.0f)(%.0f,%.0f)\n        (%.0f,%.0f)(%.0f,%.0f)\n        (%.0f,%.0f)(%.0f,%.0f)\n        (%.0f,%.0f))",
+           u2u(xo) + Xneu( u2u(0+ dx /2      ), u2u(0+ (dy-r1) /2 ), 0, 0, a),
+           u2u(yo) + Yneu( u2u(0+ dx /2      ), u2u(0+ (dy-r1) /2 ), 0, 0, a),
+           u2u(xo) + Xneu( u2u(0+ (dx-r1) /2 ), u2u(0+ dy /2      ), 0, 0, a),
+           u2u(yo) + Yneu( u2u(0+ (dx-r1) /2 ), u2u(0+ dy /2      ), 0, 0, a),
+           u2u(xo) + Xneu( u2u(0- (dx-r1) /2 ), u2u(0+ dy /2      ), 0, 0, a),
+           u2u(yo) + Yneu( u2u(0- (dx-r1) /2 ), u2u(0+ dy /2      ), 0, 0, a),
+           u2u(xo) + Xneu( u2u(0- dx /2      ), u2u(0+ (dy-r1) /2 ), 0, 0, a),
+           u2u(yo) + Yneu( u2u(0- dx /2      ), u2u(0+ (dy-r1) /2 ), 0, 0, a),
+           u2u(xo) + Xneu( u2u(0- dx /2      ), u2u(0- (dy-r1) /2 ), 0, 0, a),
+           u2u(yo) + Yneu( u2u(0- dx /2      ), u2u(0- (dy-r1) /2 ), 0, 0, a),
+           u2u(xo) + Xneu( u2u(0- (dx-r1) /2 ), u2u(0- dy /2      ), 0, 0, a),
+           u2u(yo) + Yneu( u2u(0- (dx-r1) /2 ), u2u(0- dy /2      ), 0, 0, a),
+           u2u(xo) + Xneu( u2u(0+ (dx-r1) /2 ), u2u(0- dy /2      ), 0, 0, a),
+           u2u(yo) + Yneu( u2u(0+ (dx-r1) /2 ), u2u(0- dy /2      ), 0, 0, a),
+           u2u(xo) + Xneu( u2u(0+ dx /2      ), u2u(0- (dy-r1) /2 ), 0, 0, a),
+           u2u(yo) + Yneu( u2u(0+ dx /2      ), u2u(0- (dy-r1) /2 ), 0, 0, a),
+           u2u(xo) + Xneu( u2u(0+ dx /2      ), u2u(0+ (dy-r1) /2 ), 0, 0, a),
+           u2u(yo) + Yneu( u2u(0+ dx /2      ), u2u(0+ (dy-r1) /2 ), 0, 0, a) );
+
+    }
+  }
+  else {  // rectangle
+    sprintf(s, "POLYGON ((%.0f,%.0f)(%.0f,%.0f)(%.0f,%.0f)(%.0f,%.0f)(%.0f,%.0f))",
+           u2u(xo) + Xneu( u2u(0 + dx /2), u2u(0 + dy / 2), 0, 0, a),
+           u2u(yo) + Yneu( u2u(0 + dx /2), u2u(0 + dy / 2), 0, 0, a),
+           u2u(xo) + Xneu( u2u(0 + dx /2), u2u(0 - dy / 2), 0, 0, a),
+           u2u(yo) + Yneu( u2u(0 + dx /2), u2u(0 - dy / 2), 0, 0, a),
+           u2u(xo) + Xneu( u2u(0 - dx /2), u2u(0 - dy / 2), 0, 0, a),
+           u2u(yo) + Yneu( u2u(0 - dx /2), u2u(0 - dy / 2), 0, 0, a),
+           u2u(xo) + Xneu( u2u(0 - dx /2), u2u(0 + dy / 2), 0, 0, a),
+           u2u(yo) + Yneu( u2u(0 - dx /2), u2u(0 + dy / 2), 0, 0, a),
+           u2u(xo) + Xneu( u2u(0 + dx /2), u2u(0 + dy / 2), 0, 0, a),
+           u2u(yo) + Yneu( u2u(0 + dx /2), u2u(0 + dy / 2), 0, 0, a) );
+  }
+  return s;
+}
+
+//-----------------------------------------------------
+string drawpad(UL_PACKAGE P, UL_CONTACT C, int l) {
+  string s = "no pad!";
+  int dx, dy, r, d;
+  if (C.pad) {
+
+
+    if (C.pad.shape[l] == PAD_SHAPE_ROUND) {
+        sprintf(s, "ROUND (%d,%d,%d)", u2u(C.pad.diameter[l]), u2u(C.pad.x), u2u(C.pad.y) );
+    }
+    else if (C.pad.shape[l] == PAD_SHAPE_SQUARE) {
+        s = drawpadpoly(C.pad.diameter[l], C.pad.diameter[l], C.pad.x, C.pad.y, C.pad.angle, 0, 0, 0);
+    }
+
+    else if (C.pad.shape[l] == PAD_SHAPE_OCTAGON) {
+        d = round(d);
+        s = drawpadpoly(C.pad.diameter[l], C.pad.diameter[l], C.pad.x, C.pad.y, C.pad.angle, 50, C.pad.elongation, PAD_SHAPE_OCTAGON);
+    }
+
+    else if (C.pad.shape[l] == PAD_SHAPE_LONG) {
+        r = round(d/2);
+        s = drawpadpoly(C.pad.diameter[l]*2, C.pad.diameter[l], C.pad.x, C.pad.y, C.pad.angle, 100, C.pad.elongation, PAD_SHAPE_LONG);
+    }
+
+    else if (C.pad.shape[l] == PAD_SHAPE_OFFSET) {
+        r = round(d);
+        s = drawpadpoly(C.pad.diameter[l]*2, C.pad.diameter[l], C.pad.x, C.pad.y, C.pad.angle, 100, C.pad.elongation, PAD_SHAPE_OFFSET);
+    }
+
+    // PAD_SHAPE_ANNULUS
+    // PAD_SHAPE_THERMAL
+  }
+  else { // smd
+    int smd_roundnes = C.smd.roundness;
+    if (smd_roundnes < boardroundness) smd_roundnes = boardroundness;
+    s = drawpadpoly(C.smd.dx, C.smd.dy, C.smd.x, C.smd.y, C.smd.angle, smd_roundnes, 0, 0);
+  }
+  return s;
+}
+
+
+//---------------------------------------------------
+string pin_number(UL_ELEMENT E, string pinname) {
+  int j, pad_is_numeric = 1, padcount;
+  string s = "";
+  E.package.contacts(CT) {
+    s = CT.name;
+    for (j = 0; s[j]; ++j) {
+      if (!isdigit(s[j])) {
+        pad_is_numeric = 0;
+      }
+    }
+  }
+  if (pad_is_numeric) {
+     return pinname;
+  }
+  else {
+    padcount = 0;
+    E.package.contacts(CT) {
+      padcount++;
+      if (CT.name == pinname) {
+        sprintf(s, "%d", padcount);
+        return s;
+      }
+    }
+  }
+  return s;
+}
+
+
+//-------------------------------------------------------
+string PAC_pin_number(UL_PACKAGE P, string pinname) {
+  int j, pad_is_numeric = 1, padcount;
+  string s = "";
+  P.contacts(CT) {
+    s = CT.name;
+    for (j = 0; s[j]; ++j) {
+        if (!isdigit(s[j])) {
+           pad_is_numeric = 0;
+           }
+        }
+    }
+  if (pad_is_numeric) {
+     return pinname;
+     }
+  else {
+     padcount = 0;
+     P.contacts(CT) {
+       padcount++;
+       if (CT.name == pinname) {
+          sprintf(s, "%d", padcount);
+          return s;
+          }
+       }
+     }
+  return s;
+}
+
+//---------------------------------------------------
+int realnet(UL_SIGNAL S) {
+  S.contactrefs(S) return 1;
+  return 0;
+}
+
+//---------------------------------------------------
+int net_on_layer(UL_SIGNAL S, int layer) { // 1 if a wire of this net is on the given layer
+  S.wires(W)
+    if (W.layer == layer) return 1;
+  S.polygons(P)
+     if(P.layer == layer) return 1;
+  return 0;
+}
+
+//////////////////////////////////////////////////////
+void create_header () {
+  printf (";EAGLE %d.%02d %s %s FATF OUTPUT FILE   FABmaster(R)  ", EAGLE_VERSION, EAGLE_RELEASE, filename(argv[0]), ULPversion);
+  printf ("%02d.%02d.%02d %02d:%02d:%02d\n\n",
+          t2day(ht),t2month(ht)+1,t2year(ht),t2hour(ht),t2minute(ht),t2second(ht));
+  printf (":FABMASTER FATF REV11.1;\n\n");
+  printf (":UNITS = 1/1000 INCH\n");
+  printf (":NOAUTOROTATE\n");
+  return;
+}
+
+
+//////////////////////////////////////////////////////
+void board_data(UL_BOARD B) {
+  int  t = time();
+  printf ("\n:BOARD_DATA\n");
+  printf ("1,JOB(\"%s\",,%02d-%02d-%02d,);\n", jobname,t2day(t),t2month(t),t2year(t));
+
+  B.wires(W) { // if board outline as wires in board
+    if (W.layer == LAYER_DIMENSION) {
+      xmin = min(u2u(W.x1), xmin); xmin = min(u2u(W.x2), xmin);
+      ymin = min(u2u(W.y1), ymin); ymin = min(u2u(W.y2), ymin);
+      xmax = max(u2u(W.x1), xmax); xmax = max(u2u(W.x2), xmax);
+      ymax = max(u2u(W.y1), ymax); ymax = max(u2u(W.y2), ymax);
+
+      if (W.curve) {
+        // process arcs (done with wire segments)
+        x = W.arc.x1;
+        y = W.arc.y1;
+
+        printf ("2,CONTOUR (");
+        printf("(%d,%d,0)", u2u(x), u2u(y));
+        real angle = W.arc.angle1 + delta;
+
+        while (angle < W.arc.angle2) {
+          i++;
+          if (i==1) {
+            printf(",");
+          }
+          else if (i==2){
+            printf(");\n2,CONTOUR (");
+            i = 0;
+          }
+          x = W.arc.xc + W.arc.radius * cos(deg2arc(angle));
+          y = W.arc.yc + W.arc.radius * sin(deg2arc(angle));
+          printf("(%d,%d)", u2u(x), u2u(y));
+          xmin = min(u2u(x), xmin); xmin = min(u2u(x), xmin);
+          ymin = min(u2u(y), ymin); ymin = min(u2u(y), ymin);
+          xmax = max(u2u(x), xmax); xmax = max(u2u(x), xmax);
+          ymax = max(u2u(y), ymax); ymax = max(u2u(y), ymax);
+          angle += delta;
+        }
+        if (!i) {
+          printf("(%d,%d,0));\n", u2u(W.arc.x2), u2u(W.arc.y2));
+        }
+        else  {
+          printf(");\n2,CONTOUR ((%d,%d,0)", u2u(x), u2u(y));
+          printf(",(%d,%d,0));\n", u2u(W.arc.x2), u2u(W.arc.y2));
+        }
+        i=0;
+      }
+      else {
+        printf ("2,CONTOUR (");
+        printf("(%d,%d,0),(%d,%d,0)", u2u(W.x1), u2u(W.y1), u2u(W.x2), u2u(W.y2));
+        printf(");\n");
+      }
+    }
+  }
+  B.elements(E) {
+    E.package.wires(W) {
+      if (W.layer == LAYER_DIMENSION) {
+        xmin = min(u2u(W.x1), xmin); xmin = min(u2u(W.x2), xmin);
+        ymin = min(u2u(W.y1), ymin); ymin = min(u2u(W.y2), ymin);
+        xmax = max(u2u(W.x1), xmax); xmax = max(u2u(W.x2), xmax);
+        ymax = max(u2u(W.y1), ymax); ymax = max(u2u(W.y2), ymax);
+
+        if (W.curve) {
+          // process arcs (done with wire segments)
+          x = W.arc.x1;
+          y = W.arc.y1;
+
+          printf ("2,CONTOUR (");
+          printf("(%d,%d,0)", u2u(x), u2u(y));
+          real angle = W.arc.angle1 + delta;
+
+          while (angle < W.arc.angle2) {
+            i++;
+            if (i==1) {
+              printf(",");
+            }
+            else if (i==2){
+              printf(");\n2,CONTOUR (");
+              i = 0;
+            }
+            x = W.arc.xc + W.arc.radius * cos(deg2arc(angle));
+            y = W.arc.yc + W.arc.radius * sin(deg2arc(angle));
+            printf("(%d,%d)", u2u(x), u2u(y));
+            xmin = min(u2u(x), xmin); xmin = min(u2u(x), xmin);
+            ymin = min(u2u(y), ymin); ymin = min(u2u(y), ymin);
+            xmax = max(u2u(x), xmax); xmax = max(u2u(x), xmax);
+            ymax = max(u2u(y), ymax); ymax = max(u2u(y), ymax);
+            angle += delta;
+          }
+          if (!i) {
+            printf("(%d,%d,0));\n", u2u(W.arc.x2), u2u(W.arc.y2));
+          }
+          else  {
+            printf(");\n2,CONTOUR ((%d,%d,0)", u2u(x), u2u(y));
+            printf(",(%d,%d,0));\n", u2u(W.arc.x2), u2u(W.arc.y2));
+          }
+          i=0;
+        }
+        else {
+          printf ("2,CONTOUR (");
+          printf("(%d,%d,0),(%d,%d,0)", u2u(W.x1), u2u(W.y1), u2u(W.x2), u2u(W.y2));
+          printf(");\n");
+        }
+      }
+    }
+  }
+  printf("3,WORK_SPACE (%d,%d,%d,%d);\n", xmin, xmax, ymin, ymax);
+  printf (":EOD\n");
+  printf ("\n:NOTRACE\n");
+  return;
+}
+
+//////////////////////////////////////////////////////
+void parts(UL_BOARD B) {
+  int i = 1;
+  printf ("\n:PARTS\n");
+  B.elements(E) {
+    partnumname[i] = E.name; // 2009-12-03
+    printf("%d,",i++);                        // PART ID
+    printf("%s,",E.name);                     // PART NAME (not as in definition!)
+    printf("\"%s\",",E.value);                // DEVICE NAME = Value
+    printf("%s,",validname(E.package.name + "__" +  E.package.library));  // PACKAGE NAME
+    printf("%d,%d,",u2u(E.x), u2u(E.y));      // X,Y
+    printf("%d,",u2ang(E.angle, E.mirror));   // ROTATION
+    if (E.mirror)                             // ASSEMBLY SIDE
+      printf("B;");
+    else
+      printf("T;");
+    printf("\n");
+  }
+  cntnumname = i; // 2009-12-03
+  printf(":EOD\n");
+  return;
+}
+
+//////////////////////////////////////////////////////
+void pad_symbols(UL_BOARD B) {
+  int    i, j = 0, new;              // j+1 = pad index; t[] contains padtypes
+  printf ("\n:PAD_SYMBOLS\n\n");
+  B.elements(E) {
+    E.package.contacts(C) {
+      if (C.pad) {
+         new = 1;                    // padtype not generated yet
+         for (i = 0; t[i]; i++) {
+             if (t[i] == padtype(E,C))
+                new = 0;             // padtype exists
+         }
+         if (new) {
+            t[j] = padtype(E,C);
+            printf("%d,%s\n", j+1, padtype(E,C));
+            j++;
+         }
+      }
+    }
+  }
+  B.signals(S) {
+    S.vias(V) {
+      new = 1;
+      for (i = 0; t[i]; i++) {
+          if (t[i] == viatype(V))
+             new = 0;                // padtype exists
+      }
+      if (new) {
+         t[j] = viatype(V);
+         printf("%d,%s\n", j+1, viatype(V));
+         j++;
+      }
+    }
+  }
+  printf(":EOD\n");
+  return;
+}
+
+//////////////////////////////////////////////////////
+void layer_names(UL_BOARD B) {
+  int i;
+  string layers[] = {
+                     "\"DRILL PAD\",COMMON,0,ELECTRICAL;"         // layer 1
+                    ,"\"TOP\",TOP,3,ELECTRICAL;"
+                    ,"\"BOTTOM\",BOTTOM,2,ELECTRICAL;"
+                    ,"\"ROUTE2\",TRANSPARENT,0,ELECTRICAL;"
+                    ,"\"ROUTE3\",TRANSPARENT,0,ELECTRICAL;"
+                    ,"\"ROUTE4\",TRANSPARENT,0,ELECTRICAL;"
+                    ,"\"ROUTE5\",TRANSPARENT,0,ELECTRICAL;"
+                    ,"\"POWER1\",TRANSPARENT,0,ELECTRICAL;"
+                    ,"\"DRILLH\",TRANSPARENT,0,DOCUMENTATION;"    //layer 9
+                    ,"\"POWER2\",TRANSPARENT,0,DOCUMENTATION;"
+
+                    ,"\"DRILL\",TRANSPARENT,0,DOCUMENTATION;"
+                    ,"\"THERMAL_2\",TRANSPARENT,0,DOCUMENTATION;"
+                    ,"\"FORMAT\",TRANSPARENT,0,BOARD_CUTOUT;"
+                    ,"\"THERMAL_1\",TRANSPARENT,0,DOCUMENTATION;"
+                    ,"\"THERMAL\",TRANSPARENT,0,DOCUMENTATION;"
+
+
+                    ,"\"TPLACE\",TOP,17,ASSEMBLY;"                // 16
+                    ,"\"BPLACE\",BOTTOM,16,ASSEMBLY;"
+
+                    ,"\"TNAMES\",TOP,19,DOCUMENTATION;"
+                    ,"\"BNAMES\",BOTTOM,18,DOCUMENTATION;"
+
+                    ,"\"TVALUES\",TOP,21,DOCUMENTATION;"
+                    ,"\"BVALUES\",BOTTOM,20,DOCUMENTATION;"
+                    };
+  printf("\n:LAYER_NAMES\n");
+  for (i=0; layers[i]; i++) {
+      printf("%d,%s\n", i+1, layers[i]);
+  }
+  printf(":EOD\n");
+  printf("\n:LAYER_SETS\n");  //layer sets
+  printf("1,\"ALL\",(1");
+  for (i=1; layers[i]; i++) {
+      printf(",%d", i+1);
+  }
+  printf(");\n");
+  printf(":EOD\n");
+  return;
+}
+
+//////////////////////////////////////////////////////
+void pad_stacks(UL_BOARD B) {
+  int new, i, j;
+  printf ("\n:PAD_STACKS\n");
+  B.elements(E) {
+    E.package.contacts(C) {
+      if (C.pad) {
+         new = 1;                    // padstacktype not generated yet
+         for (i = 0; pst[i]; i++) {
+             if (pst[i] == padstacktype(E, C))
+                new = 0;             // padstacktype exists
+         }
+         if (new) {
+            pst[j] = padstacktype(E, C);
+            printf("%d,\"%s\",%d,P,((1,%d));\n",
+                   j+1,
+                   padstacktype(E,C),
+                   u2u(C.pad.drill),
+                   padindex(E,C)
+                   );
+            j++;
+         }
+      }
+    }
+  }
+  B.signals(S) {
+    S.vias(V) {
+      new = 1;
+      for (i = 0; pst[i]; i++) {
+          if (pst[i] == viastacktype(V))
+             new = 0;                // viastacktype exists
+      }
+      if (new) {
+         pst[j] = viastacktype(V);
+         printf("%d,\"%s\",%d,P,((1,%d));\n",
+                j+1,
+                viastacktype(V),
+                   u2u(V.drill),
+                   viaindex(V)
+                );
+         j++;
+      }
+    }
+  }
+  printf(":EOD\n");
+  return;
+}
+
+//////////////////////////////////////////////////////
+void pads(UL_BOARD B) {
+  int i = 0;
+  printf ("\n:PADS\n");
+  B.signals(S) {
+    if (realnet(S)) { // vias belonging to real net
+       i++;
+       S.vias(V) {
+         printf("%d,%d,((%d,%d));\n", i, viastackindex(V), u2u(V.x), u2u(V.y));
+       }
+    }
+    else {            // other vias
+       S.vias(V) {
+         printf("0,%d,((%d,%d));\n", viastackindex(V), u2u(V.x), u2u(V.y));
+       }
+    }
+  }
+  printf(":EOD\n");
+  return;
+}
+
+
+int searchfont(int tsize, int tratio) {
+  int found = -1;
+  for (int n = 0; n < cntt; n++) {
+    if (sizes[n] == tsize && ratio[n] == tratio) {
+      found = n;
+      break;
+    }
+  }
+  return found;
+}
+
+//////////////////////////////////////////////////////
+void fonts(UL_BOARD B) {
+  int n;
+  printf ("\n:FONTS\n");
+  printf ("1,\"STANDARD\",96,60,72,0;\n");
+  B.texts(T) {
+    if (searchfont(T.size, T.ratio) < 0) {
+      sizes[cntt] = T.size;
+      ratio[cntt] = T.ratio;
+      cntt++;
+    }
+  }
+  B.elements(E) {
+    E.package.texts(T) {
+      if (searchfont(T.size, T.ratio) < 0) {
+        sizes[cntt] = T.size;
+        ratio[cntt] = T.ratio;
+        cntt++;
+      }
+    }
+  }
+  for (n = 0; n < cntt; n++) {
+    printf("%d,\"FONT_%d\",%d,%.0f,%.0f,%.d;\n", n+2, n+2, u2u(sizes[n]), u2u(sizes[n])*.6, u2u(sizes[n])*.72, u2u(sizes[n]*ratio[n])/100);
+  }
+  printf(":EOD\n");
+  return;
+}
+
+//////////////////////////////////////////////////////
+void packages(UL_BOARD B) {
+  int    i = 1, j, k, l, xll,yll, textlayer;
+  real   tangle, angle;
+  string dp, jst;
+  printf ("\n:PACKAGES\n");
+  B.libraries(LBR) {
+    LBR.packages(P) {
+      new = 1;                    // padstacktype not generated yet
+      for (i = 0; shapename[i]; i++) {
+        if (shapename[i] == validname(P.name + "__" +  P.library))
+          new = 0;         // package name exists
+      }
+      if (new) {
+        shapename[sx] = validname(P.name + "__" +  P.library);
+        sx++;
+
+        printf("%d,",i++);                           // PACKAGE ID
+        printf("\"%s\",",validname(P.name + "__" +  P.library)); // PACK.NAME
+        printf(",,,\n");                             // xmin etc. left blank
+        j = 0; k = 0;
+        P.contacts(C) {
+          if (k == 0) printf(" (PINS "); // only if contacts present
+          k++;
+          printf("(%s,,%d,%d,", PAC_pin_number(P, C.name), u2u(C.x), u2u(C.y)); // Pin IDs
+          if (C.pad)   printf("D)");                 // ASSEMBLY SIDE
+          else         printf("T)");
+          j++;
+          if (j > 2) {                            // max. 3 pins in one line
+            printf("\n       ");
+            j = 0;
+          }
+        }
+        if (k != 0) printf(")\n");  // only if contacts present close PINS section
+        j = 0;
+        printf(" (");           // corresponds to ); before next package
+        P.contacts(C) {
+          if (C.pad) {
+            if (j > 0) {
+              printf("  ");
+            }
+            printf("%s,PAD (%d ((%d,%d)))\n", // PAD
+            PAC_pin_number(P, C.name), padstackindex(P,C), u2u(C.x), u2u(C.y));
+            j++;
+          }
+        }                      // close PIN-ID,PAD section
+        j = 0;
+        P.contacts(C) {
+          if (C.pad) {
+            dp = drawpad(P, C, 1);
+            printf("  %s,LAYER (%d (\n", PAC_pin_number(P, C.name), fablayer(1));  // top side
+            printf("   %s))\n", dp);
+            dp = drawpad(P, C, 16);
+            printf("  %s,LAYER (%d (\n", PAC_pin_number(P, C.name), fablayer(16)); // bottom side
+            printf("   %s))\n", dp);
+          }
+          else { // smd, always on top layer
+            if (j > 0)  printf("  ");
+            if (C.smd.layer == 1) {
+              printf("%s,LAYER (%d (\n", PAC_pin_number(P, C.name), fablayer(1));
+              printf("   %s))\n", drawpad(P, C, 1));
+            }
+            else {
+              printf("%s,LAYER (%d (\n", PAC_pin_number(P, C.name), fablayer(16));
+              printf("   %s))\n", drawpad(P, C, 16));
+            }
+          }
+          j++;
+        }                       // close PIN-ID,LAYER section
+
+        // process circles etc. on top and bottom side
+        P.circles(C) {
+          if (C.layer == 1 || C.layer == 16) {
+            printf("\n  0,LAYER (%d (\n", fablayer(C.layer));
+            int RminRmax = C.radius - C.width;
+            if (!C.width || RminRmax < 0) {
+              RminRmax = C.width/2;
+              printf("   ROUND (%d,%d,%d)", u2u((C.radius + RminRmax)*2),
+                                 u2u(C.x), u2u(C.y));
+            }
+            else {
+              printf("   CIRCLE (%d,%d,%d,%d)", u2u(C.radius) + u2u(C.width)/2,
+                                 u2u(C.radius) - u2u(C.width)/2,
+                                 u2u(C.x), u2u(C.y));
+            }
+            printf("))\n");
+          }
+        }
+        P.rectangles(W) {
+          if (W.layer == 1 || W.layer == 16) {
+            printf("\n  0,LAYER (%d (\n", fablayer(W.layer));
+            xll = W.x1; yll = W.y1;
+            int rectcenterx = (W.x1 + W.x2) /2;
+            int rectcentery = (W.y1 + W.y2) /2;
+            int rectx       = W.x2 - W.x1;
+            int recty       = W.y2 - W.y1;
+            printf("   %s", drawpadpoly(rectx, recty, rectcenterx, rectcentery, W.angle, 0, 0, 0));
+            printf("))\n");
+          }
+        }
+        P.texts(T) {
+          if (T.layer == 1 || T.layer == 16) {
+            printf("  0,LAYER (%d (\n", fablayer(T.layer));
+            T.wires(W) {
+              printf("   TRACK (%d,(%d,%d),(%d,%d))\n", u2u(W.width), u2u(W.x1), u2u(W.y1), u2u(W.x2), u2u(W.y2));
+            }
+            /*
+              printf("   TEXT (%d,%d,%d,%s,%.1f,%s,%s)))\n",
+                              searchfont(T.size, T.ratio)+2,
+                              u2u(T.x), u2u(T.y), jst, T.angle, Mirror, T.value);
+            */
+            printf("))\n");
+          }
+        }
+
+        // end circles etc. on top and bottom
+        P.wires(W) {
+          if (W.layer == 1 || W.layer == 16 || W.layer == 21 || W.layer == 22 || W.layer == 51 || W.layer == 52) {
+            printf("  0,LAYER (%d (\n", fablayer(W.layer)); // tplace layer
+            if (W.curve) {
+              // process arcs (done with wire segments)
+              printf("   TRACK (%d,(%d,%d),", u2u(W.width), u2u(W.arc.x1), u2u(W.arc.y1));
+              angle = W.arc.angle1 + delta;
+              while (angle < W.arc.angle2) {
+                printf("\n           (%d,%d),",
+                u2u(W.arc.xc + W.arc.radius * cos(deg2arc(angle))),
+                u2u(W.arc.yc + W.arc.radius * sin(deg2arc(angle))) );
+                angle += delta;
+              }
+              printf("(%d,%d))", u2u(W.arc.x2), u2u(W.arc.y2) );
+            }
+            else {
+              printf("   TRACK (%d,(%d,%d),", u2u(W.width), u2u(W.x1), u2u(W.y1));
+              printf("(%d,%d))", u2u(W.x2), u2u(W.y2));
+            }
+            printf("))\n");
+          }
+        }
+
+        P.rectangles(W) {
+          if (W.layer == 21 || W.layer == 22 || W.layer == 51 || W.layer == 52) {
+            printf("  0,LAYER (%d (\n", fablayer(W.layer)); // tplace layer
+            xll = W.x1; yll = W.y1;
+            int rectcenterx = (W.x1 + W.x2) /2;
+            int rectcentery = (W.y1 + W.y2) /2;
+            int rectx       = W.x2 - W.x1;
+            int recty       = W.y2 - W.y1;
+            printf("%s", drawpadpoly(rectx, recty, rectcenterx, rectcentery, W.angle, 0, 0, 0));
+            printf("))\n");
+          }
+        }
+
+        P.circles(C) {
+          if (C.layer == 21 || C.layer == 22 || C.layer == 51 || C.layer == 52) {
+            printf("  0,LAYER (%d (\n", fablayer(C.layer)); // tplace layer
+            int RminRmax = C.radius - C.width;
+            if (!C.width || RminRmax < 0) {
+              RminRmax = C.width/2;
+              printf("   ROUND (%d,%d,%d)\n", u2u((C.radius + RminRmax)*2),
+                                 u2u(C.x), u2u(C.y));
+            }
+            else {
+              printf("   CIRCLE (%d,%d,%d,%d)\n", u2u(C.radius) + u2u(C.width)/2,
+                                 u2u(C.radius) - u2u(C.width)/2,
+                                 u2u(C.x), u2u(C.y));
+            }
+            printf("))\n");
+          }
+        }
+
+        P.texts(T) {
+          if (T.layer == 1 || T.layer == 16 || T.layer == 21  || T.layer == 22  || T.layer == 51  || T.layer == 52) {
+            printf("  0,LAYER (%d (\n", fablayer(T.layer));
+            T.wires(W) {
+               printf("   TRACK (%d,(%d,%d),(%d,%d))\n", u2u(W.width), u2u(W.x1), u2u(W.y1), u2u(W.x2), u2u(W.y2));
+            }
+            printf("))\n");
+          }
+          /*
+          if (T.layer == 51 || T.layer == 52) {
+            printf("  0,LAYER (%d (\n", fablayer(T.layer - 30)); // tplace layer
+            if (!T.mirror) {
+              jst = "BOTTOM_LEFT";
+            }
+            else {
+              jst = "TOP_RIGHT";
+            }
+            printf("   TEXT (1,%d,%d,%s,%3.0f, ,%s)\n",
+                               u2u(x), u2u(y), jst, T.angle, T.value);
+          }
+          */
+        }
+        printf(");\n");
+      }
+    }
+  }
+  printf(":EOD\n");
+  return;
+}
+
+//////////////////////////////////////////////////////
+void layer(UL_BOARD B) {
+  int    textlayer;
+  string jst, mir;
+  real   tangle, angle;
+  printf ("\n:LAYERS\n");
+  int i = 0, lay;
+  B.signals(S) {
+    if (realnet(S)) {
+      ++i;
+      for (lay = 1; lay <= 16; lay++) {
+        if (net_on_layer(S, lay) && fablayer(lay) > 0) {
+          printf("%d,LAYER (%d, (\n", i, fablayer(lay));
+          S.wires(W) {
+            if (lay == W.layer) {
+
+              if (W.curve) {
+                // process arcs (done with wire segments)
+                x = W.arc.x1;
+                y = W.arc.y1;
+                printf("  TRACK (%d,(%d,%d)", u2u(W.width), u2u(x), u2u(y));
+                angle = W.arc.angle1 + delta;
+                while (angle < W.arc.angle2) {
+                  x = W.arc.xc + W.arc.radius * cos(deg2arc(angle));
+                  y = W.arc.yc + W.arc.radius * sin(deg2arc(angle));
+                  printf(",\n           (%d,%d)", u2u(x), u2u(y));
+                  angle += delta;
+                }
+                printf("\n           (%d,%d))", u2u(W.arc.x2), u2u(W.arc.y2));
+              }
+              else {
+                printf("  TRACK (%d,(%d,%d),(%d,%d))\n",
+                          u2u(W.width), u2u(W.x1), u2u(W.y1), u2u(W.x2), u2u(W.y2));
+              }
+            }
+          }
+
+          S.polygons(P) {   // 13.05.2004 polygon
+            if (lay == P.layer) {
+              P.contours(W) {
+                printf("  TRACK (%d,(%d,%d),(%d,%d))\n",
+                          u2u(W.width), u2u(W.x1), u2u(W.y1), u2u(W.x2), u2u(W.y2));
+              }
+              P.fillings(W) {
+                printf("  TRACK (%d,(%d,%d),(%d,%d))\n",
+                            u2u(W.width), u2u(W.x1), u2u(W.y1), u2u(W.x2), u2u(W.y2));
+              }
+            }
+          }
+          printf("  ));\n");
+        }
+      }
+    }
+  }
+
+   // process name texts
+  B.elements(E) {
+    if (E.package) {
+       tangle = 0;
+       if (!E.mirror) {
+          textlayer = 25;
+          mir = "";
+       }
+       else {
+          textlayer = 26;
+          mir = "M";
+       }
+       jst = "CENTER";
+       x = E.x; y = E.y;
+       printf("0,LAYER (%d (\n", fablayer(textlayer)); // tnames layer
+       printf("  TEXT (1,%d,%d,%s,0,%s,%s)));\n", u2u(x), u2u(y), jst, mir, E.name);
+    }
+  }
+  B.texts(T) {
+    if (T.layer == 1 || T.layer == 16 || T.layer == 21) {
+      printf("  0,LAYER (%d (\n", fablayer(T.layer));
+      T.wires(W) {
+         printf("   TRACK (%d,(%d,%d),(%d,%d))\n", u2u(W.width), u2u(W.x1), u2u(W.y1), u2u(W.x2), u2u(W.y2));
+      }
+      printf("))\n");
+    }
+  }
+  printf(":EOD\n");
+}
+
+
+// //////////// 2009-12-03 /////////////////
+void creat_pad_number_index(UL_BOARD B) {
+  B.elements(E) {
+    int iscontact = 0;
+    E.package.contacts(C) {
+      iscontact = 1;
+      break;
+    }
+    if (!iscontact) {
+      sprintf(areaEname[cntindex], "%s", E.name); // index of element without contacts
+      indexareaEname[cntindex] = 0;
+      cntindex++;
+    }
+    else {
+      int j = 0;
+      E.package.contacts(C) {
+        if (!j) {
+          j++;
+          sprintf(areaEname[cntindex], "%s", E.name); // index to start of pad names in package-pad-list
+          indexareaEname[cntindex] = cntEpad;
+          cntindex++;
+        }
+        // create pad number index list 2009-12-03
+        sprintf(areaEpadname[cntEpad], "%s~%s", E.name, C.name);
+        areaPadNumber[cntEpad] = strtol(pin_number(E, C.name));  // *** the number of pad in FATF format
+        cntEpad++;
+        j++;
+      }
+    }
+  }
+  return;
+}
+
+//-------------------------------------
+int getpadnbr(int i, string epname) {
+  for (int n = i; n < cntEpad; n++) {
+    if (areaEpadname[n] == epname) return areaPadNumber[n];
+  }
+  return 0;
+}
+
+int getpinr(string ename, string pname) {
+  string ep = ename + "~" + pname;
+  for (int i = 1; i < cntindex; i++) {
+    if (areaEname[i] == ename) return getpadnbr(indexareaEname[i], ep);
+  }
+  return 0;
+}
+
+int getelnr(string ename) {
+  for (int i = 1; i < cntindex; i++) {
+    if (areaEname[i] == ename) return i;
+  }
+  return 0;
+}
+
+
+//////////////////////////////////////////////////////
+void nets(UL_BOARD B) {
+  int i = 0, itemcnt, elnr, j;
+  string pin;
+  printf("\n:NETS\n");
+  B.signals(S) {
+    if (realnet(S)) {
+      printf("%d,\"%s\",S,\n   (", ++i, S.name);     // NET NR, NET NAME, STYPE
+      itemcnt = 0;
+
+      S.contactrefs(C) {
+        if (!C.element)
+            continue;
+        elnr = getelnr(C.element.name);   // Part ID 2009-12-03
+        sprintf(pin, "%d", getpinr(C.element.name, C.contact.name));     // Pin ID 2009-12-03
+      //}
+      /*
+      //S.contactrefs(C) {
+        j = 0;
+        B.elements(E) {
+          j++;
+          if (E.name == C.element.name) {
+            elnr = j;                               // find Part ID
+            pin = pin_number(E, C.contact.name);    // find Pin ID
+if (dlgMessageBox(h + " <~> " + pin, "ok", "esc") != 0) exit(-999);
+          }
+        }
+        */
+        if (itemcnt) {
+          printf(",");
+        }
+        if (itemcnt > 5) {
+          printf("\n   ");
+          itemcnt = 0;
+        }
+        itemcnt++;
+        printf("(%d,%s)", elnr, pin);                // PART ID, PIN ID
+      }
+      printf(");\n");
+    }
+  }
+  printf(":EOD\n");
+  return;
+}
+
+//////////////////////////////////////////////////////
+void create_pcboard_section(UL_BOARD B) {
+  B.elements(E) get_roundness(E);
+  board_data(B);
+  parts(B);
+  nets(B);
+  pad_symbols(B);
+  layer_names(B);
+  pad_stacks(B);
+  pads(B);
+  fonts(B);
+  packages(B);
+  layer(B);
+  return;
+}
+
+//////////////////////////////////////////////////////
+if (board) board(B) {
+  jobname = filename(B.name);
+  jobname = strsub(jobname, 0, strlen(jobname) - 4);
+  sprintf(jobname, "%s\%s.fab", filedir(B.name), jobname);
+
+  string fileName = dlgFileSave("Save GenCAD File", filesetext(B.name, ".fab"), "*.fab");
+  if (fileName == "") exit(0);
+
+  output(fileName) {
+    create_header();
+    creat_pad_number_index(B);
+    create_pcboard_section(B);
+    /*  option to count run time
+    printf (";start %02d.%02d.%02d %02d:%02d:%02d : ",
+             t2day(ht),t2month(ht)+1,t2year(ht),t2hour(ht),t2minute(ht),t2second(ht));
+    int t = time();
+    printf (";end  %02d.%02d.%02d %02d:%02d:%02d\n",
+             t2day(t),t2month(t)+1,t2year(t),t2hour(t),t2minute(t),t2second(t));
+    */
+  }
+}

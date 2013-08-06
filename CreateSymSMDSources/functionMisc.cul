@@ -1,0 +1,264 @@
+/***********************************************************************
+This functionMisc.cul is a subroutine for the CreateSymSMDPackage.ulp
+Do not edit, remove or delete.
+***********************************************************************/
+
+// Miscellaneous Functions 
+
+// Translate
+string tr(string s) {
+  string t = lookup(I18N, s, i16Lang, '\v');
+  return t ? t : s;
+}
+
+// convert units part 1
+int unit2u(real x, int unit) {
+   switch(unit){
+      case 0: // mic
+         return round(x*_mic2u);
+      break;
+      case 1: // mm
+         return round(x*1e3*_mic2u);
+      break;
+      case 2: // mil
+         return round(x*25.4*_mic2u);
+      break;
+      case 3: // inch
+         return round(x*25.4*1e3*_mic2u);
+      break;
+      default : // never ever
+         return -1;
+   }
+}
+
+// convert units part 2
+real unitOld2UnitNew(real x,int unitOld, int unitNew) {
+   switch(unitNew) {
+      case 0: // mic
+         return u2mic(unit2u(x,unitOld));
+      break;
+      case 1: // mm
+         return u2mm(unit2u(x,unitOld));
+      break;
+      case 2: // mil
+         return u2mil(unit2u(x,unitOld));
+      break;
+      case 3: // inch
+         return u2inch(unit2u(x,unitOld));
+      break;
+      default: // Never ever
+         return -1;
+   }
+}
+
+// grid has changed
+int SopChangeUnit(int unit, int unitOld) {
+   sopA      = unitOld2UnitNew(sopA,unitOld,unit);
+   sopB        = unitOld2UnitNew(sopB,unitOld,unit);
+   sopB1       = unitOld2UnitNew(sopB1,unitOld,unit);
+   sopP    = unitOld2UnitNew(sopP,unitOld,unit);
+   sopL     = unitOld2UnitNew(sopL,unitOld,unit);
+   sopH     = unitOld2UnitNew(sopH,unitOld,unit);
+   sopLe    = unitOld2UnitNew(sopLe,unitOld,unit);
+   sopHe    = unitOld2UnitNew(sopHe,unitOld,unit);
+   sopK  = unitOld2UnitNew(sopK,unitOld,unit);
+   sopLineW    = unitOld2UnitNew(sopLineW,unitOld,unit);
+   return unit;
+}
+
+// set Default Values for SMD and linewidth
+int setDefault() {
+   if(qfpOrSop) { // QFP package
+      sopL = sopP-(unitOld2UnitNew(0.2,1,sopGridSel)+
+         0.15*(sopP-unitOld2UnitNew(0.5,1,sopGridSel)));
+   } else { // SOP package
+      sopL = max((sopP-unitOld2UnitNew(0.05,1,sopGridSel))/2,
+         unitOld2UnitNew(0.3,1,sopGridSel));
+   }
+   sopH     = (sopB-sopB1)/2+unitOld2UnitNew(0.1,1,sopGridSel);
+   sopK  = unitOld2UnitNew(0.25,1,sopGridSel); // 0.25 mm
+   sopLineW    = unitOld2UnitNew(10,2,sopGridSel); // 10 mil
+   firstPinRounded = 1;
+   pad1Rd   = 80;
+   picPadMeasure = picPadMeasureRd;
+   exposedPad = 0;
+   return 1;
+}
+
+// Create Summary
+string createSummery() {
+   string strRet, strCol="color=\"#0000AF\"";
+   string strA, strB, strB1, strP, strL, strH, strK, strLineW, strLe, strHe;
+   switch(sopGridSel){
+      case 0: // mic => 0 digits
+         sprintf(strA,     "%.0f",sopA);
+         sprintf(strB,     "%.0f",sopB);
+         sprintf(strB1,    "%.0f",sopB1);
+         sprintf(strP,     "%.0f",sopP);
+         sprintf(strL,     "%.0f",sopL);
+         sprintf(strH,     "%.0f",sopH);
+         sprintf(strLe,    "%.0f",sopHe);
+         sprintf(strHe,    "%.0f",sopLe);
+         sprintf(strK,     "%.0f",sopK);
+         sprintf(strLineW, "%.0f",sopLineW);
+      break;
+      case 1: // mm => 3 digits
+         sprintf(strA,     "%.3f",sopA);
+         sprintf(strB,     "%.3f",sopB);
+         sprintf(strB1,    "%.3f",sopB1);
+         sprintf(strP,     "%.3f",sopP);
+         sprintf(strL,     "%.3f",sopL);
+         sprintf(strH,     "%.3f",sopH);
+         sprintf(strLe,    "%.3f",sopHe);
+         sprintf(strHe,    "%.3f",sopLe);
+         sprintf(strK,     "%.3f",sopK);
+         sprintf(strLineW, "%.3f",sopLineW);
+      break;
+      case 2: // mil => 1 digit
+         sprintf(strA,     "%.1f",sopA);
+         sprintf(strB,     "%.1f",sopB);
+         sprintf(strB1,    "%.1f",sopB1);
+         sprintf(strP,     "%.1f",sopP);
+         sprintf(strL,     "%.1f",sopL);
+         sprintf(strH,     "%.1f",sopH);
+         sprintf(strLe,    "%.1f",sopHe);
+         sprintf(strHe,    "%.1f",sopLe);
+         sprintf(strK,     "%.1f",sopK);
+         sprintf(strLineW, "%.1f",sopLineW);
+      break;
+      case 3: // inch => 4 digits
+         sprintf(strA,     "%.4f",sopA);
+         sprintf(strB,     "%.4f",sopB);
+         sprintf(strB1,    "%.4f",sopB1);
+         sprintf(strP,     "%.4f",sopP);
+         sprintf(strL,     "%.4f",sopL);
+         sprintf(strH,     "%.4f",sopH);
+         sprintf(strLe,    "%.4f",sopHe);
+         sprintf(strHe,    "%.4f",sopLe);
+         sprintf(strK,     "%.4f",sopK);
+         sprintf(strLineW, "%.4f",sopLineW);
+      break;
+   }
+   //sprintf(strRet,"<h2>%s</h2><p>",tr("Summary:"));
+   sprintf(strRet,"%s<table border=1 cellpadding=5><tr>",strRet);
+   sprintf(strRet,"%s<td><b>%s:</b> <font %s>%s</b></font></td>",
+      strRet,tr("Package style"),strCol, qfpOrSop?tr("Quad sided"):tr("double sided"));
+   sprintf(strRet,"%s<td rowspan=7>%s</td>",strRet, picMeasure);
+   sprintf(strRet,"%s</tr><tr>",strRet);
+   sprintf(strRet,"%s<td><b>%s:</b> <font %s>%s</font></td>",
+      strRet,tr("Package name"),strCol,sopPackageName);
+   if(qfpOrSop){
+      sprintf(strRet,"%s</tr><tr><td align=center rowspan=2><b>%s</b></td></tr><tr>",strRet,tr("Dimensions"));
+   } else {
+      sprintf(strRet,"%s</tr><tr><td align=center><b>%s</b></td></tr><tr>",strRet,tr("Dimensions"));
+      sprintf(strRet,"%s<td><b>A:</b> <font %s>%s</font> %s</td>",
+         strRet,strCol,strA,strSopGrid[sopGridSel]);
+   }
+   sprintf(strRet,"%s</tr><tr>",strRet);
+   sprintf(strRet,"%s<td><b>B:</b> <font %s>%s</font> %s</td>",
+      strRet,strCol,strB,strSopGrid[sopGridSel]);
+   sprintf(strRet,"%s</tr><tr>",strRet);
+   sprintf(strRet,"%s<td><b>B1:</b> <font %s>%s</font> %s</td>",
+      strRet,strCol,strB1,strSopGrid[sopGridSel]);
+   sprintf(strRet,"%s</tr><tr>",strRet);
+   sprintf(strRet,"%s<td><b>P:</b> <font %s>%s</font> %s</td>",
+      strRet,strCol,strP,strSopGrid[sopGridSel]);
+   sprintf(strRet,"%s</tr><tr>",strRet);
+   sprintf(strRet,"%s<td align=center><b>%s</b></td>",strRet,
+      tr("Create a new package"));
+   strCol=sopNewPackage? "color=\"#00AF00\"" : "color=\"#AF0000\"";
+   sprintf(strRet,"%s<td><font size=+2 %s>%s</font></td>",strRet,
+      strCol,sopNewPackage?"&#10004;":"&#10008;");
+   
+   sprintf(strRet,"%s</tr><tr>",strRet);
+   sprintf(strRet,"%s<td align=center><b>%s</b></td>",strRet,
+      tr("Overwrite existing package"));
+   strCol=sopOverwrite? "color=\"#00AF00\"" : "color=\"#AF0000\"";
+   sprintf(strRet,"%s<td><font size=+2 %s>%s</font></td>",strRet,
+      strCol,sopOverwrite?"&#10004;":"&#10008;");
+   
+   sprintf(strRet,"%s</tr><tr>",strRet);
+   sprintf(strRet,"%s<td align=center><b>%s</b></td>",strRet,
+      tr("Use default settings for pads and line width"));
+   strCol=useDefault? "color=\"#00AF00\"" : "color=\"#AF0000\"";
+   sprintf(strRet,"%s<td><font size=+2 %s>%s</font></td>",strRet,
+      strCol,useDefault?"&#10004;":"&#10008;");
+   sprintf(strRet,"%s</tr><tr>",strRet);
+   if(useDefault) {
+      strCol = "color=\"#AFAFAF\"";
+   } else {
+      strCol=firstPinRounded? "color=\"#00AF00\"" : "color=\"#AF0000\"";
+   }
+   sprintf(strRet,"%s<td align=center><b>%s</b></td>",strRet,tr("First pin rounded"));
+   sprintf(strRet,"%s<td><font size=+2 %s>%s</font></td>",strRet,
+      strCol,firstPinRounded?"&#10004;":"&#10008;");
+   sprintf(strRet,"%s</tr><tr>",strRet);
+   if(useDefault) {
+      strCol = "color=\"#AFAFAF\"";
+   } else {
+      strCol=exposedPad? "color=\"#00AF00\"" : "color=\"#AF0000\"";
+   }
+   sprintf(strRet,"%s<td align=center><b>%s</b></td>",strRet,tr("Exposed pad on center"));
+   sprintf(strRet,"%s<td><font size=+2 %s>%s</font></td>",strRet,
+      strCol,exposedPad?"&#10004;":"&#10008;");
+   sprintf(strRet,"%s</tr><tr>",strRet);
+   strCol=useDefault? "color=\"#AFAFAF\"" : "color=\"#0000AF\"";
+   if(firstPinRounded) {
+      sprintf(strRet,"%s<td><b>%s:</b> <font %s>%d</font> %%</td>",
+         strRet,tr("Roundness"),strCol,pad1Rd);
+   } else {
+      sprintf(strRet,"%s<td rowspan=2><b>L&#10005;H:</b> <font %s>%s</font> %s &#10005; \
+         <font %s>%s</font> %s</td>",
+         strRet,strCol,strL,strSopGrid[sopGridSel],strCol,strH,strSopGrid[sopGridSel]);
+   }
+   sprintf(strRet,"%s<td rowspan=4>%s</td>",strRet,picPadMeasure);
+   sprintf(strRet,"%s</tr><tr>",strRet);
+   if(firstPinRounded) {
+      sprintf(strRet,"%s<td><b>L&#10005;H:</b> <font %s>%s</font> %s &#10005; \
+         <font %s>%s</font> %s</td>",
+         strRet,strCol,strL,strSopGrid[sopGridSel],strCol,strH,strSopGrid[sopGridSel]);
+   } 
+   sprintf(strRet,"%s</tr><tr>",strRet);
+   sprintf(strRet,"%s<td><b>K:</b> <font %s>%s</font> %s</td>",
+      strRet,strCol,strK,strSopGrid[sopGridSel]);
+   sprintf(strRet,"%s</tr><tr>",strRet);
+   sprintf(strRet,"%s<td><b>%s:</b> <font %s>%s</font> %s</td>",
+      strRet,tr("Linewidth"),strCol,strLineW,strSopGrid[sopGridSel]);
+   if(exposedPad) {
+      sprintf(strRet,"%s</tr><tr>",strRet);
+      sprintf(strRet,"%s<td><b>Le&#10005;He:</b> <font %s>%s</font> %s &#10005; \
+         <font %s>%s</font> %s</td>",
+         strRet,strCol,strLe,strSopGrid[sopGridSel],strCol,strHe,strSopGrid[sopGridSel]);
+      sprintf(strRet,"%s<td>%s</td>", strRet,picEPMeasure);
+   }
+   sprintf(strRet,"%s</tr></table>",strRet);   
+   return(strRet);
+}
+
+// The package name for description
+string longName(string pacName,int quadOrSop){
+   string strLongName = "";
+   if(quadOrSop) { // Quad package
+      if(strstr(pacName,"QFP")+1) strLongName = "Quad Flat Package";
+      if(strstr(pacName,"BQFP")+1) strLongName = "Bumpered Quad Flat Package";
+      if(strstr(pacName,"CQFP")+1) strLongName = "Ceramic Quad Flat Package";
+      if(strstr(pacName,"FQFP")+1) strLongName = "Fine Pitch Quad Flat Package";
+      if(strstr(pacName,"HQFP")+1) strLongName = "Heat sinked Quad Flat Package";
+      if(strstr(pacName,"LQFP")+1) strLongName = "Low Profile Quad Flat Package";
+      if(strstr(pacName,"MQFP")+1) strLongName = "Metric Quad Flat Package";
+      if(strstr(pacName,"PQFP")+1) strLongName = "Plastic Quad Flat Package";
+      if(strstr(pacName,"SQFP")+1) strLongName = "Small Quad Flat Package";
+      if(strstr(pacName,"TQFP")+1) strLongName = "Thin Quad Flat Package";
+      if(strstr(pacName,"VQFP")+1) strLongName = "Very small Quad Flat Package";
+      if(strstr(pacName,"BQFPH")+1) strLongName = "Bumpered Quad Flat Package with Heat spreader";
+      if(strstr(pacName,"VTQFP")+1) strLongName = "Very Thin Quad Flat Package";
+   } else { // SOP
+      if(strstr(pacName,"SOP")+1) strLongName = "Small Outline Package";
+      if(strstr(pacName,"SOIC")+1) strLongName = "Small Outline Integrated Circuit";
+      if(strstr(pacName,"PSOP")+1) strLongName = "Plastic Small Outline Package";
+      if(strstr(pacName,"TSOP")+1) strLongName = "Thin Small Outline Package";
+      if(strstr(pacName,"SSOP")+1) strLongName = "Shrink Small Outline Package";
+      if(strstr(pacName,"TSSOP")+1) strLongName = "Thin Shrink Small Outline Package";
+   }
+   return(strLongName);
+}

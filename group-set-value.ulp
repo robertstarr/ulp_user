@@ -1,0 +1,200 @@
+#usage "<b>Change value for all parts selected by group command in a schematic</b><p>"
+       "<author>http://www.bobstarr.net</author>";
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// Copyright (C) 2010, Robert E. Starr (http://www.bobstarr.net)
+// 
+// REVISION HISTORY:
+//
+// v1.00 - 09/22/2010   Initial Development
+//
+//////////////////////////////////////////////////////////////////////////////
+//
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
+// EXPRESSED OR IMPLIED. IF YOU DON'T LIKE IT, DON'T USE IT!
+//
+//////////////////////////////////////////////////////////////////////////////
+
+string Version = "1.01";
+
+string fileName;
+string strNewValue;
+string strCmd;      // script command text
+string strValue;
+string strRVal[];
+
+int nSelValue = 0;
+
+//////////////////////////////////////////////////////////////////////////////
+// Get count of items selected
+
+int GetSelCount(UL_SCHEMATIC sch)
+{
+    int cnt = 0;
+
+    sch.parts(P)
+    {
+        P.instances(I)
+        {
+            if (ingroup(I))
+            {
+                // make sure it has a package and name
+                if (P.device.package && P.name)
+                   ++cnt;
+            }
+        }
+    }
+
+    return cnt;
+}
+
+void CalcRVals()
+{
+    string t;
+    int A=0,C=0,ndx=0;
+    real a,b,e,f=10;
+    
+    do
+    {
+        e = C;
+        do
+        {
+            a = A;
+            b = (((round((exp(log(10)*(a/96)))*100))/100)*(pow(f,e)));
+    
+            if (C == 0){ 
+    	        sprintf(t,"%1.2f", b);
+    	    }
+    
+            if (C == 1){ 
+    	        sprintf(t,"%2.1f", b);
+    	    }
+    
+            if (C == 2){ 
+    	        sprintf(t,"%3.0f", b);
+    	    }
+    
+            if (C == 3){
+    	        b = b/1000;
+    	        sprintf(t,"%1.2fk", b);
+    	    }
+    
+            if (C == 4){
+            	b = b/1000;	 
+            	sprintf(t,"%2.1fk", b);
+        	}
+        
+            if (C == 5){
+        	    b = b/1000;
+        	    sprintf(t,"%3.0fk", b);
+        	}
+        
+            if (C == 6){
+        	    b = b/1000000;
+        	    sprintf(t,"%1.2fM", b);
+        	}
+        
+            if (C == 7){
+        	    b = b/1000000;
+        	    sprintf(t,"%2.1fM", b);	
+            }
+            A++;
+            strRVal[ndx++] = t;
+        } while (A < 96);
+     
+        A=0;
+        a=0;
+        ++C;
+    } while (C < 7);
+    
+    a = 96;
+    e = C;
+    b = (((round((exp(log(10)*(a/96)))*100))/1000)*(pow(f,e)));
+    b = b/1000000;
+    sprintf(t,"%2.1fM", b);
+    strRVal[ndx++] = t;
+}
+
+void OnComboChangeValue()
+{
+    strNewValue = strRVal[nSelValue];
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Script Entry Point
+
+if (schematic)
+{
+    schematic(SCH)
+    {
+        fileName = filesetext(SCH.name, "_ChangeValues.scr");
+
+        string title = "Group Set Value - v" + Version;
+
+        if (GetSelCount(SCH) == 0)
+        {
+             dlgMessageBox("No group selected!");
+             exit(0);
+        }
+
+        CalcRVals();
+
+        int Result = dlgDialog(title)
+        {
+            dlgHBoxLayout
+            {
+                dlgGroup("Attribute")
+                {
+                    dlgGridLayout
+                    {
+                        dlgCell(1,0) dlgLabel("Part Value");
+                        dlgCell(1,1) dlgStringEdit(strNewValue);
+                        dlgCell(2,0) dlgLabel("Resistor Values");
+                        dlgCell(2,1) dlgComboBox(strRVal, nSelValue) OnComboChangeValue();
+                    }
+                }
+            }
+            dlgHBoxLayout
+            {
+                dlgPushButton("OK") dlgAccept();
+                dlgPushButton("-Cancel") dlgReject();
+            }
+        };
+
+        if (!Result)
+            exit(0);
+
+        int cnt = 0;
+
+        strCmd = "";
+        SCH.parts(P)
+        {
+            P.instances(I)
+            {
+                if (ingroup(I))
+                {
+                    // make sure it has a package and name
+                   if (P.device.package && P.name)
+                   {
+                        string tmp;
+                        sprintf(tmp, "VALUE %s '%s';\n", P.name, strNewValue);
+                        strCmd += tmp;
+                        ++cnt;
+                    }
+                }
+            }
+        }
+
+        if (!cnt)
+          dlgMessageBox("No items selected!");
+
+        exit(strCmd);
+    }
+}
+else
+{
+    dlgMessageBox("Start this ULP in Schematic!", "OK");
+}
+
+// End-Of-File

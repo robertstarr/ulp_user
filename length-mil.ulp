@@ -1,0 +1,244 @@
+#usage "<b>This ULP calculates the signal length of routed tracks in the layout</b><p><nobr>\n"
+       "run length [name | name* | *name | *name*]<br>"
+       "run length name [name name ...]<p>"
+       "EXAMPLE:<br>"
+       "run length +D -D<br>"
+       "run length d0 d2 d7 A*<br>"
+       "run length d*<p>"
+       "Wires in layers 1 to 16 will be added, airwires will be shown separately.<br>"
+       "If net names are specified, the differences in length will be calculated in procentual values.<br>"
+       "The procentual difference is based on the shortest of the specified tracks which is taken as 100%.<br>"
+       "Parallel tracks and polygons are not taken into consideration.<br>"
+       "Only for all signals it is possible to change the sorting of the displayed signals in the list."
+       "<p>"
+       "<author>Author: support@cadsoft.de</author></nobr>"
+
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND, EXPRESSED OR IMPLIED
+
+#require 4.1106
+
+// **  German description: **
+string hilfe = "<nobr><b>Dieses ULP berechnet die Signallängen von Leiterbahnen eines Layouts.</b><p>" +
+               "run length [name | name* | *name | *name*]<br>" +
+               "run length name [name name ...]<p>" +
+               "Beispiel:<br>" +
+               "run length +D -D<br>" +
+               "run length d0 d2 d7 d6 A*<br>" +
+               "run length d*<p>" +
+               "Die Wire in den Layern 1 bis 16 werden addiert, die Airwire werden gesondert angegeben.<br>" +
+               "Prozentuale Längendifferenzen werden nur berechnet wenn Netznamen angegeben wurden.<br>" +
+               "Für den prozentualen Längenunterschied wird die kürzeste Leiterbahn als 100% angesehen.<br>" +
+               "Es wird keine Parallelführung bzw. Fläche (Polygon) berücksichtigt.<br>" +
+               "Nur bei Anzeige aller Signale kann die Sortierung des Listfeldes beeinflußt werden.<p>" +
+               "<author>Author: support@cadsoft.de</author>"
+               "</nobr>";
+
+//  A. Zaffran 10.02.2005 alf@cadsoft.de
+
+string Help = usage;
+string HButton = "&Help";
+string SButton = "&Save";
+
+if (language() == "de") {
+  Help = hilfe;
+  HButton = "&Hilfe";
+  SButton = "&Sichern";
+}
+
+
+real f, WLtotal;
+int index[];
+
+
+real   Length[];
+string signal_list[];
+int    sig_n = 0;
+
+real   route_length[];
+real   Unroute_length[];
+int    Unroute_cnt[];
+
+int t;
+numeric string data[];
+string h;
+string header;
+
+void help(void) {
+  dlgMessageBox(Help, "Ok");
+  return;
+}
+
+
+void dialog(void) {
+  int select = 0;
+  int ssort = 0;
+  if (argc < 2) ssort = 1;
+
+  int Result = dlgDialog("Wire length of Layout") {
+    dlgListView("", data, select, ssort);
+    dlgHBoxLayout {
+      dlgPushButton("+Ok") dlgReject();
+      dlgPushButton(SButton) {
+        board(B) {
+          string FileName = dlgFileSave("Save list", filesetext(B.name, ".txt"));
+          if (FileName) {
+            output (FileName, "wt") {
+              printf("%s", header);
+              for (int x = 0; x < t; x++) printf("%s\n", data[x]);
+            }
+          }
+        }
+      }
+      dlgStretch(1);
+      dlgPushButton(HButton) help();
+    }
+  };
+  if (!Result)
+     exit(0);
+}
+
+
+real WireLength(real x1, real x2, real y1, real y2) {
+  return sqrt((pow(x2 - x1, 2) + pow(y2 - y1, 2)) );
+}
+
+
+real ArcLength(real ang1, real ang2, real radius) {
+  return radius  * 2 * PI / 360 * (ang2 - ang1);
+}
+
+
+int found(string signame) {
+  if (argc < 2) return 1;
+  int f = 0;
+  int sig = 0;
+  for (int n = 0; n <= sig_n; n++) {
+
+    if (strchr(signal_list[n], '*') >= 0) {  // wildcard * in name
+      int l = strlen(signal_list[n]);
+      string s;
+
+      if (signal_list[n][0] == '*' && signal_list[n][l-1] == '*') {  // *name*
+        s = strsub(signal_list[n], 1, l-2 );
+        if(strstr(signame, s) > 0) {
+          f = 1;
+          break;
+        }
+      }
+
+      else if (signal_list[n][l-1] == '*') {      // name*
+        s = strsub(signal_list[n], 0, l-1);
+        if(strstr(signame, s) == 0) {
+          f = 1;
+          break;
+        }
+      }
+
+      else if (signal_list[n][0] == '*') {      // *name
+        s = strsub(signal_list[n], 1);
+        if(strstr(signame, s) > 0) {
+          f = 1;
+          break;
+        }
+      }
+    }
+    else if (signame == signal_list[n]) {
+      f = 1;
+      break;
+    }
+  }
+  return f;
+}
+
+// *** different length to shortesd signals in percent ***
+string percent( real length, real length100) {
+  string s;
+  if (length100) sprintf(s, "%.2f", (length - length100) / (length100 / 100));
+  else s = "--";
+  return s;
+}
+
+// *** Unroutet length ***
+string unroute(real l, int cnt) {
+  string s;
+  if (cnt) sprintf(s, "%.2f", l);
+  else s = "--";
+  return s;
+}
+
+
+
+// *** main ***
+if (board) board(B) {
+  if (argc > 1) {
+    string h;
+    int n;
+    string list;
+
+    // *** check only by signal name ***
+    sig_n = argc -2;
+    for (n = 1; n < argc; n++) {
+      signal_list[sig_n] = strupr(argv[n]);
+      list += signal_list[sig_n] + "\n";
+      sig_n++;
+    }
+  }
+
+  sprintf(h, "%s\n", EAGLE_SIGNATURE);
+  header += h;
+  sprintf(h, "List of signals with length");
+  header += h;
+
+  string Signal[];
+  int n = 0;
+  B.signals(S) {
+    if (found(S.name)) {
+      WLtotal = 0;
+      int cntUnroute = 0;
+      real unroute = 0;
+      S.wires(W) {
+        if (W.layer < 17) {           // nur Kupfer-Layer
+          if (W.arc) {
+            WLtotal += ArcLength(W.arc.angle1, W.arc.angle2, u2mil(W.arc.radius));
+          }
+          else {
+            WLtotal += WireLength(u2mil(W.x2), u2mil(W.x1), u2mil(W.y2), u2mil(W.y1));
+          }
+        }
+        if (W.layer == 19) {           // unrouted Layer
+          unroute += WireLength(u2mil(W.x2), u2mil(W.x1), u2mil(W.y2), u2mil(W.y1));
+          cntUnroute++;
+        }
+      }
+      Signal[n] = S.name;
+      Length[n] = WLtotal;
+      Unroute_length[n] = unroute;
+      Unroute_cnt[n] = cntUnroute;
+      ++n;
+    }
+  }
+
+  sort(n, index, Length);
+  sprintf(h, "Signal\tl [mil]\tdiff. [mil]\tdiff. [%%]\tunrouted [mil]");
+  data[0] = h;
+  t = 1;
+  real null_length = Length[index[0]];
+
+  for (int i = 0; i < n; ++i) {
+    sprintf(h, "%s\t%10.2f\t%3.2f\t%s\t%s",
+                Signal[index[i]],
+                Length[index[i]],
+                Length[index[i]] - null_length,
+                percent(Length[index[i]], null_length),
+                unroute(Unroute_length[index[i]], Unroute_cnt[index[i]])
+           );
+    data[t] = h;
+    t++;
+  }
+  dialog();
+}
+
+else {
+   dlgMessageBox("Start this ULP in a Board");
+   exit (0);
+}

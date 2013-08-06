@@ -1,0 +1,144 @@
+#usage "<b>Data generation for mounting machines</b>\n"
+"<p>"
+"Generates files for smds on the top and bottom layers "
+"wich can be used with mounting machines. "
+"The x and y coordinates (units: mm) of the SMD elements are calculated "
+"as mean of maximum and mimimum value of the smds origin points. "
+"The calculated value does not necessarily fit with the origin "
+"point of the part in the layout."
+"<p>"
+"Modified to support BOM-EX do not place parts attribute DNP."
+"<p>"
+"The syntax of the output data looks like this:"
+"<p>"
+"<tt>name x-coord y-coord rotation value package</tt>"
+"<p>"
+"<author>Author: support@cadsoft.de</author>"
+
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND, EXPRESSED OR IMPLIED
+
+if (board) board(B)
+{
+	// Get filename
+	string fileName = dlgFileSave("Save File", filesetext(B.name, ".mnt"), "*.mnt");
+	if (fileName == "")
+	exit(0);
+
+  	output(fileName)
+	{
+		B.elements(E)
+		{
+			int wasSmd,
+         	xmax =-2147483648,
+         	xmin = 2147483647,
+         	ymax = xmax,
+         	ymin = xmin;
+
+      		wasSmd = 0;
+			int bomDNP = 0;
+
+			E.package.contacts(C)
+			{
+				if (C.smd && C.smd.layer == 1)
+				{
+					wasSmd = 1;
+            		if (C.x > xmax) xmax = C.x;
+            		if (C.y > ymax) ymax = C.y;
+            		if (C.x < xmin) xmin = C.x;
+            		if (C.y < ymin) ymin = C.y;
+				}
+			}
+
+			// Check for DNP or BOM EXCLUDED PARTS
+			E.attributes(A)
+ 			{
+				if (A.name == "BOM")
+ 				{
+					// Exclude part from BOM?
+					if (A.value == "EXCLUDE")
+					bomDNP = 1;
+				}
+ 				else if (A.name == "DNP")
+ 				{
+					// Exclude part from BOM?
+					if ((A.value == "T") || (A.value != "1"))
+					bomDNP = 1;
+				}
+			}
+
+			if (wasSmd)
+			{
+				if (!bomDNP)
+				{
+					printf("%s %5.2f %5.2f %3.0f %s %s\n",
+						E.name, u2mm((xmin + xmax)/2), u2mm((ymin + ymax)/2),
+						E.angle, E.value, E.package.name);
+				}
+			}
+		}
+	}
+
+	// Get filename
+	fileName = dlgFileSave("Save File", filesetext(B.name, ".mnb"), "*.mnb");
+	if (fileName == "") exit(0);
+
+	output(fileName)
+	{
+		B.elements(E)
+ 		{
+			int wasSmd,
+			xmax =-2147483648,
+			xmin = 2147483647,
+			ymax = xmax,
+			ymin = xmin;
+
+			wasSmd = 0;
+			int bomDNP = 0;
+
+			E.package.contacts(C)
+			{
+				if (C.smd && C.smd.layer == 16)
+				{
+					wasSmd = 1;
+
+					if (C.x > xmax) xmax = C.x;
+					if (C.y > ymax) ymax = C.y;
+					if (C.x < xmin) xmin = C.x;
+					if (C.y < ymin) ymin = C.y;
+				}
+			}
+
+			// Check for DNP or BOM EXCLUDED PARTS
+			E.attributes(A)
+ 			{
+				if (A.name == "BOM")
+ 				{
+					// Exclude part from BOM?
+					if (A.value == "EXCLUDE")
+					bomDNP = 1;
+				}
+ 				else if (A.name == "DNP")
+ 				{
+					// Exclude part from BOM?
+					if ((A.value == "T") || (A.value != "1"))
+					bomDNP = 1;
+				}
+			}
+
+			if (wasSmd)
+			{
+				if (!bomDNP)
+				{
+					printf("%s %5.2f %5.2f %3.0f %s %s\n",
+						E.name, u2mm((xmin + xmax)/2), u2mm((ymin + ymax)/2),
+						E.angle, E.value, E.package.name);
+				}
+			}
+		}
+	}
+}
+else
+{
+	dlgMessageBox("\n    Start this ULP in a Board    \n");
+	exit (0);
+}

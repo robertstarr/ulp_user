@@ -1,0 +1,69 @@
+#usage "<b>Steps the current editor grid up or down by half.</b>\n"
+       "<p>"
+       "Use the Options/Assign menu to program the keyboard to the"
+       "following keys:<p><p>"
+       "Increment the current grid by half: Ctrl+F6  ==> run cmd-grid-step 'up'<br>"
+       "Increment the current grid by half: Shift+F6 ==> run cmd-grid-step<p>"
+       "<author>Author: rtzaudio@comcast.net</author>"
+
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND, EXPRESSED OR IMPLIED
+
+if (schematic)
+{
+    schematic(S)
+    {
+        real distance = S.grid.distance;
+
+        string tmp;
+
+        if (argc > 1) {
+            distance = distance * 2.0;
+        } else {
+            distance = distance / 2.0;
+        }
+
+        sprintf(tmp, "GRID %f;\n", distance);
+        
+        exit(tmp);
+    }
+} 
+
+if (board)
+{
+    board(B)
+    {
+        real distance = B.grid.distance;
+
+        string tmp;
+
+        if (argc > 1) {
+            distance = distance * 2.0;
+        } else {
+            distance = distance / 2.0;
+        }
+
+        sprintf(tmp, "GRID %f;\n", distance);
+        
+        exit(tmp);
+    }
+} 
+
+if (library)
+{
+    library(L)
+    {
+        real distance = L.grid.distance;
+
+        string tmp;
+
+        if (argc > 1) {
+            distance = distance * 2.0;
+        } else {
+            distance = distance / 2.0;
+        }
+
+        sprintf(tmp, "GRID %f;\n", distance);
+        
+        exit(tmp);
+    }
+} 

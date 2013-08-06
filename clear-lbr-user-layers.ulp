@@ -1,0 +1,91 @@
+#usage "<b>RUN Library statistics</b>\n"
+       "<p>"
+       "<author>Author: support@cadsoft.de</author>"
+
+string Revision = "1.00";
+
+string defined_layers[] = { "" };
+int    cnt_deflayer = 0;
+
+string used_layers[] = { "" };
+int    cnt_used_layers = 0;
+
+string user_layers[] = { "" };
+int    cnt_user_layers = 0;
+
+// main
+
+string check_userlayer(string ulay)
+{
+    string use_user_layer = "";
+    int l = strtol(ulay);
+    library(L)  
+    {
+        L.packages(PAC)
+        {
+            status(" check "+PAC.name+".PAC");
+            int use = 0;
+            PAC.wires(W)      if (W.layer == l) { use++; break; }
+            PAC.circles(C)    if (C.layer == l) { use++; break; }
+            PAC.rectangles(R) if (R.layer == l) { use++; break; }
+            PAC.polygons(P)   if (P.layer == l) { use++; break; }
+            PAC.texts(T)      if (T.layer == l) { use++; break; }
+            if (use)
+                use_user_layer += PAC.name + ".PAC\n";
+        }
+        L.symbols(S)
+        {
+            status(" check "+S.name+".SYM");
+            int use = 0;
+            S.wires(W)      if (W.layer == l) { use++; break; }
+            S.circles(C)    if (C.layer == l) { use++; break; }
+            S.rectangles(R) if (R.layer == l) { use++; break; }
+            S.polygons(P)   if (P.layer == l) { use++; break; }
+            S.texts(T)      if (T.layer == l) { use++; break; }
+            if (use) use_user_layer += S.name + ".SYM\n";
+        }
+        status("");
+    }
+    return use_user_layer;
+}
+
+
+if (library) library(L)
+{
+    status("Layers");
+
+    L.layers(LAY)
+    {
+        if (LAY.used)
+        {
+            sprintf(used_layers[cnt_used_layers], "%d %s", LAY.number, LAY.name);
+            cnt_used_layers++;
+        }
+        if (LAY.number >= 100)
+        {
+            sprintf(user_layers[cnt_user_layers], "%d %s", LAY.number, LAY.name);
+            cnt_user_layers++;
+        }
+        if (LAY.number == 50 || LAY.number > 52 && LAY.number < 91 || LAY.number > 96 )
+        {
+            sprintf(defined_layers[cnt_deflayer], "%d %s", LAY.number, LAY.name);
+            cnt_deflayer++;
+        }
+    }
+
+    string cmd;
+
+    for (int n = 0; n < cnt_user_layers; n++)
+    {
+        if (!check_userlayer(user_layers[n]))
+        {
+            string s;
+            sprintf(s, "LAYER -%d;\n", strtol(user_layers[n]) );
+            cmd += s;
+        }
+    }
+
+    if (cmd)
+        exit(cmd+"RUN '"+argv[0]+"';");
+}
+

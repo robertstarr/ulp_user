@@ -1,0 +1,162 @@
+       #usage "<b>Convert old style inverted pin names to Eagle 5.0 overstrike '!' symbol format</b>\n"
+       "<p>This script loops through all pins in a symbols and converts old style inverted pin names (active low) to use the new "
+       "overstrike symbol '!' feature supported in Eagle 5.0. The ULP looks for pin names sequences using the '\\', '*', or '#' characters and converts "
+       "these to the new '!' sequence as appropriate<p>"
+       "To convert all pins in all symbols of a library, execute the script externally or from the device edit view. "
+       "Otherwise, execute this script in the symbol edit view to update the current edit symbol only.<p>"
+       "<author>http://www.bobstarr.net</author>"
+
+string ulp_path = "";
+string script_change = "";
+
+string grid = "GRID MIL 100;\n";
+
+int Result = 0;
+
+
+string fixup_pinname(string name)
+{
+    int len;
+    string temp;
+
+    if ((len = strlen(name)) == 0)
+        return "";
+
+    if ((name[len-1] == '#') || (name[len-1] == '*') || (name[len-1] == '\\') || (name[len-1] == '/'))
+    {
+        // handle later character case
+        temp = "!";
+        temp = temp + name;
+        temp[len] = '!';
+    }
+    else if ((name[0] == '#') || (name[0] == '*') || (name[0] == '\\') || (name[0] == '/'))
+    {
+        // handle first character case
+        temp = name;
+        temp[0] = '!';
+        temp = temp + "!";
+    }
+    else
+    {
+        temp = name;
+    }
+
+    return temp;
+}
+
+int count_tokens(string str, int ch)
+{
+    int i;
+    int count = 0;
+
+    for (i=0; i < strlen(str); i++)
+    {
+        if (str[i] == ch)
+            ++count;
+    }
+
+    return count;
+}
+
+void DoSymbol(UL_SYMBOL S) {
+    string name;
+    string newname;
+    string temp, temp2;
+    int i, n, len;
+
+    S.pins(P) {
+        name = P.name;
+
+        // make sure string name is not empty
+        if ((len = strlen(name)) == 0)
+            continue;
+
+        if ((strchr(name, '#') >= 0) || (strchr(name, '*') >= 0) || (strchr(name, '\\') >= 0) || (strchr(name, '/') >= 0))
+        {
+            int ntokens = count_tokens(name, '/');
+
+            if ((ntokens == 1) && ((name[0] == '/') || (name[0] == '\\')))
+            {
+                temp = fixup_pinname(name);
+                //printf("# simple1 old name:%s, newname:%s\n", name, temp);
+                printf("NAME '%s' (%f %f);\n", temp, u2mil(P.x), u2mil(P.y));
+            }
+            else if (ntokens >= 1)
+            {
+                // if the name contains multiple slashes we have more complicated parsing to do
+                //printf("#parsing: %s\n", name);
+                n = 0;
+                newname = "";
+
+                for (i=0; i < len; i++)
+                {
+                    if (name[i] == '/')
+                    {
+                        n = 0;
+                        //printf("#fixup temp :%s\n", temp);
+                        temp2 = fixup_pinname(temp);
+                        newname = newname + temp2 + "/";
+                        //printf("#parse temp2:%s, temp:%s\n", temp2, temp);
+                    }
+                    else
+                    {
+                        temp[n] = name[i];
+	                    temp[n+1] = 0;
+                        ++n;
+                    }
+                }
+                temp2 = fixup_pinname(temp);
+                newname = newname + temp2;
+                //printf("# multi old name:%s, newname:%s\n", name, newname);
+                printf("NAME '%s' (%f %f);\n", newname, u2mil(P.x), u2mil(P.y));
+            }
+            else
+            {
+                temp = fixup_pinname(name);
+                //printf("# simple2 old name:%s, newname:%s\n", name, temp);
+                printf("NAME '%s' (%f %f);\n", temp, u2mil(P.x), u2mil(P.y));
+           }
+       }
+    } 
+}
+
+if (library) {
+   char bkslash = '/';
+   int pos = strrchr(argv[0], bkslash);
+   if (pos >= 0) {
+      ulp_path = strsub(argv[0], 0, pos + 1);
+   }
+   int n = 0;
+   library(L) {
+   int posb = strrchr(argv[0], bkslash);
+   if (posb >= 0) {
+      ulp_path = strsub(argv[0], 0, posb + 1);
+   }
+
+   script_change = filesetext(L.name, "~~~.scr");
+
+   output(script_change, "twD") {
+      printf("DISPLAY 95 96;\n");
+      printf("%s",grid);
+      int firstf = 1;
+      if (symbol) {
+          symbol(S) {
+              DoSymbol(S);
+	}
+      }
+      else
+      {
+          L.symbols(S) {
+              printf("EDIT %s.SYM;\n", S.name);
+              DoSymbol(S);
+          }
+      }
+      //printf("write;\n");
+      printf("GRID DEFAULT;\n");
+   }
+   }
+  exit ("SCRIPT '" + script_change + "';\n");
+} else {
+   dlgMessageBox("\n*** Start this ULP in a Library ***\n");
+   exit (0);
+}

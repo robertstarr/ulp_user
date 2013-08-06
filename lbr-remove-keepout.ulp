@@ -1,0 +1,86 @@
+#usage "<b>Remove all keep layer objects from library packages.</b>\n"
+       "<p>"
+       "<author>Author: rtzaudio@comcast.net</author>"
+
+string ulp_path = "";
+string script_change = "";
+
+int Result = 0;
+string grid = "GRID MM FINEST;\n";
+
+
+void remove(int x1, int y1)
+{
+    printf("GROUP ALL ;\nDELETE (>%.4f %.4f);\n", u2mm(x1)+1, u2mm(y1)+1);
+}
+
+void DoPackage(UL_PACKAGE P)
+{
+    int dx, dy;
+
+    P.rectangles(R) {
+        if (R.layer == 39 || R.layer == 40) {
+            dx = u2mil(R.x1);
+            dy = u2mil(R.y1);
+            remove(dx, dy);
+        }
+    }
+
+    P.circles(C) {
+        if (C.layer == 39 || C.layer == 40) {
+            dx = u2mil(C.x + C.radius);
+            dy = u2mil(C.y);
+            remove(dx, dy);
+        }
+    }
+
+    P.wires(W) {
+        if (W.layer == 39 || W.layer == 40) {
+            if (W.arc) {
+                dx = W.arc.x1;
+                dy = W.arc.y1;
+                remove(dx, dy);
+            }
+            dx = (W.x1 + W.x2) / 2;
+            dy = (W.y1 + W.y2) / 2;
+            remove(dx, dy);
+        }    
+    }
+}
+
+if (library) {
+   char bkslash = '/';
+   int pos = strrchr(argv[0], bkslash);
+   if (pos >= 0) {
+      ulp_path = strsub(argv[0], 0, pos + 1);
+   }
+   int n = 0;
+   library(L) {
+   int posb = strrchr(argv[0], bkslash);
+   if (posb >= 0) {
+      ulp_path = strsub(argv[0], 0, posb + 1);
+   }
+
+   script_change = filesetext(L.name, "~~~.scr");
+
+   output(script_change, "wtD") {
+      printf("DISPLAY NONE 39 40;\n");
+      int firstf = 1;
+      L.packages(P) {
+         printf("EDIT %s.PAC;\n", P.name);
+         if (firstf) {
+           printf("%s",grid);
+           firstf = 0;
+         }
+         DoPackage(P);
+      }
+
+      printf("GRID DEFAULT;\n");
+      printf("DISPLAY NONE 1 16 17 21 39 40 51;\n");
+   }
+   }
+  exit ("SCRIPT '" + script_change + "';\n"); // REMOVE " + script_change + ";\n");
+} else {
+   dlgMessageBox("\n*** Start this ULP in a Library ***\n");
+   exit (0);
+}

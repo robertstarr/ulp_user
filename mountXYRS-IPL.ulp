@@ -1,0 +1,403 @@
+#usage "<b>Data generation for mounting machines</b>\n"
+       "<p>"
+       "Generates one file with top and bottom layers "
+       "wich can be used with Advanced Assembly's mounting machines. "
+       "The x and y coordinates units are now based on current GRID settings"
+       "The calculated value does not necessarily fit with the origin "
+       "point of the part in the layout."
+       "orignal author: support@cadsoft.de</author>"
+       "<p>"
+       "The syntax of the output data looks like this:"
+       "<p>"
+       "<tt>name x-coord y-coord rotation value package</tt>"
+       "<p>"
+       "<author>Author: lawcockc@onyxgaming.com</author>"
+    "<p>"
+    "modified MM 28-03-07:  <b>put all non surface mount (SMD) on TOP layer</b>"
+
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND, EXPRESSED OR IMPLIED
+
+if (board) board(B)
+{
+    // Get filename
+    string fileName = dlgFileSave("Save File", filesetext(B.name, ".mnt"), "*.mnt");
+    if (fileName == "") exit(0);
+
+    output(fileName)
+    {
+        printf ("Layer = Top\n");
+        printf ("Report Origin = (0.0,0.0)\n");
+        printf ("Units used = ");
+
+        if (B.grid.unit == GRID_UNIT_MIC)
+        {
+            printf ("microns\n");
+        }
+
+        if (B.grid.unit == GRID_UNIT_MM)
+        {
+            printf ("mm\n");
+        }
+
+        if (B.grid.unit == GRID_UNIT_MIL)
+        {
+            printf ("mil\n");
+        }
+
+        if (B.grid.unit == GRID_UNIT_INCH)
+        {
+            printf ("inch\n");
+        }
+
+        //
+        // PROCESS TOP SIDE SMD PARTS
+        //
+
+        printf ("\nRefDes LocationX LocationY Rotation Value Package\n");
+
+        B.elements(E)
+        {
+            int wasSmd,
+            xmax =-2147483648,
+            xmin = 2147483647,
+            ymax = xmax,
+            ymin = xmin;
+
+            wasSmd = 0;
+
+            int bomDNP = 0;
+
+            E.package.contacts(C)
+            {
+                if ((C.smd && C.smd.layer == 1))
+                {
+                    wasSmd = 1;
+                    if (C.x > xmax) xmax = C.x;
+                    if (C.y > ymax) ymax = C.y;
+                    if (C.x < xmin) xmin = C.x;
+                    if (C.y < ymin) ymin = C.y;
+                }
+            }
+
+            // Check for DNP or BOM EXCLUDED PARTS
+            E.attributes(A)
+            {
+                if (A.name == "BOM")
+                {
+                    // Exclude part from BOM?
+                    if (A.value == "EXCLUDE")
+                        bomDNP = 1;
+                }
+                else if (A.name == "DNP")
+                {
+                    // Exclude part from BOM?
+                    if ((A.value == "T") || (A.value != "1"))
+                        bomDNP = 1;
+                }
+            }
+
+            if (wasSmd)
+            {
+                real x,y;
+
+                switch (B.grid.unit)
+                {
+                    case GRID_UNIT_MIC:
+                        x = u2mic ((xmin + xmax) / 2);
+                        y = u2mic ((ymin + ymax) / 2);
+                        break;
+                    case GRID_UNIT_MIL:
+                        x = u2mil ((xmin + xmax) / 2);
+                        y = u2mil ((ymin + ymax) / 2);
+                        break;
+                    case GRID_UNIT_MM:
+                        x = u2mm ((xmin + xmax) / 2);
+                        y = u2mm ((ymin + ymax) / 2);
+                        break;
+                    case GRID_UNIT_INCH:
+                        x = u2inch ((xmin + xmax) / 2);
+                        y = u2inch ((ymin + ymax) / 2);
+                        break;
+                }
+
+                string value = E.value, name = E.package.name;
+                int index = 0;
+
+                while ((index = strchr (value,' ',index)) >= 0)
+                {
+                    value[index] = '_';
+                }
+
+                index = 0;
+
+                while ((index = strchr (name,' ',index)) >= 0)
+                {
+                    name[index] = '_';
+                }
+
+                if (strlen (value) == 0) value = "none";
+                if (strlen (name) == 0) value = "none";
+
+				if (!bomDNP)
+				{
+	                printf("%s %5.4f %5.4f %3.0f %s %s\n",
+	                    E.name, x, y,
+	                    E.angle, value, name);
+				}
+            }
+        }
+
+        printf ("\n\nLayer = Bottom\n");
+        printf ("Report Origin = (0.0,0.0)\n");
+        printf ("Units used = ");
+
+        if (B.grid.unit == GRID_UNIT_MIC)
+        {
+            printf ("microns\n");
+        }
+
+        if (B.grid.unit == GRID_UNIT_MM)
+        {
+            printf ("mm\n");
+        }
+
+        if (B.grid.unit == GRID_UNIT_MIL)
+        {
+            printf ("mil\n");
+        }
+
+        if (B.grid.unit == GRID_UNIT_INCH)
+        {
+            printf ("inch\n");
+        }
+
+        //
+        // PROCESS BOTTOM SIDE SMD PARTS
+        //
+
+        printf ("\nRefDes LocationX LocationY Rotation Value Package\n");
+
+        B.elements(E)
+        {
+            int wasSmd,
+                 xmax =-2147483648,
+                 xmin = 2147483647,
+                 ymax = xmax,
+                 ymin = xmin;
+
+            wasSmd = 0;
+
+            int bomDNP = 0;
+
+            E.package.contacts(C)
+            {
+                if (C.smd && C.smd.layer == 16)
+                {
+                    wasSmd = 1;
+
+                    if (C.x > xmax) xmax = C.x;
+                    if (C.y > ymax) ymax = C.y;
+                    if (C.x < xmin) xmin = C.x;
+                    if (C.y < ymin) ymin = C.y;
+                }
+            }
+
+            // Check for DNP or BOM EXCLUDED PARTS
+            E.attributes(A)
+            {
+                if (A.name == "BOM")
+                {
+                    // Exclude part from BOM?
+                    if (A.value == "EXCLUDE")
+                        bomDNP = 1;
+                }
+                else if (A.name == "DNP")
+                {
+                    // Exclude part from BOM?
+                    if ((A.value == "T") || (A.value != "1"))
+                        bomDNP = 1;
+                }
+            }
+
+            if (wasSmd)
+            {
+                real x,y;
+
+                switch (B.grid.unit)
+                {
+                    case GRID_UNIT_MIC:
+                        x = u2mic ((xmin + xmax) / 2);
+                        y = u2mic ((ymin + ymax) / 2);
+                        break;
+                    case GRID_UNIT_MIL:
+                        x = u2mil ((xmin + xmax) / 2);
+                        y = u2mil ((ymin + ymax) / 2);
+                        break;
+                    case GRID_UNIT_MM:
+                        x = u2mm ((xmin + xmax) / 2);
+                        y = u2mm ((ymin + ymax) / 2);
+                        break;
+                    case GRID_UNIT_INCH:
+                        x = u2inch ((xmin + xmax) / 2);
+                        y = u2inch ((ymin + ymax) / 2);
+                        break;
+                }
+
+                string value = E.value, name = E.package.name;
+                int index = 0;
+
+                while ((index = strchr (value,' ',index)) >= 0)
+                {
+                    value[index] = '_';
+                }
+
+                index = 0;
+
+                while ((index = strchr (name,' ',index)) >= 0)
+                {
+                    name[index] = '_';
+                }
+
+                if (strlen (value) == 0) value = "none";
+                if (strlen (name) == 0) value = "none";
+
+				if (!bomDNP)
+				{
+                    printf("%s %5.4f %5.4f %3.0f %s %s\n",
+                    E.name, x, y,
+                    E.angle, value, name);
+				}
+            }
+        }
+
+        //
+        // PROCESS THROUGH HOLE PARTS
+        //
+
+        printf ("\n\nLayer = Non-Surface Mount\n");
+        printf ("Report Origin = (0.0,0.0)\n");
+        printf ("Units used = ");
+
+        if (B.grid.unit == GRID_UNIT_MIC)
+        {
+            printf ("microns\n");
+        }
+
+        if (B.grid.unit == GRID_UNIT_MM)
+        {
+            printf ("mm\n");
+        }
+
+        if (B.grid.unit == GRID_UNIT_MIL)
+        {
+            printf ("mil\n");
+        }
+
+        if (B.grid.unit == GRID_UNIT_INCH)
+        {
+            printf ("inch\n");
+        }
+
+        printf ("\nRefDes LocationX LocationY Rotation Value Package\n");
+
+        B.elements(E)
+        {
+            int wasSmd,
+                 xmax =-2147483648,
+                 xmin = 2147483647,
+                 ymax = xmax,
+                 ymin = xmin;
+
+            wasSmd = 0;
+
+            int bomDNP = 0;
+
+            E.package.contacts(C)
+            {
+                if (!C.smd)
+                {
+                    wasSmd = 1;
+
+                    if (C.x > xmax) xmax = C.x;
+                    if (C.y > ymax) ymax = C.y;
+                    if (C.x < xmin) xmin = C.x;
+                    if (C.y < ymin) ymin = C.y;
+                }
+            }
+
+            // Check for DNP or BOM EXCLUDED PARTS
+            E.attributes(A)
+            {
+                if (A.name == "BOM")
+                {
+                    // Exclude part from BOM?
+                    if (A.value == "EXCLUDE")
+                        bomDNP = 1;
+                }
+                else if (A.name == "DNP")
+                {
+                    // Exclude part from BOM?
+                    if ((A.value == "T") || (A.value != "1"))
+                        bomDNP = 1;
+                }
+            }
+
+            if (wasSmd)
+            {
+                real x,y;
+
+                switch (B.grid.unit)
+                {
+                    case GRID_UNIT_MIC:
+                        x = u2mic ((xmin + xmax) / 2);
+                        y = u2mic ((ymin + ymax) / 2);
+                        break;
+                    case GRID_UNIT_MIL:
+                        x = u2mil ((xmin + xmax) / 2);
+                        y = u2mil ((ymin + ymax) / 2);
+                        break;
+                    case GRID_UNIT_MM:
+                        x = u2mm ((xmin + xmax) / 2);
+                        y = u2mm ((ymin + ymax) / 2);
+                        break;
+                    case GRID_UNIT_INCH:
+                        x = u2inch ((xmin + xmax) / 2);
+                        y = u2inch ((ymin + ymax) / 2);
+                        break;
+                }
+
+                string value = E.value, name = E.package.name;
+                int index = 0;
+
+                while ((index = strchr (value,' ',index)) >= 0)
+                {
+                    value[index] = '_';
+                }
+
+                index = 0;
+
+                while ((index = strchr (name,' ',index)) >= 0)
+                {
+                    name[index] = '_';
+                }
+
+                if (strlen (value) == 0) value = "none";
+                if (strlen (name) == 0) value = "none";
+
+				if (!bomDNP)
+				{
+                    printf("%s %5.4f %5.4f %3.0f %s %s\n",
+                    E.name, x, y,
+                    E.angle, value, name);
+				}
+            }
+        }
+    }
+}
+else
+{
+   dlgMessageBox("\n    Start this ULP in a Board    \n");
+   exit (0);
+}
+
+

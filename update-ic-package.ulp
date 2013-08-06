@@ -1,0 +1,22 @@
+#usage "update DIL/DIP packages in a library"
+
+string referencepackage = "ic-package.lbr";
+
+string refprefix = "ic-package";
+
+string fname;
+string cmd = "";
+
+library(L) {
+
+  fname = filename(L.name);
+
+  if (strstr(fname, refprefix) >= 0)  {
+    // skip it
+    dlgMessageBox("Skipping Update Source Reference Library!\n"+fname);
+  } else {
+    //dlgMessageBox("Update From:"+referencepackage);
+    sprintf(cmd, "UPDATE %s;\nWRITE;\n", referencepackage);
+  }
+}
+exit(cmd);

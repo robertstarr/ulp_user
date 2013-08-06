@@ -1,0 +1,55 @@
+#usage "<b>Deletes 'User Defined' layers (100-255) that are empty.</b>\n"
+	   "<p>"
+	   "Run this ULP in either a board or schematic."
+	   "If both files of a Schematic/Board pair are open, both will be processed.<br>"
+	   "and will delete the empty layers in both editors<br>"
+		"<p>"	   
+       "<author>Author: Warren Brayshaw</author>"
+
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND, EXPRESSED OR IMPLIED
+
+string cmdB,cmdS,DelLayB,DelLayS;
+if(!board && !schematic) dlgMessageBox("Run this ULP in a Board or Schematic");
+if(board){ 
+	board(B){
+		B.layers(L){
+			if(L.number>99){
+				sprintf(DelLayB,"layer ?? -%u;\n",L.number);
+				cmdB += DelLayB;
+			}
+		}
+	}
+	if(!project.schematic) exit(cmdB);
+	project.schematic(S){
+		S.layers(L){
+			if(L.number>99){
+				sprintf(DelLayS,"layer ?? -%u;\n",L.number);
+				cmdS += DelLayS;
+			}
+		}
+		if(cmdS!="") exit(cmdB + "edit .sch;\n" + cmdS + "edit .brd;\n");
+		else exit(cmdB);
+	}
+}
+if(schematic){ 
+	schematic(S){
+		S.layers(L){
+			if(L.number>99){
+				sprintf(DelLayS,"layer ?? -%u;\n",L.number);
+				cmdS += DelLayS;
+			}
+		}
+	}
+	if(!project.board) exit(cmdS);
+	project.board(B){
+		B.layers(L){
+			if(L.number>99){
+				sprintf(DelLayB,"layer ?? -%u;\n",L.number);
+				cmdB += DelLayB;
+			}
+		}
+		if(cmdB!="") exit(cmdS + "edit .brd;\n" + cmdB + "edit .sch;\n");
+		else exit(cmdS);
+	}
+}
+	exit(0);

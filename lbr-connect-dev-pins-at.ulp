@@ -1,0 +1,41 @@
+#usage "en: <qt>This ULP connects all pins in a device, suffixed with an ampersand and number, to the associated pad.<br> "
+       "<p>"
+
+string Version = "1.0";
+string cmd;
+int cntConnect = 0;
+
+if (library) {
+  string file;
+  library(L) {
+    if (deviceset) {
+      deviceset(DEV) {
+        DEV.devices(D) {
+          cntConnect = 0;
+          D.gates(G) {
+            G.symbol.pins(P) {
+              int pos;
+              string s, pin, pad;
+              if ((pos = strchr(P.name, '@')) < 0)
+                pos = strchr(P.name, '$');
+              if (pos > 0) {
+                  pad = strsub(P.name, 0, pos);
+                  pin = strsub(P.name, pos+1); 
+                  sprintf(s, "CONNECT %s.%s %s;\n", G.name, P.name, pin);
+                  cmd += s;
+                  ++cntConnect;
+              }
+            }
+          }
+        }
+      }
+      if (!cntConnect) {
+        dlgMessageBox("No pins suffixed with @{padnum} found", "OK");
+        exit(0);
+      }
+    }
+    exit(cmd);
+  }
+}
+else
+  dlgMessageBox("Start this ULP in a LBR (Device)", "OK");

@@ -1,0 +1,42 @@
+// collects all layers in a board and shows them in a "SET USED_LAYERS" dialog box.
+// this is useful to disable some of the layers used in a board but keep the others.
+
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND, EXPRESSED OR IMPLIED
+
+int layers[];
+string cmd;
+int i;
+
+if (board) {
+	board(B)
+     		B.layers(L)
+			layers[L.number] = 1;
+
+cmd += "SET UNDO_LOG ON;\n";
+cmd += "SET USED_LAYERS ";
+
+for (i=0; i<255; i++)
+	if (layers[i] == 1)
+		sprintf(cmd, "%s %d ", cmd,i);
+
+cmd += ";\n";
+
+//  Dialog
+int Result = dlgDialog("used layers") {
+  dlgTextEdit(cmd);
+  dlgHBoxLayout {
+     dlgPushButton("+Execute") dlgAccept();
+     dlgPushButton("-Cancel") dlgReject();
+     }
+  };
+
+if (Result == 0)
+	exit(0);
+exit(cmd);
+
+}
+
+else {
+   dlgMessageBox("\n    Start this ULP in a Board    \n");
+   exit (0);
+}

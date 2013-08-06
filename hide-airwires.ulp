@@ -1,0 +1,80 @@
+#usage "<b>Hides a group of airwires selected via the group command.</b><p>"
+       "Use 'RATS *' at the command line to unhide all airwires.<p>"
+       "<author>http://www.bobstarr.net</author>";
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// ADD ATTRIBUTE
+//
+// Copyright (C) 2011, Robert E. Starr (http://www.bobstarr.net)
+// 
+// REVISION HISTORY:
+//
+// v1.00 - 05/19/2011   Initial release
+//
+//////////////////////////////////////////////////////////////////////////////
+//
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
+// EXPRESSED OR IMPLIED. IF YOU DON'T LIKE IT, DON'T USE IT!
+//
+//////////////////////////////////////////////////////////////////////////////
+
+string netname[];
+string cmd;
+
+if (board)
+{
+    int i;
+    int cnt = 0;
+    
+    board(B)
+    {
+        cmd = "RATS ! ";
+        
+        B.signals(S)
+        {
+            if (ingroup(S))
+            {
+                S.wires(W)
+                {
+                    if (W.layer == 19)  /* air wires */
+                    {
+                        int found = 0;
+                         
+                        // Make sure it's not already in the list, duplicate check
+                        
+                        for (i=0; i < cnt; i++)
+                        {
+                            if (S.name == netname[i])
+                            {
+                                found = 1;
+                                break;
+                            }
+                        }
+                        
+                        if (!found)
+                        {   
+                            cmd += S.name + " ";
+                            netname[cnt] = S.name;                            
+                            ++cnt;
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (!cnt)
+        {
+            dlgMessageBox("No airwires selected with group command", "OK");
+            exit(0);
+        }
+        
+        exit(cmd);
+    }
+}
+else
+{
+    dlgMessageBox("Start this  ULP from a Board", "OK");    
+    exit(0);
+}
+    

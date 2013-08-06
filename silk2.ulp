@@ -1,0 +1,371 @@
+#usage "<b>Generate a wider silk screen</b>\n"
+       "<p>"
+       "Syntax: <code><b>RUN silk2 [noclear] [top=nn[,nn...]] "
+       "[bot=nn[,nn...]]</b></code>"
+       "<p>"
+       "<b>WARNING: Requires EAGLE version 4.10 minimum</b>"
+       "<p>"
+       "Some board manufacturers want to have at least a width of 8mil "
+       "to 10mil for silk screen lines in order to guarantee legible "
+       "results. This ULP changes all silk screen elements to a "
+       "minimum width of 10 mil. All elements of selected layers "
+       "(default 21, 22, 25, 26 and 49) are written into new layers "
+       "121(_tplace) and 122 (_bplace). Text ratios are changed as well. "
+       "The new minimum ratio is calculated from the text size, with an upper "
+       "limit of 25%, so texts as small as 39 mil get a wire width of at "
+       "least 10 mil."
+       "<p>"
+       "Two new layers will be defined and the new silk screen will be "
+       "generated. For generating GERBER data be aware that you have to "
+       "activate layers 121 or 122 instead of the original layers."
+       "<p>Optional arguments:"
+       "<table>"
+       "<tr><td><code><b>noclear</b></code></td>"
+       "<td> Do not check whether the output layers are initially empty. "
+       "By default, the user is given the option to (a) continue and add "
+       "to whatever objects are already in those layers, (b) stop, or (c) "
+       "group the objects in those layers and stop so that a simple group "
+       "delete will clear layers 121 and 122.</td></tr>"
+       "<tr><td><code><b>top=nn[,nn...]</b></code></td>"
+       "<td>A list of input layer numbers to use in place of the default "
+       "21,25,49 for generating layer 121(_tplace). "
+       "Use <code><b>top=0</b></code> to suppress generation of "
+       "_tplace.</td></tr>"
+       "<tr><td><code><b>bot=nn[,nn...]</b></code></td>"
+       "<td>A list of input layer numbers to use in place of the default "
+       "22,26,49 for generating layer 122(_bplace). "
+       "Use <code><b>bot=0</b></code> to suppress generation of "
+       "_bplace.</td></tr>"
+       "</table>"
+       "<author>Author: rnichols@interaccess.com<br>"
+       "Derived from a ULP by support@cadsoft.de"
+       "</author>"
+
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND, EXPRESSED OR IMPLIED
+
+                            // Define your own silk screen width here
+real Silkwidth  = 8.0 ;     // in mil
+int maxRatio = 18;          // Upper limit for text ratio
+
+                            // Change the default input layers here
+int tlayers[] = {LAYER_TPLACE, LAYER_TNAMES, LAYER_REFERENCE};
+int blayers[] = {LAYER_BPLACE, LAYER_BNAMES, LAYER_REFERENCE};
+int offset = 100;           // Layer number offset (from 21 and 22)
+
+int  TextRatio;
+real NewWidth;
+int sources[], n, src, newlay, cancelled = 0;
+int curr_layer = -1, curr_wstyle = -1, curr_tsize = -1, curr_tratio = -1;
+
+string TextOrientation;
+string cmd = "SET UNDO_LOG OFF;\n"; // advisable for speed reasons
+string h, dummy[];
+string styles[];
+styles[WIRE_STYLE_CONTINUOUS] = "Continuous";
+styles[WIRE_STYLE_LONGDASH] = "LongDash";
+styles[WIRE_STYLE_SHORTDASH] = "ShortDash";
+styles[WIRE_STYLE_DASHDOT] = "DashDot";
+string caps[];
+caps[CAP_FLAT] = "Flat";
+caps[CAP_ROUND] = "Round";
+enum { CM_INTERACTIVE, CM_AUTO, CM_NONE };
+int clearmode = CM_INTERACTIVE;
+
+void header(void) {
+  sprintf(h, "layer %d _tplace;\n", LAYER_TPLACE+offset);cmd += h; // here you can change the new
+  sprintf(h, "layer %d _bplace;\n", LAYER_BPLACE+offset);cmd += h;          // layers names
+  sprintf(h, "set color_layer %d yellow;\n", LAYER_TPLACE+offset);cmd += h; // and
+  sprintf(h, "set color_layer %d yellow;\n", LAYER_BPLACE+offset);cmd += h; // colors
+  sprintf(h, "set wire_bend 2;\n");cmd += h;
+  sprintf(h, "\nGRID mil;\n\n");cmd += h;
+}
+
+void setlayer(void) {
+    if(curr_layer != newlay) {
+	sprintf(h, "Layer %d;\n", newlay);cmd += h;
+	curr_layer = newlay;
+    }
+}
+
+void do_arc(UL_ARC A) {
+    for(n = 0; sources[n]; ++n) if (A.layer == sources[n])  {
+        NewWidth = (Silkwidth > u2mil(A.width)) ? Silkwidth : u2mil(A.width);
+        setlayer();
+	sprintf(h, "ARC ccw %s %5.3f (%5.3f %5.3f) (%5.3f %5.3f) (%5.3f %5.3f);\n",
+		caps[A.cap], NewWidth,
+		u2mil(A.x1), u2mil(A.y1),
+		u2mil(2*(A.xc)-A.x1), u2mil(2*(A.yc) - A.y1),
+		u2mil(A.x2), u2mil(A.y2));
+	cmd += h;
+	break;
+    }
+}
+
+void do_circle(UL_CIRCLE C) {
+    for(n = 0; sources[n]; ++n) if (C.layer == sources[n])  {
+        NewWidth = (Silkwidth > u2mil(C.width) && u2mil(C.width) != 0) ? Silkwidth : u2mil(C.width);
+        setlayer();
+	sprintf(h, "CIRCLE %5.3f (%5.3f %5.3f) (%5.3f %5.3f);\n",
+		NewWidth, u2mil(C.x), u2mil(C.y), u2mil(C.x + C.radius),
+		u2mil(C.y));
+	cmd += h;
+	break;
+    }
+}
+
+void do_rect(UL_RECTANGLE R) {
+    for(n = 0; sources[n]; ++n) if (R.layer == sources[n])  {
+        setlayer();
+	sprintf(h, "RECT R%5.3f (%5.3f %5.3f) (%5.3f %5.3f);\n",
+		R.angle, u2mil(R.x1), u2mil(R.y1), u2mil(R.x2), u2mil(R.y2));
+	cmd += h;
+	break;
+    }
+}
+
+void do_poly(UL_POLYGON P) {
+    for(n = 0; sources[n]; ++n)  if (P.layer == sources[n])  {
+        NewWidth = (Silkwidth > u2mil(P.width)) ? Silkwidth : u2mil(P.width);
+        P.wires(WP) {
+	  sprintf(h, "POLYGON %5.3f (%5.3f %5.3f)\n ",NewWidth, u2mil(WP.x1), u2mil(WP.y1));
+	  cmd += h;
+          break;
+        }
+        P.wires(WP) {
+          sprintf(h, " (%5.3f %5.3f)", u2mil(WP.x2), u2mil(WP.y2));cmd += h;
+        }
+      sprintf(h, ";\n");cmd += h;
+      break;
+    }
+}
+
+void do_text(UL_TEXT T) {
+    for(n = 0; sources[n]; ++n) if (T.layer == sources[n])  {
+        TextRatio = ceil(100.0 * Silkwidth / u2mil(T.size)); // Needed ratio.
+	if(TextRatio > maxRatio)  TextRatio = maxRatio;      // Limit?
+	if(TextRatio < T.ratio)  TextRatio = T.ratio;        // Never reduce!
+        setlayer();
+	if(curr_tratio != TextRatio) {
+	    sprintf(h, "Change Ratio %d;\n", TextRatio);cmd += h;
+	    curr_tratio = TextRatio;
+	}
+	if(curr_tsize != T.size) {
+	    sprintf(h, "Change Size %5.3f;\n", u2mil(T.size));cmd += h;
+	    curr_tsize = T.size;
+	}
+        sprintf(h, "TEXT '%s' %s%1.0f (%5.3f %5.3f);\n",
+           T.value, TextOrientation, T.angle, u2mil(T.x), u2mil(T.y));cmd += h;
+	break;
+     }
+}
+
+void do_wire(UL_WIRE W) {
+    for(n = 0; sources[n]; ++n) if(W.layer == sources[n])  {
+        NewWidth = (Silkwidth > u2mil(W.width)) ? Silkwidth : u2mil(W.width);
+        setlayer();
+	if(curr_wstyle != W.style) {
+	    sprintf(h, "Change Style %s;\n", styles[W.style]);cmd +=h;
+	    curr_wstyle = W.style;
+	}
+	if(W.arc)  do_arc(W.arc);
+	else {
+	    sprintf(h, "WIRE %5.3f %s (%5.3f %5.3f) (%5.3f %5.3f);\n",
+		    NewWidth, caps[W.cap],
+		    u2mil(W.x1), u2mil(W.y1), u2mil(W.x2), u2mil(W.y2));
+	    cmd += h;
+	}
+	break;
+    }
+}
+
+void searchelements(UL_ELEMENT E) {
+  E.texts(T)  do_text(T);
+  E.package.circles(C)  do_circle(C);
+  E.package.polygons(P)  do_poly(P);
+  E.package.rectangles(R)  do_rect(R);
+  E.package.texts(T)  do_text(T);
+  E.package.wires(W)  do_wire(W);
+}
+
+void do_delete(int x, int y) {
+    sprintf(h, "Delete (%5.3f %5.3f);\n", u2mil(x), u2mil(y));
+    cmd += h;
+}
+
+void clearOld(UL_BOARD B, int ss) {
+    B.circles(C) if(C.layer == ss) do_delete(C.x, C.y);
+    B.polygons(P) if(P.layer == ss) {
+	n = 0;
+	P.wires(W) if(++n > 2)  do_delete(W.x1, W.y1);
+    }
+    B.rectangles(R) if(R.layer == ss) do_delete(R.x1, R.y1);
+    B.texts(T) if(T.layer == ss) do_delete(T.x, T.y);
+    B.wires(W) if(W.layer == ss) do_delete(W.x1, W.y1);
+}    
+
+int findOld(UL_BOARD B, int ss) {
+    B.circles(C) if(C.layer == ss)  return(1);
+    B.polygons(P) if(P.layer == ss)  return(1);
+    B.rectangles(R) if(R.layer == ss)  return(1);
+    B.texts(T) if(T.layer == ss)  return(1);
+    B.wires(W) if(W.layer == ss)  return(1);
+    return(0);
+}    
+
+int wantclear() {
+    sprintf(h, "!Output layer%s not empty.\nContinue anyway?\n",
+	    ((tlayers[0] && blayers[0]) ? "s" : "") );
+    n = dlgMessageBox(h, "Continue", "Stop", "Make Group");
+    return(n);
+}
+
+int invalid(string s) {
+    dlgMessageBox(":\nInvalid arg: \"" + s + "\"\n");
+    return(-1);
+}
+
+int chksrc(int val, string field, string fullarg) {
+    sprintf(h, "%d", val);
+    if(h != field) {
+	dlgMessageBox(":\nInvalid arg: \"" + fullarg + "\"\n");
+	return(-1);
+    }
+    else if(val == LAYER_TPLACE+offset || val == LAYER_BPLACE+offset) {
+	dlgMessageBox(":\"" + fullarg + "\"\nLayer " + field + " is an output layer");
+	return(-1);
+    }
+    else board(B) B.layers(L) if(L.number == val)  return(0);
+    dlgMessageBox(":\"" + fullarg + "\"\nLayer " + field + ": No such layer");
+    return(-1);
+}
+
+if (board) {
+    for(n = 1; n < argc; ++n) {
+	if(strupr(argv[n]) == "NOCLEAR")  clearmode = CM_NONE;
+//		Enable auto-clear only if you are brave and bold
+//		(and patient -- it's slow).
+//	else if(strupr(argv[n]) == "CLEAR")  clearmode = CM_AUTO;
+//
+	else if(strupr(argv[n]) == "TOP=0")  tlayers[0] = 0;
+	else if(strstr(strupr(argv[n]), "TOP=") == 0) {
+	    src = strsplit(dummy, strsub(argv[n], 4), ',');
+	    tlayers[src] = 0;
+	    for(--src; src >= 0; --src) {
+		tlayers[src] = strtol(dummy[src]);
+		if(chksrc(tlayers[src], dummy[src], argv[n]))  exit(-1);
+	    }
+	}
+	else if(strupr(argv[n]) == "BOT=0")  blayers[0] = 0;
+	else if(strstr(strupr(argv[n]), "BOT=") == 0) {
+	    src = strsplit(dummy, strsub(argv[n], 4), ',');
+	    blayers[src] = 0;
+	    for(--src; src >= 0; --src) {
+		blayers[src] = strtol(dummy[src]);
+		if(chksrc(blayers[src], dummy[src], argv[n]))  exit(-1);
+	    }
+	}
+	else  exit(invalid(argv[n]));
+    }
+
+    board(B) {
+	header();
+	if(tlayers[0] || blayers[0]) {
+	    cmd += "Display None";
+	    if(tlayers[0]) {
+		sprintf(h, " %d", LAYER_TPLACE+offset);
+		cmd += h;
+	    }
+	    if(blayers[0]) {
+		sprintf(h, " %d", LAYER_BPLACE+offset);
+		cmd += h;
+	    }
+	}
+	cmd += ";\n";
+	if(clearmode == CM_AUTO) {
+	    if(tlayers[0])  clearOld(B, LAYER_TPLACE+offset);
+	    if(blayers[0])  clearOld(B, LAYER_BPLACE+offset);
+	}
+	else if(clearmode == CM_INTERACTIVE &&
+		((tlayers[0] && findOld(B, LAYER_TPLACE+offset)) ||
+		 (blayers[0] && findOld(B, LAYER_BPLACE+offset))) )
+	    switch(wantclear()) {
+	    case 1:
+		exit(EXIT_FAILURE);
+	    case 2:
+		sprintf(h, "Group (%5.3f %5.3f) (%5.3f %5.3f) (%5.3f %5.3f) (%5.3f %5.3f) (%5.3f %5.3f);\n",
+			u2mil(B.area.x1), u2mil(B.area.y1),
+			u2mil(B.area.x2), u2mil(B.area.y1),
+			u2mil(B.area.x2), u2mil(B.area.y2),
+			u2mil(B.area.x1), u2mil(B.area.y2),
+			u2mil(B.area.x1), u2mil(B.area.y1));
+		cmd += h;
+		cancelled = 1;
+		break;
+	    }
+	if(! cancelled) {
+	    if(tlayers[0]) {
+		for(n = 0; tlayers[n]; ++n)  sources[n] = tlayers[n];
+		newlay = LAYER_TPLACE + offset;
+		TextOrientation = "R";
+		B.circles(C)  do_circle(C);
+		B.polygons(P)  do_poly(P);
+		B.rectangles(R)  do_rect(R);
+		B.texts(T)  do_text(T);
+		B.wires(W)  do_wire(W);
+		B.elements(E)  searchelements(E);
+	    }
+
+	    if(blayers[0]) {
+		for(n = 0; blayers[n]; ++n)  sources[n] = blayers[n];
+		newlay = LAYER_BPLACE + offset;
+		TextOrientation = "MR";
+		B.circles(C)  do_circle(C);
+		B.polygons(P)  do_poly(P);
+		B.rectangles(R)  do_rect(R);
+		B.texts(T)  do_text(T);
+		B.wires(W)  do_wire(W);
+		B.elements(E)  searchelements(E);
+	    }
+
+	    switch(curr_wstyle) {
+	    case -1:
+	    case WIRE_STYLE_CONTINUOUS:
+		break;
+	    default:
+		cmd += "Change Style Continuous;\n";
+	    }
+	}
+    }
+
+    cmd += "GRID LAST;\n";
+    cmd += "SET UNDO_LOG ON;\n";
+
+//  Dialog
+    if(! cancelled) {
+	int Result = dlgDialog("Script to generate the new silk screen") {
+	    dlgGridLayout {
+		dlgCell(0,0, 0,4) dlgLabel("Edit only if you are sure what you do!");
+		dlgCell(1,0, 1,4) dlgTextEdit(cmd);
+		dlgCell(2,0) dlgPushButton("+Execute") dlgAccept();
+		dlgCell(2,1) dlgSpacing(50);
+		dlgCell(2,2) dlgPushButton("-Cancel") dlgReject();
+		dlgCell(2,3) dlgSpacing(50);
+                dlgCell(2,4) dlgPushButton("  Save  ") {
+		    string dest = dlgFileSave("Save Script File", "makesilk.scr", "*.scr");
+		    if(dest != "" &&
+		       (!fileglob(dummy, dest) || dlgMessageBox("File '" + dest + "' exists\n\nOverwrite?", "+&Yes", "-&No") == 0) ) {
+			output(dest, "wt") { printf(cmd); }
+		    }
+		}
+	    }
+	};
+	if (Result == 0) exit(0);
+    }
+
+    exit(cmd);
+}
+
+else {
+    dlgMessageBox("!\n    Start this ULP in a Board    \n");
+    exit (0);
+}

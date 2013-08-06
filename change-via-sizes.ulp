@@ -1,0 +1,97 @@
+#usage "<b>Change Via Drill Size v1.01</b>\n"
+       "<p>"
+       "This ULP iterates through all vias on a board of a particular size and changes to a new size.  "
+       "<p>"
+       "<author>http://www.bobstarr.net</author>";
+
+string ulp_path = "";
+string script_change = "";
+
+int Result = 0;
+
+// via drill sizes in mils
+real old_drillsize = 16.0;
+real new_drillsize = 10.0;
+real new_diameter  = 0.0;
+
+real INCHES_PER_MM = 25.40;
+
+void menue(void) {
+   int err = 0;
+   int newWidth;
+   int minLimit = 0;
+   int maxLimit = 0;
+
+   dlgDialog("Change Via Drill Size") {
+      dlgStretch(0);
+      dlgHBoxLayout { dlgLabel("Old Via Drill Size (mil):\t"); dlgRealEdit(old_drillsize, 2.0, 32.0);  }
+      dlgHBoxLayout { dlgLabel("New Via Drill Size (mil):\t"); dlgRealEdit(new_drillsize, 2.0, 32.0);  }
+      dlgHBoxLayout { dlgLabel("New Via Diameter (mil):\t"); dlgRealEdit(new_diameter, 0.0, 64.0);  }
+      dlgStretch(1);
+      dlgPushButton("+&OK") { dlgAccept(); return; }
+      dlgPushButton("-&Cancel") { dlgReject(); exit (0);}
+   };
+}
+
+void DoVia(UL_VIA V) {
+
+   real viasize = u2mm(V.drill);
+
+   real oldsize = (old_drillsize / 1000) * INCHES_PER_MM;   // convert mil->inches->mm
+   real newsize = (new_drillsize / 1000) * INCHES_PER_MM;   // convert mil->inches->mm
+   real newdia  = (new_diameter  / 1000) * INCHES_PER_MM;   // convert mil->inches->mm
+
+   real roldsize = round(oldsize * 1000.0) / 1000.0;
+   real rnewsize = round(newsize * 1000.0) / 1000.0;
+   real rnewdia  = round(newdia  * 1000.0) / 1000.0;
+
+   //printf("# viasize=%f, oldsize=%f\n", viasize, roldsize);
+   
+   if (viasize == roldsize)
+   {
+      //printf("# CHANGE AT (%.4f %.4f)\n", u2mm(V.x), u2mm(V.y));
+      //printf("# viadrill=%f olddrill%f\n", viasize, roldsize);
+
+      printf("CHANGE DRIL %.4f (%.4f %.4f);\n", newsize, u2mm(V.x), u2mm(V.y));
+      printf("CHANGE DIAM %.4f (%.4f %.4f);\n", rnewdia, u2mm(V.x), u2mm(V.y));
+   }
+}
+
+if (board) {
+   char bkslash = '/';
+   int pos = strrchr(argv[0], bkslash);
+   if (pos >= 0) {
+      ulp_path = strsub(argv[0], 0, pos + 1);
+   }
+
+   int n = 0;
+   board(B) {
+   int posb = strrchr(argv[0], bkslash);
+   if (posb >= 0) {
+      ulp_path = strsub(argv[0], 0, posb + 1);
+   }
+
+   menue();
+
+   script_change = filesetext(B.name, "~~~.scr");
+
+   output(script_change, "wtD") {
+      printf("GRID MM FINEST;\n");
+      board(B) {
+         B.signals(S) { 
+            S.vias(V) { 
+	       DoVia(V);
+            }
+         }
+      }
+      printf("GRID LAST;\n");
+   }
+   }
+   exit ("SCRIPT '" + script_change + "';\n");
+} else {
+   dlgMessageBox("\n*** Start this ULP in the Board Editor ***\n");
+   exit (0);
+}
+
+
+

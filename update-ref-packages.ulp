@@ -1,0 +1,24 @@
+#usage "update aktual libary with reference package library<p>"
+       "for internal use<br>"
+       "alf@cadsoft.de"
+
+string referencepackage = "ref-packages-so.lbr";
+
+string refprefix = "ref-packages";
+
+string fname;
+string cmd = "";
+
+library(L) {
+
+  fname = filename(L.name);
+
+  if (strstr(fname, refprefix) >= 0)  {
+    // skip it
+    dlgMessageBox("Skipping Update Source Reference Library!\n"+fname);
+  } else {
+    //dlgMessageBox("Update From:"+referencepackage);
+    sprintf(cmd, "UPDATE %s;\nWRITE;\n", referencepackage);
+  }
+}
+exit(cmd);

@@ -1,0 +1,236 @@
+#usage "<b>Add PARTNO attributes to all parts on a schematic</b><p>"
+       "This ULP generates a script that can be used to assign "
+       "PARTNO attributes to all parts in a drawing. This script "
+       "can then be edited and executed to assign part number "
+       "attributes globally in the drawing."
+       "<p>"
+       "<author>http://www.bobstarr.net</author>";
+
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
+// EXPRESSED OR IMPLIED.
+
+string Version = "1.01";
+
+string fileName;
+
+int fScript       = 0;
+int fListExisting = 1;
+int fGenMode      = 1;    // 0=sorted per sheet, 1=sorted as one list
+
+//////////////////////////////////////////////////////////////////////////////
+//
+
+void generate_sorted_by_sheet(UL_SCHEMATIC SCH)
+{
+    int numexisting;
+    int count;
+    int i;
+
+    SCH.sheets(S)
+    {
+        printf("#\n# SHEET %d - PART NAMES AND PART NUMBER ATTRIBUTES TO ASSIGN\n#\n", S.number);
+        printf("EDIT .s%d;\n", S.number);
+        printf("CHANGE DISPLAY OFF;\n");
+
+        int index[];
+        numeric string strPart[];
+        string strAttr[];
+
+        // Collect all the part names, and any associated attribute name, on this sheet
+
+        count = numexisting = 0;
+
+        S.parts(P)
+        {
+            if (P.device.package && P.name)
+            {
+                if (!P.attribute["PARTNO"])
+                {
+                    strPart[count] = P.name;
+                    strAttr[count] = "";
+                }
+                else
+                {
+                    strPart[count] = P.name;
+                    strAttr[count] = P.attribute["PARTNO"];
+                }
+
+                ++count;
+            }
+        }
+
+        if (count)
+        {
+            sort(count, index, strPart);
+
+            for (i=0; i < count; i++)
+            {
+                if (fListExisting && strAttr[index[i]] && (strAttr[index[i]] != "?"))
+                    numexisting++;
+                else 
+                    printf("ATTRIBUTE '%s' 'PARTNO' '?';\n", strPart[index[i]]);
+            }
+
+            if (numexisting && fListExisting)
+            {
+                printf("# \n");
+                printf("# SHEET %d - PARTS WITH EXISTING PARTNO ATTRIBUTES\n", S.number);
+                printf("#\n");
+
+                for (i=0; i < count; i++)
+                {
+                    if (strAttr[index[i]] && (strAttr[index[i]] != "?"))
+                    {
+                        printf("# ATTRIBUTE '%s' 'PARTNO' '%s';\n",
+                            strPart[index[i]], strAttr[index[i]]);
+                    }
+                }
+
+                printf("#\n");
+                printf("#\n");
+            }
+        }
+    }
+
+    printf("EDIT .s1;\n");
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+
+void generate_sorted_list(UL_SCHEMATIC SCH)
+{
+    int i;
+    int count = 0;
+    int numexisting = 0;
+
+    int index[];
+    int nSheetNum[];
+    numeric string strPart[];
+    string strAttr[];
+
+    printf("CHANGE DISPLAY OFF;\n");
+
+    SCH.sheets(S)
+    {
+
+        S.parts(P)
+        {
+            if (P.device.package && P.name)
+            {
+                if (!P.attribute["PARTNO"])
+                {
+                    strPart[count] = P.name;
+                    strAttr[count] = "";
+                }
+                else
+                {
+                    strPart[count] = P.name;
+                    strAttr[count] = P.attribute["PARTNO"];
+                }
+
+                nSheetNum[count] = S.number;
+
+                ++count;
+            }
+        }
+    }
+
+    if (count)
+    {
+        sort(count, index, strPart);
+
+        for (i=0; i < count; i++)
+        {
+            if (fListExisting && strAttr[index[i]] && (strAttr[index[i]] != "?"))
+                numexisting++;
+            else 
+                printf("EDIT .s%d; ATTRIBUTE '%s' 'PARTNO' '?';\n",
+                    nSheetNum[index[i]], strPart[index[i]]);
+        }
+
+        if (fListExisting && numexisting)
+        {
+            printf("# \n");
+            printf("# PARTS WITH EXISTING PARTNO ATTRIBUTES\n");
+            printf("#\n");
+
+            for (i=0; i < count; i++)
+            {
+                if (strAttr[index[i]] && (strAttr[index[i]] != "?"))
+                {
+                    printf("# EDIT .s%d; ATTRIBUTE '%s' 'PARTNO' '%s';\n",
+                        nSheetNum[index[1]], strPart[index[i]], strAttr[index[i]]);
+                }
+            }
+
+            printf("#\n");
+            printf("#\n");
+        }
+    }
+
+    printf("EDIT .s1;\n");
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Script Entry Point
+
+if (schematic)
+{
+    schematic(SCH)
+    {
+        fileName = filesetext(SCH.name, "_AddAttrib~~~.scr");
+
+        int Result = dlgDialog("Add PARTNO Attributes")
+        {
+            string title = "Add PARTNO Attributes - v" + Version;
+
+            dlgVBoxLayout
+            {
+                dlgGroup(title)
+                {
+                    dlgGroup("Sort Mode")
+                    {
+                        dlgRadioButton("Sort parts by each sheet number", fGenMode);
+                        dlgRadioButton("Sort all parts as a single list", fGenMode);
+                    }
+
+                    dlgCheckBox("List parts with existing attributes", fListExisting);
+                }
+            }
+
+            dlgHBoxLayout
+            {
+                dlgPushButton("OK") dlgAccept();
+                dlgPushButton("-Cancel") dlgReject();
+                dlgCheckBox("&Execute Script", fScript);
+            }
+        };
+
+        if (!Result)
+            exit(0);
+
+        output(fileName, "wtD")
+        {
+            printf("# 'add attribute to all parts v%s, exported from;\n", Version);
+            printf("# '%s at %s;\n", SCH.name, t2string(time()));
+            printf("# '%s;\n\n", EAGLE_SIGNATURE);
+
+            if (fGenMode == 0)
+                generate_sorted_by_sheet(SCH);
+            else
+                generate_sorted_list(SCH);
+        }
+
+        if (fScript)
+            exit ("SCRIPT '" + fileName + "';");
+        else
+            exit(0);
+    }
+}
+else
+{
+    dlgMessageBox("Start this ULP in Schematic!", "OK");
+}
+
+// End-Of-File

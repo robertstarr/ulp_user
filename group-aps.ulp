@@ -1,0 +1,155 @@
+#usage "Simple autoplace ulp based upon component position in schematic<p>"
+       "this ULp was origianlly written by one of the CADSOFT team I believe<p>"
+       "apologies for lack of full reference and acknoledgement<p>"
+       "run the ULP in the sch window and run place.scr in BRD<p>"
+       "changing the scale parameter will produce tighter/looser grouping<p>"
+       "<author>J meech";
+
+/*
+* Dialogue added to set sheet, scale 7 X,Y offset for the sheet of choice.  31/01/2011 by J meech.
+* .ini file added to store the last settings to aid interactive placement.  31/01/2011 by J meech.
+*/
+
+
+//   Start of executable program.
+// variables in ini file
+real page;
+real scale;
+real y_ShOffset;
+real x_ShOffset;
+// variables not in ini file
+int HasPins;
+int IsSupplySymbol;
+int Px;
+int Py;
+int xoffset;
+int yoffset;
+int ix;
+int Result =1;
+int GridDist = 50;
+string fps[];
+string flines[];
+string c,cmd;
+string fnam;                           //ini file name
+string gnam;                           //generic files name
+string name;                           //scratch object name string
+
+
+project.schematic (sch) {              //open the schematic
+    fnam = sch.name;                     //get initial output file name from schematic
+}
+
+gnam = filesetext (fnam, "");          //remove .SCH file name suffix
+fnam = gnam + "_aps";                //add to base name to indicate parts list
+fnam = filesetext (fnam, ".ini");      //change to .ini file type
+
+// search for ini file
+int fp = fileglob(fps,fnam);
+if(fp==1){
+    fileread(flines,fnam);
+    page = strtod(flines[0]);
+    scale = strtod(flines[1]);
+    y_ShOffset = strtod(flines[2]);
+    x_ShOffset = strtod(flines[3]);
+} // load values from ini file
+else {
+    page = 1;
+    scale = 0.3;
+    y_ShOffset = 0;
+    x_ShOffset = 0;
+} // else use default values
+
+Result = dlgDialog("Auto-Place Schematic parts on Board"){
+    dlgHBoxLayout {
+        dlgGridLayout {
+            dlgCell(0,0)dlgLabel("<b>Scale 0-1<b>");
+            dlgCell(0,1) dlgRealEdit (scale,0,1);
+
+            dlgCell(1,0)dlgLabel("<b>X offset mil<b>");
+            dlgCell(1,1) dlgRealEdit(x_ShOffset, -30000, 30000);
+            
+            dlgCell(2,0)dlgLabel("<b>Y offset mil<b>");
+            dlgCell(2,1) dlgRealEdit (y_ShOffset,-30000,30000);
+        }
+
+        dlgVBoxLayout {
+            dlgHBoxLayout {
+                dlgStretch(1);
+                dlgPushButton("+OK") dlgAccept();
+                dlgStretch(0);
+            }
+            dlgHBoxLayout {
+                dlgStretch(1);
+                dlgPushButton("-Cancel") dlgReject();
+                dlgStretch(0);
+            }
+        }
+    }
+};
+if (Result == 0) exit (0);
+page = trunc(page);
+y_ShOffset = trunc(y_ShOffset);
+x_ShOffset = trunc(x_ShOffset);
+
+
+
+
+output (fnam, "wt") {
+    printf("%f", page);
+    printf ("\n");
+    printf("%f", scale);
+    printf ("\n");
+    printf("%f",y_ShOffset );
+    printf ("\n");
+    printf("%f",x_ShOffset );
+    printf ("\n");
+
+}
+
+if (schematic) schematic(SCH) {
+
+    int count = 0;
+
+    cmd+= "BOARD; \n";
+    sprintf(c, "GRID MIL 50;\n");
+    cmd+= c;
+
+    SCH.sheets(S) {
+        S.parts(P) {
+            P.instances(I) {
+                if (ingroup(I))
+                {
+                    ix = 0;
+                    P.instances(I) {
+                        if (ix==0) {
+                            Px = round(scale*(u2mil(I.x)) / GridDist) * GridDist;
+                            Py = round(scale*(u2mil(I.y)) / GridDist) * GridDist;
+                        }
+                        HasPins = 0;
+                        IsSupplySymbol = 0;
+                        I.gate.symbol.pins(PIN) {
+                            if ((PIN.direction == PIN_DIRECTION_SUP))
+                            IsSupplySymbol = 1;
+                           HasPins = 1;
+                        }
+                        ix++;
+                    }
+                    if (HasPins && !IsSupplySymbol) {
+                        xoffset = x_ShOffset;
+                        yoffset = y_ShOffset;
+                        sprintf(c, "MOVE %s (%d %d);\n", P.name, Px+xoffset, Py+yoffset);
+                        cmd+= c;
+                        ++count;
+                    }
+                }
+            }
+        }
+    }
+
+    cmd += "GRID LAST;\n";
+
+    if (!count)
+        dlgMessageBox("No items found in selected group!");
+    else    
+        exit(cmd);
+}

@@ -1,0 +1,123 @@
+
+int align, Result, Colors, Selected, mirror; ////
+
+string Text = "";
+string t;
+string Text2 = "Std 5% Resistor Values\n";
+string c,d;
+
+int A=0,C=0,G=0;
+real a,b,e,f=10;
+
+string dirName; 
+
+do
+{
+
+  e=C;
+  do
+  {
+  G++;
+  a=A;
+  b=(((round((exp(log(10)*(a/96)))*100))/100)*(pow(f,e)));
+
+  if (C==0){ 
+	sprintf(t,"%1.2f    ",b);
+	}
+
+  if (C==1){ 
+	sprintf(t,"%2.1f    ",b);
+	}
+
+  if (C==2){ 
+	sprintf(t,"%3.0f    ",b);
+	}
+
+  if (C==3){
+	b=b/1000;
+	sprintf(t,"%1.2fk   ",b);
+	}
+
+  if (C==4){
+	b=b/1000;	 
+	sprintf(t,"%2.1fk   ",b);
+	}
+
+  if (C==5){
+	b=b/1000;
+	sprintf(t,"%3.0fk   ",b);
+	}
+
+  if (C==6){
+	b=b/1000000;
+	sprintf(t,"%1.2fM   ",b);
+	}
+
+  if (C==7){
+	b=b/1000000;
+	sprintf(t,"%2.1fM ",b);	
+        }
+
+
+  A++;
+//  if (G>12){
+//	t+="\n";
+//	G=0;
+//	}
+    Text +=t;
+  }
+  while (A < 96);
+    if (C<6){
+	Text +="\n\n";
+	}
+  A=0;
+  a=0;
+  ++C;
+}
+while (C<7);
+  a=96;
+  e=C;
+  b=(((round((exp(log(10)*(a/96)))*100))/1000)*(pow(f,e)));
+  b=b/1000000;
+  sprintf(t,"%2.1fM \n",b);
+  Text +=t;
+
+//-------------------------------------------------
+
+align = 1;
+Result = dlgDialog("Version 4 - ULP test"){
+   dlgStretch(1);                             // no dynamic distance on top
+   dlgHBoxLayout {
+      dlgStretch(1);                          // no dynamic distance on left border
+      dlgStretch(1);                          // no dynamic distance to next object
+      dlgGroup("Std 1% Resistor Values") {             // start a group
+         dlgHBoxLayout dlgSpacing(600);       // make 600 pixel spacing
+         dlgHBoxLayout {                      // horizontal direction in horizontal direction
+            dlgVBoxLayout dlgSpacing(675);    // a vertical Box 300 pixels high
+            dlgTextEdit(Text);                // editor window 600 x 300 pixels
+            }
+         }
+      dlgStretch(1);                          // dynamic distance to the right border
+      }
+ 
+
+   };
+if (Result == 0) exit (0);
+
+//-------------------------------------------------
+/*
+int Result = dlgDialog("1% Resistors") {
+  dlgVBoxLayout {
+    dlgLabel("&STD 1% Values");
+    dlgTextView(Text);
+	
+    dlgLabel("Vie&w text 2");
+    dlgTextView(Text2);
+    }
+  dlgHBoxLayout {
+   dlgStretch(1);
+    dlgPushButton("+OK") dlgAccept();
+    }
+  };
+if (Result == 0) exit (0);
+*/

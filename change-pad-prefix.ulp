@@ -1,0 +1,98 @@
+#usage "<b>Remove or add a pad name prefix in a package</b>\n"
+       "<p>"
+       "<author>Author: http://www.bobstarr.net</author>"
+
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND, EXPRESSED OR IMPLIED
+
+
+string ulp_path = "";
+string script_change = "";
+string strPrefixRemove = "P$";
+string strPrefixAdd = "";
+
+string strPadName;
+
+// Trim leading and trailing white space characters
+string TrimWhiteSpace(string s)
+{
+    while (s && isspace(s[0]))
+        s = strsub(s, 1);
+    while (s && isspace(s[strlen(s) - 1]))
+        s = strsub(s, 0, strlen(s) - 1);
+    return s;
+}
+
+// Trim prefix from the pad name
+string TrimPrefix(string s)
+{
+    string remove = TrimWhiteSpace(strPrefixRemove);
+    int lenremove = strlen(remove);
+    int pos = strstr(s, remove);
+    if (pos >= 0)
+        s = strsub(s, lenremove);
+
+    // add new prefix if needed
+    string add = TrimWhiteSpace(strPrefixAdd);
+    string temp = s;
+    if (strlen(add))
+        temp = add+s;
+       
+    return temp;
+}
+
+void DoPackage(UL_PACKAGE P)
+{
+    P.contacts(C)
+    {
+        if (C.pad || C.smd)
+            printf("NAME '%s' '%s'\n", C.name, TrimPrefix(C.name));
+    }
+}
+
+void menue()
+{
+   dlgDialog("Remove Pad Prefix") {
+         dlgGroup("Replace Pinname Char") {
+            dlgHBoxLayout { dlgLabel("Remove Prefix :\t"); dlgStringEdit(strPrefixRemove); }
+            dlgHBoxLayout { dlgLabel("Replace with  :\t"); dlgStringEdit(strPrefixAdd); }
+         }
+      dlgPushButton("+&OK")     { dlgAccept(); return; }
+      dlgPushButton("-&Cancel") { dlgReject(); exit (0);}
+   };
+}
+
+if (library)
+{
+    char bkslash = '/';
+    int pos = strrchr(argv[0], bkslash);
+    if (pos >= 0) {
+        ulp_path = strsub(argv[0], 0, pos + 1);
+    }
+    int n = 0;
+    library(L) {
+        int posb = strrchr(argv[0], bkslash);
+        if (posb >= 0) {
+            ulp_path = strsub(argv[0], 0, posb + 1);
+        }
+
+        menue();
+
+        script_change = filesetext(L.name, "~~~.scr");
+
+        output(script_change, "wtD") {
+            if (package) package(P)
+            {
+                DoPackage(P);
+            }
+            else
+                dlgMessageBox("<b>Open the package to modify!</b>", "OK");
+        }
+    }
+    exit ("SCRIPT '" + script_change + "';\n");
+}
+else
+{
+    dlgMessageBox("\n*** Start this ULP in a Library ***\n");
+    exit (0);
+}
+

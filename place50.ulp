@@ -1,0 +1,68 @@
+/*
+ *  Very simple Autoplacer
+ *
+ * -This EAGLE User Language Program produces a script
+ *  file that can be used to place the elements of the
+ *  current board to the position in the schematic.
+ *  This is more useful than the stupid placing of eagle.
+ * -Useful for the very first placing of the parts.
+ * -run this ulp in the schematic
+ * -execute the resulting script "place.src" in the board
+ * -will put parts with more than one instance (e.g. gates) to
+ *  the position of the last instance
+ * -Very useful for analog designs. 
+ *
+ *  eagle@pentax.boerde.de (Matthias Weingart)
+ *  IngBuero fuer wiss. Geraeteentw.
+ *  We have the solution for your embedded electronics.
+ *
+ */
+
+real GridDist = 50.0;  // in Mil, can be changed to other values
+real Scale = 0.5;      //because Schematics (A3) are much bigger 
+                       //than boards (Euroformat) you can select a scale here
+string fileName;
+
+real snap(int n)  // returns next grid point
+{
+  return round(u2mil(n)*Scale / GridDist) * GridDist;
+}
+
+if (schematic)
+{
+    schematic(SCH)
+    {
+        fileName = filesetext(SCH.name, "_PlaceInBRD~~~.scr");
+        output(fileName, "wtD")
+        {
+            int Xmax; 
+            int XOffset;//sheet offset
+
+            Xmax = 0;
+            printf("GRID MIL %f;\n", GridDist);
+
+            SCH.sheets(S) 
+            {
+                XOffset = round ( 1.05 * Xmax);   
+                S.parts(P) 
+                {
+                    P.instances(I) 
+                    { 
+                        if (P.device.package) 
+                        {
+                            printf("MOVE %s (%f %f);\n", P.name, snap(I.x+XOffset), snap(I.y) );
+                            if (I.x > Xmax) 
+                            {
+           	            Xmax = I.x;
+                            }
+                        }
+                    }        
+                }
+            }
+
+            printf("GRID LAST;\n");
+            printf("RATSNEST;\n");
+        }
+    }
+}
+

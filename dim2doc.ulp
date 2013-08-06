@@ -1,0 +1,67 @@
+#usage "<b>Generate an duplicate outline of a board on Document layer 48.</b>\n"
+       "<p>"
+       "This is intended for creating fabrication and mechanical drawings.<p>"
+       "<author>Author: rtzaudio@mindspring.com</author>"
+
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND, EXPRESSED OR IMPLIED
+
+string cmd = "SET UNDO_LOG OFF;\n"; // advisable for speed reasons
+string h;
+
+void header(void) {
+  sprintf(h, "set wire_bend 2;\n");
+  cmd += h;
+  sprintf(h, "GRID mil;\n");
+  cmd += h;
+  sprintf(h, "DISPLAY -20;\n\n");
+  cmd += h;
+  sprintf(h, "DISPLAY 48;\n\n");
+  cmd += h;
+}
+
+void DrawWire(UL_WIRE W) {
+  if (W.arc) {
+    h = ""; sprintf(h, "Arc CCW %.3f (%.3f %.3f) (%.3f %.3f) (%.3f %.3f);\n",
+            u2mil(W.width),
+            u2mil(W.arc.x1), u2mil(W.arc.y1),
+            u2mil(W.arc.xc + W.arc.xc - W.arc.x1), u2mil(W.arc.yc + W.arc.yc - W.arc.y1),
+            u2mil(W.arc.x2), u2mil(W.arc.y2));
+     }
+  else  {
+    cmd += h;
+    sprintf(h, "WIRE %.3f (%.3f %.3f) (%.3f %.3f);\n",
+                     u2mil(W.width), u2mil(W.x1), u2mil(W.y1), u2mil(W.x2), u2mil(W.y2) );
+  }
+  cmd += h;
+}
+
+if (board) {
+  board(B) {
+    header();
+    B.wires(W) {
+      if(W.layer == 20) {
+        sprintf(h, "CHANGE LAYER 48;\n");	//, W.layer + offset );
+        cmd += h;
+        DrawWire(W);
+      }
+    }
+  }
+  cmd += "SET UNDO_LOG ON;\n";
+
+  //  EditBox
+  int Result = dlgDialog("Descriptions") {
+    dlgTextEdit(cmd);
+    dlgHBoxLayout {
+      dlgPushButton("+&Execute") dlgAccept();
+      dlgPushButton("-&Cancel") dlgReject();
+    }
+  };
+  if (Result == 0) exit(0);
+
+  exit(cmd);
+}
+
+else {
+   dlgMessageBox("\n    Start this ULP in a Board    \n");
+   exit (0);
+}

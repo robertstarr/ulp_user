@@ -1,0 +1,26 @@
+#usage	"<b>Deletes Library 'User Defined' layers (100-255) that are empty.</b>\n"
+		"<p>"
+	    "Run this ULP in the Library Editor."
+		"<p>"	   
+		"<author>Author: Warren Brayshaw</author>"
+
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND, EXPRESSED OR IMPLIED
+
+string cmd,DelLay;
+int UserDefinedExists;
+if(!library) dlgMessageBox("Run this ULP in a Library editor");
+if(library){ 
+	library(Lib){
+		Lib.layers(L){
+			if(L.number>99){
+				UserDefinedExists=1;
+				sprintf(DelLay,"layer ?? -%u;\n",L.number);
+				cmd += DelLay;
+			}
+		}
+	}
+	if(UserDefinedExists) cmd += "write;\n";
+	exit(cmd);
+}
+exit(0);
+	

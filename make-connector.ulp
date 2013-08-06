@@ -1,0 +1,1236 @@
+#usage "<b>Make Connector Symbols</b> - v1.03 (11/23/11)<p>"
+       "This ULP generates single and dual row header connector symbols "
+       "packages and devices for basic connectors."
+       "<p>"
+       "<author>http://www.bobstarr.net</author>";
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// MAKE CONNECTOR
+//
+// Copyright (C) 2009-2010, Robert E. Starr (http://www.bobstarr.net)
+// 
+// REVISION HISTORY:
+//
+// v1.00 - 02/13/2010 (RES) - Initial Release
+//
+// v1.01 - 07/16/2010 (RES) - Added y-long option for single row packages
+//                            and pad diameter option
+//
+// v1.02 - 03/04/2011 (RES) - Added dual row pin order option.
+//
+// v1.03 - 11/23/2011 (RES) - Add more package row ordering options
+//
+//////////////////////////////////////////////////////////////////////////////
+//
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
+// EXPRESSED OR IMPLIED. IF YOU DON'T LIKE IT, DON'T USE IT!
+//
+//////////////////////////////////////////////////////////////////////////////
+
+string Version = "1.03";
+
+string fileName;
+
+int fScriptExec     = 1;            // execute script automatically after generating
+int fMaleFemale     = 0;            // 0=male, 1=female
+int fSingleDual     = 0;            // 0=single row, 1=dual row
+int fMultiple       = 1;            // 0=gen one connector, 1=gen range of connectors
+int fValueOn        = 0;            // 0=dev value off, 1=value on
+
+int fGenSymbols     = 1;            // 1=gen connector symbols
+int fGenPackages    = 1;            // 1=gen connector packages
+int fGenDevices     = 1;            // 1=gen connector devices
+int fGenFullPins    = 1;            // 1=gen full pin versions of devices
+int fGenSinglePins  = 0;            // 1=gen single pin versions of devices
+int fLongPad        = 1;            // 1=y-long pads for single row packages
+int fNamePosPerRow  = 0;            // 1=gen dev/pkg names as pos per row (div by 2)
+
+// This flag specifies the pin ordering for dual row connectors as follows:
+// 0 = left to right
+// 1 = right to left
+
+int fPadOrder       = 0;
+int fFlipRows       = 0;
+
+int nFirstPinCount  = 2;            // pin count in first connector
+int nLastPinCount   = 16;           // pin count in last connector
+
+int nPadType        = 0;            // 0=thru-hole, 1=SMD
+
+real dPadPitch      = 100.0;        // 100 mil pitch
+real dRowSpacing    = 100.0;        // spacing between rows for DIP
+real dDrillSize     = 40.0;         // 40 mil drill
+real dPadDiameter   = 0.0;          // pad diameter (0=auto)
+real dSmdSizeX      = 40;
+real dSmdSizeY      = 100;
+
+string strPackagePrefix      = "PAC-";
+string strPackageSuffix      = "";
+
+string strDevicePrefix       = "DEV-";
+string strDeviceSuffix       = "";
+
+string strDeviceDesc         = "FE";
+
+string strSymbolPrefixMale   = "MA";
+string strSymbolPrefixFemale = "FE";
+
+string ConfigFilePath;
+string ConfigFileName        = "make-connector.cfg";
+
+// Package Grid Units
+int    nGridUnits      = 1;
+int    nPrevUnits      = 1;
+string strGridUnits[]  = { "MM", "MIL", "INCH" };
+
+real MM_PER_INCH       = 0.0393700787;
+real INCHES_PER_MM     = 25.40;
+
+//////////////////////////////////////////////////////////////////////////////
+// Create male/female PLUG/JACK symbols for single pin male/female
+// variations of connectors.
+
+void CreateSymbolsPJ()
+{
+    printf("Grid mm;\n");
+
+    if (fMaleFemale==0)         // MALE is a PLUG
+    {
+        printf("Edit 'P-NV.sym';\n");
+        printf("Change Style Continuous;\n");
+        printf("Set Wire_Bend 2;\n");
+        printf("Layer 94;\n");
+        printf("Wire  0.1524 (0 0) (1.905 0) 0.254 (0.9525 0.635);\n");
+        printf("Wire  0.254 (1.905 0) (0.9525 -0.635);\n");
+        printf("Pin 'P' Pas None Short R0 Off 0 (-2.54 0);\n");
+        printf("Layer 95;\n");
+        printf("Change Size 1.016;\n");
+        printf("Change Ratio 12;\n");
+        printf("Text '>NAME' MR0 (0.635 0.635);\n");
+        printf("Layer 96;\n");
+        printf("Change Size 1.778;\n");
+        printf("Change Ratio 12;\n");
+        printf("Text '>VALUE' MR0 (2.54 2.54);\n");
+        printf("Layer 95;\n");
+        printf("Change Size 1.778;\n");
+        printf("Change Ratio 12;\n");
+        printf("Text '>PART' MR0 (2.54 5.08);\n");
+
+        printf("Edit 'P-N.sym';\n");
+        printf("Layer 94;\n");
+        printf("Wire  0.1524 (0 0) (1.905 0) 0.254 (0.9525 0.635);\n");
+        printf("Wire  0.254 (1.905 0) (0.9525 -0.635);\n");
+        printf("Pin 'P' Pas None Short R0 Off 0 (-2.54 0);\n");
+        printf("Layer 95;\n");
+        printf("Change Size 1.016;\n");
+        printf("Change Ratio 12;\n");
+        printf("Text '>NAME' MR0 (0.635 0.635);\n");
+    }
+    else if (fMaleFemale==1)    // FEMALE is a JACK
+    {
+        printf("Edit 'J-NV.sym';\n");
+        printf("Change Style Continuous;\n");
+        printf("Set Wire_Bend 2;\n");
+        printf("Layer 94;\n");
+        printf("Change Style Continuous;\n");
+        printf("Wire  0.1524 (0 0) (-1.905 0) 0.254 (-2.8575 0.635);\n");
+        printf("Wire  0.254 (-1.905 0) (-2.8575 -0.635);\n");
+        printf("Pin 'J' Pas None Short R180 Off 0 (2.54 0);\n");
+        printf("Layer 95;\n");
+        printf("Change Size 1.016;\n");
+        printf("Change Ratio 12;\n");
+        printf("Change Font Proportional;\n");
+        printf("Text '>NAME' R0 (-1.905 0.635);\n");
+        printf("Layer 96;\n");
+        printf("Change Size 1.778;\n");
+        printf("Change Ratio 12;\n");
+        printf("Text '>VALUE' R0 (-2.54 2.54);\n");
+        printf("Layer 95;\n");
+        printf("Change Size 1.778;\n");
+        printf("Change Ratio 12;\n");
+        printf("Text '>PART' R0 (-2.54 5.08);\n");
+
+        printf("Edit 'J-N.sym';\n");
+        printf("Layer 94;\n");
+        printf("Wire  0.1524 (0 0) (-1.905 0) 0.254 (-2.8575 0.635);\n");
+        printf("Wire  0.254 (-1.905 0) (-2.8575 -0.635);\n");
+        printf("Pin 'J' Pas None Short R180 Off 0 (2.54 0);\n");
+        printf("Layer 95;\n");
+        printf("Change Size 1.016;\n");
+        printf("Change Ratio 12;\n");
+        printf("Text '>NAME' R0 (-1.905 0.635);\n");
+    }
+
+    printf("Grid mil;\n\n");
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Create a single row N x 1 connector header symbol
+
+void CreateSymbolSIP(int nNumPins, int nStyle)
+{
+    int i, pin;
+    real x, y;
+    real xStart, yStart;
+
+    if (nNumPins < 2)
+    {
+        dlgMessageBox("You must create at least 2 or more pins!", "OK");
+        return;
+    }
+
+    if (nNumPins > 2) 
+    {
+        yStart = (nNumPins / 2) * 100.0;
+        yStart = (yStart / 100.0) * 100.0;
+    }
+    else
+    {
+        yStart = 0.0;
+    }
+    
+    xStart = 0.0;
+    
+    printf("GRID MIL;\n");
+    printf("EDIT '%s%2.2d-1.sym'\n", (nStyle) ? strSymbolPrefixFemale : strSymbolPrefixMale, nNumPins);
+    printf("Layer 94;\n");
+    printf("Change Style Continuous;\n");
+    printf("Set Wire_Bend 2;\n");
+
+    for (i=0, y=yStart; i < nNumPins; i++)
+    {
+        pin = i+1;
+
+        // Add the symbol pin
+        printf("Pin '%d' Pas None Middle R0 Pad 1 (%.2f %.2f);\n", pin, xStart-200.0, y);
+
+        if (nStyle)
+        {
+            // Draw the female pin symbol
+            printf("Wire 16 (%.2f %.2f) (%.2f %.2f);\n", xStart, y, xStart+50, y-25);
+            printf("Wire 16 (%.2f %.2f) (%.2f %.2f);\n", xStart, y, xStart+50, y+25);
+        }
+        else
+        {
+            // Draw the male pin symbol
+            printf("Wire 24 (%.2f %.2f) (%.2f %.2f);\n", xStart+50.0, y, xStart, y);
+        }
+
+        y -= 100.0;
+    }
+    
+    real yEnd = y + 100;
+    
+    // Draw a frame around all symbol pins
+
+    printf("Layer 94;\n");
+
+    // top side
+    printf("Wire  16 (%.2f %.2f) (%.2f %.2f);\n", xStart-50, yStart+100, xStart+150, yStart+100);
+    // left side
+    printf("Wire  16 (%.2f %.2f) (%.2f %.2f);\n", xStart-50, yStart+100, xStart-50, yEnd-100);
+    // right side
+    printf("Wire  16 (%.2f %.2f) (%.2f %.2f);\n", xStart+150, yStart+100, xStart+150, yEnd-100);
+    // bottom side
+    printf("Wire  16 (%.2f %.2f) (%.2f %.2f);\n", xStart-50, yEnd-100, xStart+150, yEnd-100);
+
+    // Add the NAME field
+    printf("Layer 95;\n");
+    printf("Change Size 70;\n");
+    printf("Change Ratio 8;\n");
+    printf("Text '>NAME' R0 (%.2f %.2f);\n", xStart-50, yStart+125);
+    printf("Layer 94;\n");
+
+    // Add the VALUE field
+    printf("Layer 95;\n");
+    printf("Change Size 70;\n");
+    printf("Change Ratio 8;\n");
+    printf("Text '>VALUE' R0 (%.2f %.2f);\n\n", xStart-50, yEnd-200);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Create a single row N x 2 connector header symbol
+
+void CreateSymbolDIP(int nNumPins, int nStyle)
+{
+    int i, pin;
+    real x, y;
+    real xStart, yStart;
+
+    // must be at least 2 pins and an even number of pins
+
+    if (nNumPins < 2)
+    {
+        dlgMessageBox("You must create at least 2 or more pins!", "OK");
+        return;
+    }
+
+    int nPositions;
+
+    nPositions = nNumPins / 2;
+
+    yStart = (nPositions / 2) * 100.0;
+    yStart = (yStart / 100.0) * 100.0;
+    
+    xStart = 0.0;
+
+    printf("GRID MIL;\n");
+    printf("EDIT '%s%2.2d-2.sym'\n", (nStyle) ? strSymbolPrefixFemale : strSymbolPrefixMale, nPositions);
+    printf("Layer 94;\n");
+    printf("Change Style Continuous;\n");
+    printf("Set Wire_Bend 2;\n");
+
+    pin = 1;
+
+    for (i=0, y=yStart; i < nPositions; i++)
+    {
+        // Add the left side(odd) symbol pin
+        printf("Pin '%d' Pas None Middle R0 Pad 1 (%.2f %.2f);\n", pin, xStart-300.0, y);
+        ++pin;
+
+        // Add the right side(even) symbol pin
+        printf("Pin '%d' Pas None Middle R180 Pad 1 (%.2f %.2f);\n", pin, xStart+300.0, y);
+        ++pin;
+
+        if (nStyle)
+        {
+            // Draw the female pin symbol
+            printf("Wire 16 (%.2f %.2f) (%.2f %.2f);\n", xStart-100, y, xStart-50, y-25);
+            printf("Wire 16 (%.2f %.2f) (%.2f %.2f);\n", xStart-100, y, xStart-50, y+25);
+
+            printf("Wire 16 (%.2f %.2f) (%.2f %.2f);\n", xStart+100, y, xStart+50, y-25);
+            printf("Wire 16 (%.2f %.2f) (%.2f %.2f);\n", xStart+100, y, xStart+50, y+25);
+        }
+        else
+        {
+            // Draw the male pin symbol
+            printf("Wire 24 (%.2f %.2f) (%.2f %.2f);\n", xStart-100.0, y, xStart-50, y);
+            printf("Wire 24 (%.2f %.2f) (%.2f %.2f);\n", xStart+100.0, y, xStart+50, y);
+        }
+
+        y -= 100.0;
+    }
+    
+    real yEnd = y + 100;
+    
+    // Draw a frame around all symbol pins
+
+    printf("Layer 94;\n");
+
+    // top side
+    printf("Wire  16 (%.2f %.2f) (%.2f %.2f);\n", xStart-150, yStart+100, xStart+150, yStart+100);
+    // left side
+    printf("Wire  16 (%.2f %.2f) (%.2f %.2f);\n", xStart-150, yStart+100, xStart-150, yEnd-100);
+    // right side
+    printf("Wire  16 (%.2f %.2f) (%.2f %.2f);\n", xStart+150, yStart+100, xStart+150, yEnd-100);
+    // bottom side
+    printf("Wire  16 (%.2f %.2f) (%.2f %.2f);\n", xStart-150, yEnd-100, xStart+150, yEnd-100);
+
+    // Add the NAME field
+    printf("Layer 95;\n");
+    printf("Change Size 70;\n");
+    printf("Change Ratio 8;\n");
+    printf("Text '>NAME' R0 (%.2f %.2f);\n", xStart-150, yStart+125);
+    printf("Layer 94;\n");
+
+    // Add the VALUE field
+    printf("Layer 95;\n");
+    printf("Change Size 70;\n");
+    printf("Change Ratio 8;\n");
+    printf("Text '>VALUE' R0 (%.2f %.2f);\n\n", xStart-150, yEnd-200);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Create a single row N x 1 package
+
+void CreatePackageSIP(int nNumPins)
+{
+    int i, pin;
+    real x, xStart;
+
+    if (nNumPins < 2)
+    {
+        dlgMessageBox("You must create at least 2 or more pins!", "OK");
+        return;
+    }
+
+    real dPitch = dPadPitch;
+
+    if (nNumPins > 2) 
+    {
+        xStart = (nNumPins / 2) * dPitch;
+        xStart = (xStart / dPitch) * dPitch;
+
+        if ((nNumPins % 2) == 0)
+            xStart = -(xStart - (dPitch/2.0));
+        else
+            xStart = -(xStart);
+    }
+    else
+    {
+        xStart = 0.0;
+    }
+    
+    printf("EDIT '%s%2.2d%s.pac'\n", strPackagePrefix, nNumPins, strPackageSuffix);
+    printf("GRID %s %.4f ON;\n", strGridUnits[nGridUnits], dPitch/2);
+
+    if (fMaleFemale)
+        printf("Description '<b>RECEPTACAL</b>';\n");  // female
+    else
+        printf("Description '<b>HEADER</b>';\n");      // male
+
+    if (nPadType)
+    {
+        // SMD PAD
+        printf("Change SMD %.4fx%.4f;\n", dSmdSizeX, dSmdSizeY);
+    }
+    else
+    {
+        // Thru-Hole Pad
+        printf("Change Drill %.4f;\n", dDrillSize);
+    }
+
+    x = xStart;
+
+    // 0 = left-to-right, 1 = right-to-left
+    if (fPadOrder > 0)
+        x = -x;
+
+    for (i=0; i < nNumPins; i++)
+    {
+        pin = i+1;
+
+        if (nPadType)
+            printf("SMD %.4f %.4f -0 '%d' (%.4f 0);\n", dSmdSizeX, dSmdSizeY, pin, x);
+        else
+        {
+            if (fLongPad)
+                printf("Pad '%d' Long %f R90 (%.4f 0);\n", pin, dPadDiameter, x);
+            else
+            {
+                if (i > 0)
+                    printf("Pad '%d' Octagon %f R90 (%.4f 0);\n", pin, dPadDiameter, x);
+                else
+                    printf("Pad '%d' Square %f R90 (%.4f 0);\n", pin, dPadDiameter, x);
+            }
+        }
+        
+        // 0 = left-to-right, 1 = right-to-left
+        if (fPadOrder > 0)
+            x -= dPadPitch;
+        else
+            x += dPadPitch;
+    }
+    
+    real xEnd = x + dPadPitch;
+
+    // Add the NAME/VALUE text fields
+
+    real xText = xStart - (dPitch / 2.0);
+    real yText = dPitch;
+
+    printf("Layer 25;\n");
+    printf("GRID MIL\n");
+    printf("Change Size 40;\n");
+    printf("Change Ratio 18;\n");
+    printf("GRID LAST\n");
+    printf("Change Font Proportional;\n");
+    printf("Text '>NAME' R0 (%.4f %.4f);\n", xText, yText);
+    printf("Layer 27;\n");
+    printf("GRID MIL\n");
+    printf("Change Size 40;\n");
+    printf("Change Ratio 10;\n");
+    printf("GRID LAST\n");
+    printf("Text '>VALUE' R0 (%.4f %.4f);\n\n", xText, -(yText+dPitch/4));
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Create a dual row N x 2 package (row by column)
+
+void CreatePackageDIPxRowByCol(int nNumPins)
+{
+    int  i, pin;
+    int  nPositions;
+    real x, y;
+    real xStart, yStart;
+
+    if (nNumPins < 2)
+    {
+        dlgMessageBox("You must create at least 2 or more pins!", "OK");
+        return;
+    }
+
+    real dPitch = dPadPitch;            // pad pitch
+    real dSpace = dRowSpacing / 2.0;    // spacing between rows
+
+    nPositions = nNumPins / 2;
+
+    xStart = (nPositions / 2) * dPitch;
+    xStart = (xStart / dPitch) * dPitch;
+
+    if ((nPositions % 2) == 0)
+        xStart = -(xStart - (dPitch/2.0));
+    else
+        xStart = -(xStart);
+    
+    yStart = 0.0;
+    
+    int nNameNum = (fNamePosPerRow) ? nNumPins / 2 : nNumPins;
+    
+    printf("EDIT '%s%2.2d%s.pac'\n", strPackagePrefix,  nNameNum, strPackageSuffix);
+    printf("GRID %s %.4f ON;\n", strGridUnits[nGridUnits], dPitch/2);
+
+    if (fMaleFemale)
+        printf("Description '<b>RECEPTACAL</b>';\n");  // female
+    else
+        printf("Description '<b>HEADER</b>';\n");      // male
+
+    if (nPadType)
+    {
+        // SMD PAD
+        printf("Change SMD %.4fx%.4f;\n", dSmdSizeX, dSmdSizeY);
+    }
+    else
+    {
+        // Thru-Hole Pad
+        printf("Change Drill %.4f;\n", dDrillSize);
+    }
+
+    y = yStart;
+    x = xStart;
+
+    pin = 1;
+
+    // 0 = left-to-right, 1 = right-to-left
+    if (fPadOrder > 0)
+        x = -x;
+
+    for (i=0; i < nPositions; i++)
+    {
+        real ypos = fFlipRows ? y + dSpace : y - dSpace;
+        
+        if (nPadType)
+        {
+            printf("SMD %.4f %.4f -0 '%d' (%.4f %.4f);\n", dSmdSizeX, dSmdSizeY, pin, x, ypos);
+        }
+        else
+        {
+            if (i > 0)
+                printf("Pad '%d' Octagon %f R90 (%.4f %.4f);\n", pin, dPadDiameter, x, ypos);
+            else
+                printf("Pad '%d' Square %f R90 (%.4f %.4f);\n", pin, dPadDiameter, x, ypos);
+        }
+        ++pin;
+
+        ypos = fFlipRows ? y - dSpace : y + dSpace;
+
+        if (nPadType)
+            printf("SMD %.4f %.4f -0 '%d' (%.4f %.4f);\n", dSmdSizeX, dSmdSizeY, pin, x, ypos);
+        else
+            printf("Pad '%d' Octagon %f R90 (%.4f %.4f);\n", pin, dPadDiameter, x, ypos);
+        ++pin;
+
+        if (fPadOrder > 0)   // 0 = left-to-right, 1 = right-to-left
+            x -= dPadPitch;
+        else
+            x += dPadPitch;
+    }
+    
+    real xEnd = x + dPadPitch;
+
+    // Add the NAME/VALUE text fields
+
+    real xText = xStart - (dPitch / 2.0);
+    real yText = dSpace + (dSpace / 2);
+
+    printf("Layer 25;\n");
+    printf("GRID MIL\n");
+    printf("Change Size 40;\n");
+    printf("Change Ratio 18;\n");
+    printf("GRID LAST\n");
+    printf("Change Font Proportional;\n");
+    printf("Text '>NAME' R0 (%.4f %.4f);\n", xText, yText);
+    printf("Layer 27;\n");
+    printf("GRID MIL\n");
+    printf("Change Size 40;\n");
+    printf("Change Ratio 10;\n");
+    printf("GRID LAST\n");
+    printf("Text '>VALUE' R0 (%.4f %.4f);\n\n", xText, -((yText+dPitch/4)));
+}
+
+// Create DIP package row by row (right to left)
+
+void CreatePackageDIPxRowByRow(int nNumPins)
+{
+    int  i, pin;
+    int  nPositions;
+    real x, y;
+    real xStart, yStart;
+
+    if (nNumPins < 2)
+    {
+        dlgMessageBox("You must create at least 2 or more pins!", "OK");
+        return;
+    }
+
+    real dPitch = dPadPitch;            // pad pitch
+    real dSpace = dRowSpacing / 2.0;    // spacing between rows
+
+    nPositions = nNumPins / 2;
+
+    xStart = (nPositions / 2) * dPitch;
+    xStart = (xStart / dPitch) * dPitch;
+
+    if ((nPositions % 2) == 0)
+        xStart = -(xStart - (dPitch/2.0));
+    else
+        xStart = -(xStart);
+
+    int nNameNum = (fNamePosPerRow) ? nNumPins / 2 : nNumPins;
+    
+    printf("EDIT '%s%2.2d%s.pac'\n", strPackagePrefix,  nNameNum, strPackageSuffix);
+    printf("GRID %s %.4f ON;\n", strGridUnits[nGridUnits], dPitch/2);
+
+    if (fMaleFemale)
+        printf("Description '<b>RECEPTACAL</b>';\n");  // female
+    else
+        printf("Description '<b>HEADER</b>';\n");      // male
+
+    if (nPadType)
+    {
+        // SMD PAD
+        printf("Change SMD %.4fx%.4f;\n", dSmdSizeX, dSmdSizeY);
+    }
+    else
+    {
+        // Thru-Hole Pad
+        printf("Change Drill %.4f;\n", dDrillSize);
+    }
+
+    pin = nNumPins;
+
+    yStart = 0.0;
+
+    y = yStart;
+    x = xStart;
+
+    // Add first row of pins
+
+    for (i=0; i < nPositions; i++)
+    {
+        if (fFlipRows)
+            dSpace = -dSpace;
+        
+        if (nPadType)
+        {
+            printf("SMD %.4f %.4f -0 '%d' (%.4f %.4f);\n", dSmdSizeX, dSmdSizeY, pin, x, y+dSpace);
+        }
+        else
+        {
+            printf("Pad '%d' Octagon %f R90 (%.4f %.4f);\n", pin, dPadDiameter, x, y+dSpace);
+        }
+
+        --pin;
+
+        x += dPadPitch;
+    }
+   
+    // Add second row of pins
+
+    x = xStart;
+
+    for (i=0; i < nPositions; i++)
+    {
+        if (fFlipRows)
+            dSpace = -dSpace;
+            
+        if (nPadType)
+        {
+            printf("SMD %.4f %.4f -0 '%d' (%.4f %.4f);\n", dSmdSizeX, dSmdSizeY, pin, x, y-dSpace);
+        }
+        else
+        {
+            if (pin == 1)
+                printf("Pad '%d' Square %f R90 (%.4f %.4f);\n", pin, dPadDiameter, x, y-dSpace);
+            else
+                printf("Pad '%d' Octagon %f R90 (%.4f %.4f);\n", pin, dPadDiameter, x, y-dSpace);
+        }
+        
+        --pin;
+
+        x += dPadPitch;
+    }
+
+    real xEnd = x + dPadPitch;
+
+    // Add the NAME/VALUE text fields
+
+    real xText = xStart - (dPitch / 2.0);
+    real yText = dSpace + (dSpace / 2);
+
+    printf("Layer 25;\n");
+    printf("GRID MIL\n");
+    printf("Change Size 40;\n");
+    printf("Change Ratio 18;\n");
+    printf("GRID LAST\n");
+    printf("Change Font Proportional;\n");
+    printf("Text '>NAME' R0 (%.4f %.4f);\n", xText, yText);
+    printf("Layer 27;\n");
+    printf("GRID MIL\n");
+    printf("Change Size 40;\n");
+    printf("Change Ratio 10;\n");
+    printf("GRID LAST\n");
+    printf("Text '>VALUE' R0 (%.4f %.4f);\n\n", xText, -((yText+dPitch/4)));  
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Create a device from existing package and symbol.
+
+void CreateStandardDevice(int nNumPins)
+{
+    int i;
+    string strPrefix = (fMaleFemale) ? "J" : "P";
+
+    int nNameNum = (fNamePosPerRow) ? nNumPins / 2 : nNumPins;
+    
+    printf("GRID MIL\n");
+    printf("EDIT '%s%2.2d%s.dev'\n", strDevicePrefix, nNameNum, strDeviceSuffix);
+    printf("Prefix '%s';\n", strPrefix);
+    printf("Description '<b>%s</b>';\n", (fMaleFemale) ? "RECEPTACAL" : "HEADER");
+    printf("Value %s;\n", fValueOn ? "On" : "Off");
+
+    if (fSingleDual == 0)
+    {
+        printf("Add '%s%2.2d-1' 'G$1' Next 1 (0 0);\n", (fMaleFemale) ? strSymbolPrefixFemale : strSymbolPrefixMale, nNumPins);
+        printf("Package '%s%2.2d%s' '''''';\n", strPackagePrefix,  nNumPins, strPackageSuffix);
+    }
+    else
+    {
+        printf("Add '%s%2.2d-2' 'G$1' Next 1 (0 0);\n", (fMaleFemale) ? strSymbolPrefixFemale : strSymbolPrefixMale, nNumPins/2);
+        printf("Package '%s%2.2d%s' '''''';\n", strPackagePrefix,  nNameNum, strPackageSuffix);
+    }
+        
+    printf("Technology '';\n");
+
+    string strConnect = "Connect ";
+
+    for (i=0; i < nNumPins; i++)
+    {
+        string tmp;
+        sprintf(tmp, " 'G$1.%d' '%d'", i+1, i+1);
+        strConnect = strConnect + tmp;
+        if ((i % 6) == 5)
+            strConnect += "\\\n        ";
+    }
+
+    printf("%s;\n\n", strConnect);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Create single pin device from existing package and symbol.
+
+void CreateSinglePinsDevice(int nNumPins)
+{
+    int i;
+
+    string strPrefix = (fMaleFemale) ? "J" : "P";
+
+    if (nNumPins < 2)
+        return;
+
+    int nNameNum = (fNamePosPerRow) ? nNumPins / 2 : nNumPins;
+
+    printf("GRID MIL\n");
+    printf("EDIT '%s%2.2d%s_S.dev'\n", strDevicePrefix, nNameNum, strDeviceSuffix);
+    printf("Prefix '%s';\n", strPrefix);
+    printf("Description '<b>%s</b>';\n", (fMaleFemale) ? "RECEPTACAL" : "HEADER");
+    printf("Value %s;\n", fValueOn ? "On" : "Off");
+
+    real y = 0.0;
+
+    for (i=0; i < nNumPins; i++)
+    {
+        string strTmp = (i==0) ? "NV": "N";
+        printf("Add %s-%s '-%d' Always 1 (0 %.2f);\n", strPrefix, strTmp, i+1, y); 
+        y -= 100;       
+    }
+
+    printf("Package '%s%2.2d%s' '''''';\n", strPackagePrefix, nNameNum, strPackageSuffix);
+
+    printf("Technology '';\n");
+
+    string strConnect = "Connect ";
+
+    for (i=0; i < nNumPins; i++)
+    {
+        string tmp;
+        sprintf(tmp, " '-%d.%s' '%d'", i+1, strPrefix, i+1);
+        strConnect = strConnect + tmp;
+        if ((i % 6) == 5)
+            strConnect += "\\\n        ";
+    }
+
+    printf("%s;\n\n", strConnect);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Display the main application dialog
+
+void OnUnitsChange()
+{
+    switch(nGridUnits)
+    {
+    case 0: // MM
+        if (nPrevUnits == 1)
+        {
+            // MIL->MM
+            dPadPitch    = (dPadPitch   / 1000) * INCHES_PER_MM;
+            dRowSpacing  = (dRowSpacing / 1000) * INCHES_PER_MM;
+            dDrillSize   = (dDrillSize  / 1000) * INCHES_PER_MM;
+            dPadDiameter = (dPadDiameter / 1000) * INCHES_PER_MM;
+            dSmdSizeX    = (dSmdSizeX   / 1000) * INCHES_PER_MM;
+            dSmdSizeY    = (dSmdSizeY   / 1000) * INCHES_PER_MM;
+        }
+        else
+        {
+            // INCH->MM
+            dPadPitch    = dPadPitch   * INCHES_PER_MM;
+            dRowSpacing  = dRowSpacing * INCHES_PER_MM;
+            dDrillSize   = dDrillSize  * INCHES_PER_MM;
+            dPadDiameter = dPadDiameter  * INCHES_PER_MM;
+            dSmdSizeX    = dSmdSizeX   * INCHES_PER_MM;
+            dSmdSizeY    = dSmdSizeY   * INCHES_PER_MM;
+        }
+        break;
+
+    case 1: // MIL
+        if (nPrevUnits == 2)
+        {
+            // INCH->MIL
+            dPadPitch    = dPadPitch   * 1000;
+            dRowSpacing  = dRowSpacing * 1000;
+            dDrillSize   = dDrillSize  * 1000;
+            dPadDiameter = dPadDiameter  * 1000;
+            dSmdSizeX    = dSmdSizeX   * 1000;
+            dSmdSizeY    = dSmdSizeY   * 1000;
+        }
+        else
+        {
+            // MM->MIL
+            dPadPitch    = (dPadPitch   * 1000) * MM_PER_INCH;
+            dRowSpacing  = (dRowSpacing * 1000) * MM_PER_INCH;
+            dDrillSize   = (dDrillSize  * 1000) * MM_PER_INCH;
+            dPadDiameter = (dPadDiameter  * 1000) * MM_PER_INCH;
+            dSmdSizeX    = (dSmdSizeX   * 1000) * MM_PER_INCH;
+            dSmdSizeY    = (dSmdSizeY   * 1000) * MM_PER_INCH;
+        }
+        break;
+
+    case 2: // INCH
+        if (nPrevUnits == 1)
+        {
+            // MIL->INCH
+            dPadPitch    = dPadPitch   / 1000;
+            dRowSpacing  = dRowSpacing / 1000;
+            dDrillSize   = dDrillSize  / 1000;
+            dPadDiameter = dPadDiameter  / 1000;
+            dSmdSizeX    = dSmdSizeX   / 1000;
+            dSmdSizeY    = dSmdSizeY   / 1000;
+        }
+        else
+        {
+            // MM->INCH
+            dPadPitch    = dPadPitch   * MM_PER_INCH;
+            dRowSpacing  = dRowSpacing * MM_PER_INCH;
+            dDrillSize   = dDrillSize  * MM_PER_INCH;
+            dPadDiameter = dPadDiameter  * MM_PER_INCH;
+            dSmdSizeX    = dSmdSizeX   * MM_PER_INCH;
+            dSmdSizeY    = dSmdSizeY   * MM_PER_INCH;
+        }
+        break;
+    }
+
+    nPrevUnits = nGridUnits;
+}
+
+int MainAppDialog()
+{
+    string title = "Make Connector Symbols - v" + Version;
+
+    int nResult = dlgDialog(title)
+    {
+        dlgTabWidget
+        {
+            dlgTabPage("Connector")
+            {
+                dlgHBoxLayout
+                {
+                    dlgGroup("Style")
+                    {
+                        dlgRadioButton("Male", fMaleFemale);
+                        dlgRadioButton("Female", fMaleFemale);
+                    }
+                    dlgGroup("Type")
+                    {
+                        dlgRadioButton("Single Row", fSingleDual);
+                        dlgRadioButton("Dual Row", fSingleDual);
+                    }
+                    dlgGroup("Symbol Prefix")
+                    {
+                        dlgGridLayout
+                        {
+                            dlgCell(1,0) dlgLabel("Male");
+                            dlgCell(1,1) dlgStringEdit(strSymbolPrefixMale);
+
+                            dlgCell(2,0) dlgLabel("Female");
+                            dlgCell(2,1) dlgStringEdit(strSymbolPrefixFemale);
+                        }
+                    }
+                }
+
+                dlgHBoxLayout
+                {
+                    dlgGroup("Generate")
+                    {
+                        dlgRadioButton("Single Connector", fMultiple);
+                        dlgRadioButton("Range of Connectors", fMultiple);
+                    }
+                    dlgGroup("Pin/Pad Count")
+                    {
+                        dlgGridLayout
+                        {
+                            dlgCell(1,0) dlgLabel("First Connector Pin Count (1-200)");
+                            dlgCell(1,1) dlgIntEdit(nFirstPinCount, 2, 200);
+    
+                            dlgCell(2,0) dlgLabel("Last Connector Pin Count (1-200)");
+                            dlgCell(2,1) dlgIntEdit(nLastPinCount, 2, 200);
+                        }
+                    }
+                }  
+            }
+
+            dlgTabPage("Package")
+            {
+                dlgHBoxLayout
+                {
+                    dlgGroup("Package Parameters")
+                    {
+                        dlgGridLayout
+                        {
+                            dlgCell(1,0) dlgLabel("Pad Pitch");
+                            dlgCell(1,1) dlgRealEdit(dPadPitch, 0.001, 1000.0);
+
+                            dlgCell(2,0) dlgLabel("Row Spacing");
+                            dlgCell(2,1) dlgRealEdit(dRowSpacing, 0.001, 1000.0);
+
+                            dlgCell(3,0) dlgLabel("Pad Drill Size");
+                            dlgCell(3,1) dlgRealEdit(dDrillSize, 0.001, 100.0);
+
+                            dlgCell(4,0) dlgLabel("Pad Diameter (0=auto)");
+                            dlgCell(4,1) dlgRealEdit(dPadDiameter, 0.0, 100.0);
+
+                            dlgCell(5,0) dlgLabel("SMD X Size");
+                            dlgCell(5,1) dlgRealEdit(dSmdSizeX, 0.001, 100.0);
+
+                            dlgCell(6,0) dlgLabel("SMD Y Size");
+                            dlgCell(6,1) dlgRealEdit(dSmdSizeY, 0.001, 100.0);
+
+                            dlgCell(7,0) dlgLabel("Package Name Prefix");
+                            dlgCell(7,1) dlgStringEdit(strPackagePrefix);
+
+                            dlgCell(8,0) dlgLabel("Package Name Suffix");
+                            dlgCell(8,1) dlgStringEdit(strPackageSuffix);
+                        }
+                    }
+
+                    dlgVBoxLayout
+                    {
+                        dlgGroup("Pad Type")
+                        {
+                            dlgRadioButton("Thru-Hole Pads", nPadType);
+                            dlgRadioButton("SMD Pads", nPadType);
+                            dlgCheckBox("Y-Long Pads", fLongPad);
+                        }
+                        dlgGroup("Pad Ordering")
+                        {
+                            dlgRadioButton("L-to-R", fPadOrder);
+                            dlgRadioButton("R-to-L", fPadOrder);
+                            dlgCheckBox("Flip Rows", fFlipRows);
+                        }
+                        dlgGroup("Grid Units")
+                        {
+                            dlgRadioButton("MM", nGridUnits)   OnUnitsChange();
+                            dlgRadioButton("MIL", nGridUnits)  OnUnitsChange();
+                            dlgRadioButton("INCH", nGridUnits) OnUnitsChange();
+                        }
+                        dlgStretch(1);
+                    }
+                }  
+            }
+
+            dlgTabPage("Device")
+            {
+                dlgHBoxLayout
+                {
+
+                    dlgGridLayout
+                    {
+                        dlgCell(1,0) dlgLabel("Device Name Prefix");
+                        dlgCell(1,1) dlgStringEdit(strDevicePrefix);
+                                                
+                        dlgCell(2,0) dlgLabel("Device Name Suffix");
+                        dlgCell(2,1) dlgStringEdit(strDeviceSuffix);
+
+                        dlgCell(3,1) dlgCheckBox("Value On", fValueOn);
+                    }
+                }
+                dlgStretch(1);
+            }
+        }
+
+        dlgVBoxLayout
+        {
+            dlgGroup("Options")
+            {
+                dlgGridLayout
+                {
+                    dlgCell(1,0) dlgCheckBox("Generate Symbols", fGenSymbols);
+                    dlgCell(2,0) dlgCheckBox("Generate Packages", fGenPackages);
+                    dlgCell(3,0) dlgCheckBox("Generate Devices", fGenDevices);
+
+                    dlgCell(1,1) dlgCheckBox("Create devices with single symbol containing all pins", fGenFullPins);
+                    dlgCell(2,1) dlgCheckBox("Create devices with individual place pins", fGenSinglePins);
+                    dlgCell(3,1) dlgCheckBox("Number dual rows devices and packages as pos-per-row", fNamePosPerRow);
+                }
+            }
+        }
+
+        dlgSpacing(12);
+
+        dlgHBoxLayout
+        {
+            dlgPushButton("OK") dlgAccept();
+            dlgPushButton("-Cancel") dlgReject();
+            dlgCheckBox("&Execute Script", fScriptExec);
+        }
+    };
+
+    return nResult;
+}
+
+void LoadConfigSettings()
+{
+    // load the last config settings saved
+    string a[];
+    
+    // Should be 27 lines in config file
+    int n;
+    n = fileread(a, filedir(argv[0])+ConfigFileName);
+
+    //string txt;
+    //sprintf(txt, "%d, %s", n, a[20]);
+    //dlgMessageBox(txt);      
+
+    if (n == 30)
+    {
+        int i = 0;
+
+        nGridUnits     = strtol(a[i++]);
+
+        nPrevUnits = nGridUnits;
+
+        fMaleFemale    = strtol(a[i++]);
+        fSingleDual    = strtol(a[i++]);
+        fMultiple      = strtol(a[i++]);
+        fValueOn       = strtol(a[i++]);
+        fGenSymbols    = strtol(a[i++]);
+        fGenPackages   = strtol(a[i++]);
+        fGenDevices    = strtol(a[i++]);
+        fGenFullPins   = strtol(a[i++]);
+        fGenSinglePins = strtol(a[i++]);
+        fLongPad       = strtol(a[i++]);
+        fPadOrder      = strtol(a[i++]);
+        fFlipRows      = strtol(a[i++]);
+        fNamePosPerRow = strtol(a[i++]);        
+        nFirstPinCount = strtol(a[i++]);
+        nLastPinCount  = strtol(a[i++]);
+        nPadType       = strtol(a[i++]);
+    
+        dPadPitch      = strtod(a[i++]);
+        dRowSpacing    = strtod(a[i++]);
+        dDrillSize     = strtod(a[i++]);
+        dPadDiameter   = strtod(a[i++]);
+        dSmdSizeX      = strtod(a[i++]);
+        dSmdSizeY      = strtod(a[i++]);
+    
+        strPackagePrefix      = a[i++];
+        strPackageSuffix      = a[i++];
+        strDevicePrefix       = a[i++];
+        strDeviceSuffix       = a[i++];
+        strDeviceDesc         = a[i++];
+        strSymbolPrefixMale   = a[i++];
+        strSymbolPrefixFemale = a[i++];
+    }
+}
+
+void SaveConfigSettings()
+{
+    // save the config settings 
+    output(filedir(argv[0])+ConfigFileName, "wt")
+    {
+        printf("%d\n", nGridUnits);
+
+        printf("%d\n", fMaleFemale);
+        printf("%d\n", fSingleDual);
+        printf("%d\n", fMultiple);
+        printf("%d\n", fValueOn);
+        printf("%d\n", fGenSymbols);
+        printf("%d\n", fGenPackages);
+        printf("%d\n", fGenDevices);
+        printf("%d\n", fGenFullPins);
+        printf("%d\n", fGenSinglePins);
+        printf("%d\n", fLongPad);
+        printf("%d\n", fPadOrder);
+        printf("%d\n", fFlipRows);
+        printf("%d\n", fNamePosPerRow);
+        printf("%d\n", nFirstPinCount);
+        printf("%d\n", nLastPinCount);
+        printf("%d\n", nPadType);
+
+        printf("%f\n", dPadPitch);
+        printf("%f\n", dRowSpacing);
+        printf("%f\n", dDrillSize);
+        printf("%f\n", dPadDiameter);
+        printf("%f\n", dSmdSizeX);
+        printf("%f\n", dSmdSizeY);
+
+        printf("%s\n", strPackagePrefix);
+        printf("%s\n", strPackageSuffix);
+        printf("%s\n", strDevicePrefix);
+        printf("%s\n", strDeviceSuffix);
+        printf("%s\n", strDeviceDesc);
+        printf("%s\n", strSymbolPrefixMale);
+        printf("%s\n", strSymbolPrefixFemale);
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Script Entry Point
+
+if (library)
+{
+    nPrevUnits = nGridUnits;
+
+    library(LBR)
+    {
+        LoadConfigSettings();
+        
+        // Show the main application dialog
+        int nResult = MainAppDialog();
+    
+        if (!nResult)
+            exit(0);
+
+        SaveConfigSettings();
+        
+        fileName = filesetext(LBR.name, "_MakeConnector.scr");
+
+        output(fileName, "wtD")
+        {
+            printf("# Auto Generated at %s<br>\n", t2string(time()));
+            printf("# %s;\n\n", EAGLE_SIGNATURE);
+            printf("SET UNDO_LOG OFF;\n\n");
+
+            if (!fMultiple)
+                nLastPinCount = nFirstPinCount;
+
+            int i;
+
+            // Generate the SYMBOLS if requested
+
+            if (fGenSymbols)
+            {
+                printf("#\n");
+                printf("# SYMBOL GENERATION\n");
+                printf("#\n\n");
+
+                if (fGenFullPins)
+                {
+                    if (fSingleDual == 0)
+                    {
+                        for (i=nFirstPinCount; i <= nLastPinCount; i++)  
+                            CreateSymbolSIP(i, fMaleFemale);
+                    }
+                    else
+                    {
+                        for (i=nFirstPinCount; i <= nLastPinCount; i+=2)
+                            CreateSymbolDIP(i, fMaleFemale);
+                    }
+                }
+
+                if (fGenSinglePins)
+                    CreateSymbolsPJ();
+            }
+
+            // Generate the PACKAGES if requested
+
+            if (fGenPackages)
+            {
+                printf("#\n");
+                printf("# PACKAGE GENERATION\n");
+                printf("#\n\n");
+
+                if (fSingleDual == 0)
+                {
+                    for (i=nFirstPinCount; i <= nLastPinCount; i++)
+                        CreatePackageSIP(i);
+                }
+                else
+                {
+                    for (i=nFirstPinCount; i <= nLastPinCount; i+=2)
+                    {
+                        CreatePackageDIPxRowByCol(i);
+                        // CreatePackageDIPxRowByRow(i)
+                    }
+                }
+            }
+
+            // Generate the DEVICES if requested
+
+            if (fGenDevices)
+            {
+                printf("#\n");
+                printf("# DEVICE GENERATION\n");
+                printf("#\n\n");
+
+                int inc = (fSingleDual == 0) ? 1 : 2;
+
+                if (fGenFullPins)
+                {
+                    for (i=nFirstPinCount; i <= nLastPinCount; i+=inc)
+                        CreateStandardDevice(i);
+                }
+
+                if (fGenSinglePins)
+                {
+                    for (i=nFirstPinCount; i <= nLastPinCount; i+=inc)
+                        CreateSinglePinsDevice(i);
+                }
+            }
+
+            printf("SET UNDO_LOG ON;");
+        }
+
+        if (fScriptExec)
+            exit ("SCRIPT '" + fileName + "';");
+        else
+            exit(0);
+    }
+}
+else
+{
+    dlgMessageBox("Start this ULP in the Library Editor!", "OK");
+}
+
+// End-Of-File

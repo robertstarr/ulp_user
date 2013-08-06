@@ -1,0 +1,640 @@
+#usage "<qt><nobr>This ULP calculates and place a coil with and with out ferrit kernel.<p>"
+       "Depending from where you are starting the ULP, places pads (library) or vias (board).<p>"
+       "The calculation of coils or inductivities depends on a lot of "
+       "different factors, like<br>"
+       " -- basic material of the board<br>"
+       " -- thickness of the board<br>"
+       " -- number of layers<br>"
+       " -- thickness of the layers<br>"
+       " -- distances between elements<br>"
+       " -- tracks<br>"
+       " -- copper areas / ground plains<br>"
+       " -- thickness of the copper layers<br>"
+       " -- track width<br>"
+       " -- distances between tracks<br>"
+       " -- surface of tracks (tin?)<br>"
+       " -- the signal's frequency<br>"
+       " -- ...<br>"
+       "All these factors should be taken into consideration for the formula !<br>"
+       "used below to calculate an exact value for a coil. Nevertheless it !<br>"
+       "is necessary to check the result by a practical measurement. It is !<br>"
+       "very difficult to generate coils with exact values this way.<br>"
+       "Generally one can say that printed coils can be used in the MHz range only.<br>"
+       "<author>Author: support@cadsoft.de, </author></nobr></qt>";
+
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
+// EXPRESSED OR IMPLIED.
+
+
+//  **************----- german description -------------***************
+string deHelp =
+ "<qt><nobr>Dieses ULP berechnet eine Spiralspule mit oder ohne Ferritkern.<p>" +
+ "Dieses ULP kann in der Libary ebenso wie im Board benutzt werden.<br>" +
+ "Je nachdem ob Sie es von einer Library oder von einem Borad aus "
+ "starten, werden Pads bzw. Vias plaziert.<br>" +
+ "<br>" +
+ "Die Berechnung der Windungen bzw. der Induktivität hängt von vielen Faktoren ab, wie z.B.:<br>" +
+ " - Basismaterial<br>" +
+ " - Stärke der Leiterplatte<br>" +
+ " - Anzahl der Lagen<br>" +
+ " - Dicke der Lagen<br>" +
+ " - Abstand zu benachbarten Bauteilen, Leitungen, Kupferflächen, Masseflächen etc.<br>" +
+ " - Dicke der Kupferbeschichtung<br>" +
+ " - Breite der Leiterbahn  (unterätzen)<br>" +
+ " - Abstand zwischen den Leiterbahnen (Spiralkreise / Ätzgenauigkeit)<br>" +
+ " - Oberfläche der Leiterbahn (Verzinnt)<br>" +
+ " - Signal-Frequenz<br>" +
+ " - ...<br>" +
+ "Um daraus einen einigermassen genauen Wert zu berechnen, müßten alle oben genannten Faktoren<br>" +
+ "als Korrekturwerte in die Formel einfliessen.<br>" +
+ "Was aber in jedem Fall durch entspechende Messungen nachgeprüft werden müßte.<br>" +
+ "In der Praxis sind Printspulen mit genau definierten Werten und in engen Toleranzen " +
+ "nur sehr schwer herzustellen.<br>" +
+ "Im Allgemeinen kann man davon ausgehen, dass Printspulen nur im MHz Bereich " +
+ "einigermassen Nutzbar sind.<br>" +
+ "<author>Author: support@cadsoft.de, </author></nobr></qt>";
+
+string Help = usage;
+
+if (language() == "de") Help = deHelp;
+
+//   05.06.2002 alf@cadsoft.de
+//   24.01.2005 alf@cadsoft.de
+
+// *** all Parameter generated in MM ***
+// parameter section
+
+real   n                = 9.0;       // turns
+real   wireWidth_mm     = 0.2;       // track width
+real   wireDistance_mm  = 0.3;       // min. distance between tracks
+real   distance_e       = 0.3;       // distance first wound to Ferrit
+real   PVdiameter       = 0.5;       // pad/via diameter
+real   PVdrill          = 0.4;       // drill diameter
+real   ferrit_length_L  = 5.5;
+real   ferrit_length_K  = 2.0;
+real   ferrit_length_K1 = 2.0;
+real   distance_h       = 5.3;
+real   offx             = 0.0;
+real   offy             = 0.0;
+int    Layer            = 1;
+string Shape            = "ROUND";   // Pad/Via shape do not change !!!
+string solderpoint      = "";
+string dimlayer         = ";\nChange Layer 20;\n";
+
+int undo_off_on = 1;
+string file;
+
+real   ferrit_old_L  = ferrit_length_L;
+real   ferrit_old_K  = ferrit_length_K;
+real   ferrit_old_K1 = ferrit_length_K1;   // with of outher ferrit kernel
+
+int    arcresolution    = 10;        // Arc resolution
+real   turn_degree      = 90;
+int    degree_resol     = turn_degree / arcresolution; // *** Degree° resolution
+
+string Spiral_H =  "<img src=\"print-inductor-ulp.bmp\">";
+string cmd = "";
+string s;
+int cflag = 0;
+int fullturn = 0;  // Flag
+
+string ConfigFileName = "print-inductor.cfg";
+
+void LoadConfigSettings()
+{
+    int i = 0;
+    int num;
+    string a[];
+    // Should be 13 lines in config file
+    num = fileread(a, filedir(argv[0])+ConfigFileName);
+    if (num == 13)
+    {
+        n                = strtod(a[i++]);
+        wireWidth_mm     = strtod(a[i++]);
+        wireDistance_mm  = strtod(a[i++]);
+        distance_e       = strtod(a[i++]);
+        PVdiameter       = strtod(a[i++]);
+        PVdrill          = strtod(a[i++]);
+        ferrit_length_L  = strtod(a[i++]);
+        ferrit_length_K  = strtod(a[i++]);
+        ferrit_length_K1 = strtod(a[i++]);
+        distance_h       = strtod(a[i++]);
+        offx             = strtod(a[i++]);
+        offy             = strtod(a[i++]);
+        Layer            = strtol(a[i++]);
+    }
+}
+
+void SaveConfigSettings()
+{
+    // save the config settings 
+    output(filedir(argv[0])+ConfigFileName, "wt")
+    {
+        printf("%f\n", n);
+        printf("%f\n", wireWidth_mm);
+        printf("%f\n", wireDistance_mm);
+        printf("%f\n", distance_e);
+        printf("%f\n", PVdiameter);
+        printf("%f\n", PVdrill);
+        printf("%f\n", ferrit_length_L);
+        printf("%f\n", ferrit_length_K);
+        printf("%f\n", ferrit_length_K1);
+        printf("%f\n", distance_h);
+        printf("%f\n", offx);
+        printf("%f\n", offy);
+        printf("%d\n", Layer);
+    }
+}
+
+// ********* functions *******************************
+void show(string s) {
+  dlgDialog("Show CMD") {
+    dlgHBoxLayout dlgSpacing(300);
+    dlgHBoxLayout {
+      dlgVBoxLayout {
+        dlgSpacing(500);
+      }
+      dlgTextEdit(s);
+    }
+    dlgHBoxLayout {
+      dlgPushButton("+OK") dlgAccept();
+      dlgPushButton("-Cancel") { dlgReject(); exit(0); }
+      dlgStretch(1);
+    }
+  };
+  return;
+}
+
+// *** calculate arc coordinate ***
+string xyArc(real angle, real radiusx, real radiusy, real offsetx, real offsety) {
+  string tmp;
+  real rad = PI / 180 * angle;
+  sprintf(tmp, "(%.4f %.4f)\n",
+                 cos(rad) * radiusx + offsetx,
+                      sin(rad) * radiusy + offsety );
+  return tmp;
+}
+
+// *** interpolate arc coodinates from startarc to endarc ***
+string spiral(real sRadius, real eRadius, real startArc, real endArc, real aresolution, real ox, real oy ) {
+  string e = "";
+  if (startArc > endArc) { dlgMessageBox("Start ARC > End ARC", "OK"); return ""; }
+  real stepangle = aresolution; // (endArc - startArc) / aresolution;
+  real ellips = 0;
+  if (aresolution) ellips = (eRadius - sRadius) / ((endArc - startArc) / aresolution);
+  int step = 0;
+  for (real angle = startArc; angle <= endArc; angle += stepangle) {
+    e += xyArc(angle, sRadius + ellips * step, sRadius + ellips * step, ox, oy);
+    step++;
+  }
+  if (angle != endArc) {
+    step--;
+    e += xyArc(endArc, sRadius + ellips * step, sRadius + ellips * step, ox, oy);
+  }
+  return e + "\n";
+}
+
+
+ // place a Pad (Via) on startpoint
+string PadViaS(string command, real x1, real y1, real angle, real g, real ox, real oy) {
+  real p = x1 + (wireWidth_mm / 2) - (PVdiameter / 2);  //
+  sprintf( s, "%s %s", command, xyArc(angle, p, 0.0, ox, oy) );
+  return s;
+}
+
+
+ // place a Pad (Via) on endpoint
+string PadViaE(string command, real x1, real y1, real angle, real g, real ox, real oy) {
+  real pRadius = y1 + ((x1 - y1) / 180 * g) + (PVdiameter / 2) - (wireWidth_mm / 2) ;
+  sprintf( s, "%s %s", solderpoint, xyArc(angle, pRadius, pRadius, ox, oy) );
+  return s;
+}
+
+
+
+void doit(void) {
+  real Ndist = (wireDistance_mm + wireWidth_mm ) ;     // distance ARC to ARC
+  int  fullwind = trunc(n);           // count of full turns
+  real lastwind = n - fullwind;       // reminder Turn
+  real startarc = 0;
+  real endarc   = 360;
+  real startRadius = distance_e + Ndist;
+  real endRadius = startRadius + Ndist;
+  real sArc;
+  real eArc;
+
+  SaveConfigSettings();
+  
+  // script header
+  if (!undo_off_on) cmd += "SET UNDO_LOG OFF;\n";
+  sprintf( s, "GRID mm;\n");
+  cmd += s;
+  sprintf( s, "Change dia %.4f;\n", PVdiameter);
+  cmd += s;
+  sprintf( s, "Change shape %s;\n", Shape);
+  cmd += s;
+  sprintf( s, "Change drill %.4f;\n", PVdrill);
+  cmd += s;
+  sprintf( s, "change width %.4f;\n", wireWidth_mm);
+  cmd += s;
+  sprintf( s, "Change layer %d;\n", Layer);
+  cmd += s;
+  cmd += "SET WIRE_BEND 2;\n";
+
+  // **** Long coil with Ferrit kernel **********
+  if (PVdiameter < wireWidth_mm) PVdiameter = wireWidth_mm;
+  real startradius = distance_e + wireWidth_mm/2;
+  real radius = startradius;
+  real ky  =  ferrit_length_K/2;
+  real kx1 =  ferrit_length_L/2 + (distance_e + PVdiameter - wireWidth_mm/2 - startradius);
+  real kx2 = -ferrit_length_L/2;
+
+  if (ferrit_length_L || ferrit_length_K) {
+    // *** place PAD/VIA ***************************
+    cmd += PadViaS( solderpoint, kx1 + radius, 0.0, kx1 + radius, ky, offx, offy);
+    cmd += PadViaS( ";WIRE ", kx1 + radius, 0.0, kx1 + radius, ky, offx, offy);
+    sprintf( s, " (%.4f %.4f) (%.4f %.4f)\n",
+                   kx1 + radius + offx, 0.0 + offy, kx1 + radius + offx, ky + offy);  // rechts anfang
+    cmd += s;
+
+    for (int q = 1; q <= fullwind; q++) {
+      sprintf( s, ";WIRE (%.4f %.4f) (%.4f %.4f)\n",      // right start
+                          kx1 + radius + offx, 0.0 + offy, kx1 + radius + offx, ky + offy);
+      cmd += s;
+      cmd += ";\nWIRE " + spiral(radius, radius, 0.0, 90.0, degree_resol, kx1 + offx, ky + offy );
+      sprintf( s, ";WIRE (%.4f %.4f) (%.4f %.4f)\n",    // top
+                          kx1 + offx, ky + radius + offy, kx2 + offx, ky + radius + offy);
+      cmd += s;
+      cmd += ";\nWIRE " + spiral(radius, radius, 90.0, 180.0, degree_resol, kx2 + offx, ky + offy );
+      sprintf( s, ";WIRE (%.4f %.4f) (%.4f %.4f)\n",    // left
+                          kx2 - radius + offx, ky + offy, kx2 - radius + offx, -ky + offy);
+      cmd += s;
+      cmd += ";\nWIRE " + spiral(radius, radius, 180.0, 270.0, degree_resol, kx2 + offx, -ky + offy );
+      sprintf( s, ";WIRE (%.4f %.4f) (%.4f %.4f)\n",    // bottom
+                          kx2 + offx, -ky - radius + offy, kx1 + Ndist + offx, -ky - radius + offy);
+      cmd += s;
+      cmd += ";\nWIRE " + spiral(radius, radius, 270.0, 360.0, degree_resol, kx1 + Ndist + offx, -ky + offy );
+      sprintf( s, ";WIRE (%.4f %.4f) (%.4f %.4f)\n",    // right end
+                          kx1 + radius + Ndist + offx, -ky + offy, kx1 + radius + Ndist + offx, 0.0 + offy );
+      cmd += s;
+      radius += Ndist;
+    }
+    // ****************************************
+    // **** if last wound < 360 degree ********
+    eArc = 360 * lastwind;
+    real lastStartArc = 0;;
+    real lastEndArc = 90.0;
+    real lastPadViaX = kx1;
+    real lastPadViaY = ky;
+    if (eArc) {
+      // *** 0 - 90 degree ********************************************************
+      if (eArc < 90) {
+        lastEndArc = eArc;
+      }
+      sprintf( s, ";\nWIRE (%.4f %.4f) (%.4f %.4f)\n",
+                          kx1 + radius + offx, 0.0 + offy, kx1 + radius + offx, ky + offy);               // rechts anfang
+      cmd += s;
+      cmd += ";\nWIRE " + spiral(radius, radius, lastStartArc, lastEndArc, degree_resol, kx1 + offx, ky + offy );
+      // *** 90 - 180 degree ********************************************************
+      if (eArc > 90 ) {
+        lastStartArc = 90;;
+        lastEndArc = 180;
+        lastPadViaX = kx2;
+        lastPadViaY = ky;
+        if (eArc < 180) {
+          lastEndArc = eArc;
+        }
+        sprintf( s, ";\nWIRE (%.4f %.4f) (%.4f %.4f)\n",
+                          kx1 + offx, ky + radius + offy, kx2 + offx, ky + radius + offy);                // oben
+        cmd += s;
+        cmd += ";\nWIRE " + spiral(radius, radius, lastStartArc, lastEndArc, degree_resol, kx2 + offx, ky + offy );
+      }
+      // *** 180 - 270 degree ********************************************************
+      if (eArc > 180) {
+        lastStartArc = 180;;
+        lastEndArc = 270;
+        lastPadViaX = kx2;
+        lastPadViaY = -ky;
+        sprintf( s, ";\nWIRE (%.4f %.4f) (%.4f %.4f)\n",
+                          kx2 - radius + offx, ky + offy, kx2 - radius + offx, -ky + offy);               // links
+        cmd += s;
+        cmd += ";\nWIRE " + spiral(radius, radius, lastStartArc, lastEndArc, degree_resol, kx2 + offx, -ky + offy );
+      }
+      sprintf( s, ";\nWIRE (%.4f %.4f) (%.4f %.4f)\n",
+                          kx2 + offx, -ky - radius + offy, kx1 + Ndist + offx, -ky - radius + offy);      // unten
+
+      // *** 270 - 359.9 degree ********************************************************
+      if (eArc > 270) {
+        lastStartArc = 270;
+        lastEndArc = eArc;
+        lastPadViaX = kx1 + Ndist;
+        lastPadViaY = -ky;
+        cmd += s;
+        cmd += ";\nWIRE " + spiral(radius, radius, lastStartArc, lastEndArc, degree_resol, kx1 + Ndist + offx, -ky + offy );
+      }
+      // *** set PAD/VIA to end of coil ***
+      cmd += xyArc(lastEndArc, radius + PVdiameter / 2 - wireWidth_mm / 2, radius + PVdiameter / 2 - wireWidth_mm / 2, lastPadViaX + offx, lastPadViaY + offy);
+      cmd += solderpoint + xyArc(lastEndArc, radius + PVdiameter / 2 - wireWidth_mm / 2, radius + PVdiameter / 2 - wireWidth_mm / 2, lastPadViaX + offx, lastPadViaY + offy);
+    }
+    // ***********************************************
+    // *** place PAD/VIA to end of full turn coil ****
+    else {
+      sprintf( s, "\n(%.4f %.4f)\n",
+                          kx1 + radius + PVdiameter / 2 - wireWidth_mm / 2  + offx, 0.0 + offy );  // rechts ende
+      cmd += s;
+      sprintf( s, ";\n%s (%.4f %.4f)\n", solderpoint,
+                          kx1 + radius + PVdiameter / 2 - wireWidth_mm / 2 + offx, 0.0 + offy );  // rechts ende
+      cmd += s;
+
+    }
+    // **** Ferrit kernel dimesion ****
+    cmd += dimlayer;
+    cmd += "SET WIRE_BEND 0;\n";
+    sprintf( s, "WIRE 0 (%.4f %.4f) (%.4f %.4f) (%.4f %.4f) (%.4f %.4f) (%.4f %.4f);\n",
+              -ferrit_length_L/2 + offx, -ferrit_length_K/2 + offy,
+               ferrit_length_L/2 + offx, -ferrit_length_K/2 + offy,
+               ferrit_length_L/2 + offx,  ferrit_length_K/2 + offy,
+              -ferrit_length_L/2 + offx,  ferrit_length_K/2 + offy,
+              -ferrit_length_L/2 + offx, -ferrit_length_K/2 + offy );
+    cmd += s;
+    sprintf( s, "WIRE (%.4f %.4f) (%.4f %.4f) (%.4f %.4f);\n",
+              -ferrit_length_L/2 + offx, -ferrit_length_K/2 - distance_h + offy,
+               ferrit_length_L/2 + offx, -ferrit_length_K/2 - distance_h + offy - ferrit_length_K1,
+              -ferrit_length_L/2 + offx, -ferrit_length_K/2 - distance_h + offy );
+    cmd += s;
+    sprintf( s, "WIRE (%.4f %.4f) (%.4f %.4f) (%.4f %.4f);\n",
+               ferrit_length_L/2 + offx,  ferrit_length_K/2 + distance_h + offy,
+              -ferrit_length_L/2 + offx,  ferrit_length_K/2 + distance_h + offy + ferrit_length_K1,
+               ferrit_length_L/2 + offx,  ferrit_length_K/2 + distance_h + offy );
+
+    cmd += s;
+    cmd += "WINDOW FIT;\n";
+  }
+  // **************************************
+  // **** Rounded coil without Ferrit  ****
+  else {
+    cmd += PadViaS( solderpoint, distance_e + Ndist, Ndist, 0, 0, offx, offy);
+    if (wireWidth_mm < PVdiameter) {
+       cmd += PadViaS( ";WIRE ", distance_e + Ndist, Ndist, 0, 0, offx, offy);
+    }
+    else cmd += ";WIRE ";
+    // *** full turns ***
+    sArc = startarc;
+    eArc = endarc;
+    degree_resol = 90 / arcresolution ;     // *** ° angle-resolution
+    for (int x = 1; x <= fullwind; x++) {
+      cmd += spiral( startRadius, endRadius, sArc, eArc, degree_resol, offx, offy ) + ";WIRE ";
+      startRadius = endRadius;
+      endRadius = startRadius + Ndist;
+    }
+    // *** last turn < 360 degtee ***
+    eArc = 360 * lastwind;
+    if (eArc) {
+      endRadius = startRadius + Ndist * lastwind;
+      cmd += spiral( startRadius, endRadius, sArc, eArc, degree_resol, offx, offy );
+    }
+    if (!lastwind) endRadius -= Ndist;
+    cmd += ";WIRE " + xyArc(eArc, endRadius, endRadius, offx, offy);
+    cmd += xyArc(eArc, endRadius + PVdiameter / 2 - wireWidth_mm / 2, endRadius + PVdiameter / 2 - wireWidth_mm / 2, offx, offy);
+    cmd += solderpoint + xyArc(eArc, endRadius + PVdiameter / 2 - wireWidth_mm / 2, endRadius + PVdiameter / 2 - wireWidth_mm / 2, offx, offy);
+  }
+  sprintf( s, ";\nWIN (%.3f %.3f);\n", offx, offy);
+  cmd += s;
+  output(file, "wtD") printf("%s", cmd);
+  sprintf(cmd, "SCRIPT '%s';", file);
+  exit (cmd);
+}
+
+// *** calculate turns ***
+real calcturn(int sw) {
+  real turn = (distance_h - 2*distance_e - wireWidth_mm) / (wireWidth_mm + wireDistance_mm) + 1;
+  real full = trunc(turn);
+  real partial = turn - full;
+  if(sw) {
+    if (partial > 0.0001) {
+      turn = full + 1;
+    }
+  }
+  return turn;
+}
+
+
+// **** calculatings ***********************
+void calculates(int cf) {
+  switch (cf) {
+    case 0 : n = calcturn(fullturn);
+             break;
+
+    case 1 : wireWidth_mm = (distance_h - 2 * distance_e - wireDistance_mm * (n-1)) / n;
+             break;
+
+    case 2 : wireDistance_mm = (distance_h - 2 * distance_e - wireWidth_mm * n) / (n-1);
+             break;
+
+    case 3 : distance_h = 2 * distance_e + wireWidth_mm + ((wireWidth_mm + wireDistance_mm) * (n-1));
+             break;
+  }
+  return;
+}
+
+real check_calculates(int cf) {
+  real cw;
+  switch (cf) {
+    case 0 : cw = calcturn(fullturn);
+             break;
+
+    case 1 : cw = (distance_h - 2 * distance_e - wireDistance_mm * (n-1)) / n;
+             break;
+
+    case 2 : cw = (distance_h - 2 * distance_e - wireWidth_mm * n) / (n-1);
+             break;
+
+    case 3 : cw = 2 * distance_e + wireWidth_mm + ((wireWidth_mm + wireDistance_mm) * (n-1));
+             break;
+  }
+  return cw;
+}
+
+void set_spiral(void) {
+  ferrit_old_L  = ferrit_length_L;
+  ferrit_old_K  = ferrit_length_K;
+  ferrit_old_K1 = ferrit_length_K1;
+  ferrit_length_K1 = ferrit_length_K = ferrit_length_L = 0;
+  Spiral_H = "<img src=\"print-spiral.bmp\">";
+  return;
+}
+
+void set_inductor(void) {
+  ferrit_length_L = ferrit_old_L;
+  ferrit_length_K = ferrit_old_K;
+  ferrit_length_K1 = ferrit_old_K1;
+  Spiral_H = "<img src=\"print-inductor-ulp.bmp\">";
+  return;
+}
+
+
+// *** main ***
+if (board) {
+  LoadConfigSettings();
+  board(B) file = filesetext(B.name, ".scr");
+  solderpoint = ";\nVIA ";
+}
+else if (package) {
+  LoadConfigSettings();
+  library(L) file = filesetext(L.name, ".scr");
+  solderpoint = ";\nPAD ";
+}
+else {
+  dlgMessageBox("Start this ULP in a Board- or Package-Editor!", "OK");
+  exit(0);
+}
+
+if (!ferrit_length_K && !ferrit_length_L) set_spiral();
+
+// ************ DIALOG ********************************
+dlgDialog(filename(argv[0])) {
+  dlgHBoxLayout {
+    dlgVBoxLayout {
+      dlgLabel("<nobr> All measures in <b>mm</b> </nobr>");
+      dlgLabel(Spiral_H, 1);
+      dlgHBoxLayout {
+        dlgPushButton("with Fe&rrit") set_inductor();
+        dlgPushButton("only S&piral") set_spiral();
+        dlgSpacing(12);
+        dlgGroup("UNDO Buffer") {
+          dlgHBoxLayout {
+            dlgRadioButton(" Off", undo_off_on);       // UNDO Buffer off/on
+            dlgRadioButton(" On", undo_off_on);        // UNDO Buffer off/on
+          }
+        }
+        dlgStretch(1);
+      }
+      dlgStretch(1);
+    }
+    dlgVBoxLayout {
+      dlgGridLayout {
+        dlgCell(1, 2) dlgLabel("Arc resolution");
+        dlgCell(2, 1) dlgLabel("Steps at &90°");                    // Step at 90 Degree
+        dlgCell(2, 2) dlgIntEdit(arcresolution, 1, 90);
+
+        dlgCell(3, 1) dlgSpacing(10);
+
+        dlgCell(4, 1) dlgLabel("Tur&ns");                           // number of turns (Wound)
+        dlgCell(4, 2) dlgRealEdit(n, 1.0, 100.0);
+
+        dlgCell(5, 1) dlgLabel("Width '&w'");                       // track width
+        dlgCell(5, 2) dlgRealEdit(wireWidth_mm, 0.01, 25.0);
+
+        dlgCell(6, 1) dlgLabel("Distance '&d'");                    // track distance
+        dlgCell(6, 2) dlgRealEdit(wireDistance_mm, 0.0, 25.0);
+
+        dlgCell(7, 1) dlgSpacing(10);
+
+        dlgCell(8, 1) dlgLabel("Distance '&e'");                  // distance between ferrit kernel an wound
+        dlgCell(8, 2) dlgRealEdit(distance_e, 0.0, 25.0);
+
+        dlgCell(9, 1) dlgLabel("Via/Pad Dia&meter");              // pad/via diameter
+        dlgCell(9, 2) dlgRealEdit(PVdiameter, 0.01, 10.0);
+        dlgCell(10, 1) dlgLabel("&Via/Pad Drill");                 // drill diameter
+        dlgCell(10, 2) dlgRealEdit(PVdrill, 0.05, 10.0);
+        dlgCell(11, 1) dlgLabel("L&ayer");                         // Layer number
+        dlgCell(11, 2) dlgIntEdit(Layer, 1, 255);
+
+        dlgCell(13, 1) dlgSpacing(8);
+
+        dlgCell(14, 2) dlgLabel("Ferrit");
+
+        dlgCell(15, 1) dlgLabel("Distance '&h'");                  // distance between ferrit kernel
+        dlgCell(15, 2) dlgRealEdit(distance_h, 0.0, 25.0);
+
+        dlgCell(16, 1) dlgLabel("Length '&L'");                    // Ferrit lenth
+        dlgCell(16, 2) dlgRealEdit(ferrit_length_L, 0.0, 200.0);
+
+        dlgCell(17, 1) dlgLabel("Width '&K'");                    // Ferrit width
+        dlgCell(17, 2) dlgRealEdit(ferrit_length_K, 0.0, 200.0);
+
+        dlgCell(18, 1) dlgLabel("Width 'K&1'");                    // Ferrit width
+        dlgCell(18, 2) dlgRealEdit(ferrit_length_K1, 0.0, 200.0);
+
+        dlgCell(19, 2) dlgLabel("Center/offset");
+
+        dlgCell(20, 1) dlgLabel("&X");                      // place with offset X
+        dlgCell(20, 2) dlgRealEdit( offx, -800.0, 800.0 );
+        dlgCell(21, 1) dlgLabel("&Y");                      // place with offset Y
+        dlgCell(21, 2) dlgRealEdit( offy, -800.0, 800.0 );
+
+      }
+    dlgStretch(1);
+    }
+    dlgSpacing(8);
+    dlgVBoxLayout {
+      dlgSpacing(10);
+      dlgGroup("Calculate") {
+        // dlgSpacing(2);
+        dlgCheckBox("&Full turns", fullturn);         // calculate full turns
+        // dlgSpacing(2);
+        dlgRadioButton("T&urns",  cflag);
+        dlgSpacing(4);
+        dlgRadioButton("W&idth",  cflag);
+        dlgSpacing(4);
+        dlgRadioButton("Di&st. d", cflag);
+        dlgSpacing(130);
+        dlgRadioButton("Dis&t. h", cflag);
+        dlgSpacing(16);
+        dlgPushButton("&Calculate") calculates(cflag);
+      }
+
+      dlgStretch(1);
+    }
+  }
+  dlgHBoxLayout {
+    dlgPushButton("OK") {
+      int ok = 1;
+      if (PVdiameter > wireWidth_mm + wireDistance_mm + distance_e) {
+        sprintf(s, "<qt><nobr>Invalid Parameter: <img src=statistic_attention_min_value.bmp><p>Pad/Via-Diameter %.f mm > Distance '<b>e</b>' + '<b>w</b>' + '<b>d</b>' %.f mm</qt>",
+                    PVdiameter, wireWidth_mm + wireDistance_mm + distance_e);
+        dlgMessageBox(s, "OK");
+        ok = 0;
+      }
+      if (PVdrill > wireWidth_mm + wireDistance_mm + distance_e) {
+        sprintf(s, "<qt><nobr>Invalid Parameter: <img src=statistic_attention_min_value.bmp><p>Pad/Via-Drill %.f mm > Distance '<b>e</b>' + '<b>w</b>' + '<b>d</b>' %.f mm</qt>",
+                    PVdrill, wireWidth_mm + wireDistance_mm + distance_e);
+        dlgMessageBox(s, "OK");
+        ok = 0;
+      }
+
+      if (ferrit_length_L && ferrit_length_K) {
+        ok = 0;
+        if (distance_h) {
+          real check_h = (distance_e * 2 + wireWidth_mm * calcturn(1) + wireDistance_mm * (calcturn(1)-1) );
+          real check_diff = distance_h - check_h;
+          if (check_diff  < -0.0001) {
+            sprintf(s, "<qt><nobr><img src=statistic_attention_min_value.bmp> Invalid Parameter: <p><hr >%.4f mm 'e' + ('d'+'w'*n)<br>%.4f mm distance 'h'<p><b>%.4f</b> mm difference at <b>%.f full turns</b> (%.1f turns)</qt>",
+                        check_h, distance_h, check_diff, calcturn(1), n );
+            if (dlgMessageBox(s, "Cancel", "Accept" ) == 0);
+            else ok = 1;
+          }
+          else {
+            ok = 1;
+          }
+        }
+        if (distance_h < check_calculates(3)) {
+          sprintf(s, "<qt><nobr>Invalid Parameter: <img src=statistic_attention_min_value.bmp><p>More turns as distance h, (check Calculate)/qt>");
+          dlgMessageBox(s, "OK");
+          ok = 0;
+        }
+      }
+
+      if (ok) {
+        if (!ferrit_length_L || !ferrit_length_K) ferrit_length_L = ferrit_length_K = 0;
+        dlgAccept();
+        degree_resol = turn_degree / arcresolution;
+        doit();
+      }
+    }
+    dlgStretch(0);
+    dlgPushButton("-Cancel") { dlgReject(); exit(0); }
+    dlgStretch(1);
+    dlgPushButton("Inf&o") dlgMessageBox(Help, "Ok");
+  }
+};

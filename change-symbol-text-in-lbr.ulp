@@ -1,0 +1,99 @@
+#usage "<b>Change lib symbol name/value text sizes</b>\n"
+       "<p>This script loops through all symbols in a library and changes the text size and ratio to new user specified values.<p>"
+       "<author>Author: http://www.bobstarr.net</author>"
+
+string ulp_path = "";
+string script_change = "";
+
+int Result = 0;
+string grid = "GRID MIL FINEST;\n";
+
+// new text sizes/ratios in mils
+
+real tNamesSize    = 70;
+int  tNamesRatio   = 8;
+
+real tValuesSize   = 70;
+int  tValuesRatio  = 8;
+
+void DoSymbol(UL_SYMBOL S) {
+
+    real dx, dy;
+
+    S.texts(T) {
+        dx = u2mil(T.x);
+        dy = u2mil(T.y);
+        if (T.layer == 95) {
+            // Change Names layer text
+	    printf("CHANGE SIZE %.3f (%.3f %.3f);\n", tNamesSize, dx, dy);
+            printf("CHANGE RATIO %d (%.3f %.3f);\n", tNamesRatio, dx, dy);
+        } else if (T.layer == 96) {
+            // Change Values layer text
+	    printf("CHANGE SIZE %.3f (%.3f %.3f);\n", tValuesSize, dx, dy);
+            printf("CHANGE RATIO %d (%.3f %.3f);\n", tValuesRatio, dx, dy);
+        }
+    }
+}
+
+
+void menue(void) {
+   int err = 0;
+   int newWidth;
+   int minLimit = 0;
+   int maxLimit = 0;
+
+   dlgDialog("Change Symbol Text Sizes/Ratios") {
+      //dlgStretch(1)
+         dlgGroup("Names Text") {
+            dlgHBoxLayout {   dlgLabel("New size (2-100 mils) :\t"); dlgRealEdit(tNamesSize, 10.0, 100.0);   }
+            dlgHBoxLayout {   dlgLabel("New ratio  (8-20%) :\t"); dlgIntEdit(tNamesRatio, 8, 20);   }
+         }
+         dlgGroup("Values Text") {
+            dlgHBoxLayout {   dlgLabel("New size (2-100 mils) :\t"); dlgRealEdit(tValuesSize, 10.0, 100.0);   }
+            dlgHBoxLayout {   dlgLabel("New ratio (8-20%) :\t"); dlgIntEdit(tValuesRatio, 8, 20);   }
+         }
+      //dlgStretch(1);
+      dlgPushButton("+&OK") { dlgAccept(); return; }
+      dlgPushButton("-&Cancel") { dlgReject(); exit (0);}
+   };
+}
+
+if (library) {
+   char bkslash = '/';
+   int pos = strrchr(argv[0], bkslash);
+   if (pos >= 0) {
+      ulp_path = strsub(argv[0], 0, pos + 1);
+   }
+   int n = 0;
+   library(L) {
+   int posb = strrchr(argv[0], bkslash);
+   if (posb >= 0) {
+      ulp_path = strsub(argv[0], 0, posb + 1);
+   }
+
+   menue();
+
+   script_change = filesetext(L.name, "~~~.scr");
+
+   output(script_change, "wtD") {
+      printf("DISPLAY 95 96;\n");
+      int firstf = 1;
+      L.symbols(S) {
+         printf("EDIT %s.SYM;\n", S.name);
+         if (firstf) {
+           printf("%s",grid);
+           firstf = 0;
+         }
+
+         DoSymbol(S);
+      }
+
+      printf("GRID DEFAULT;\n");
+      printf("write;\n");
+   }
+   }
+  exit ("SCRIPT '" + script_change + "';\n");
+} else {
+   dlgMessageBox("\n*** Start this ULP in a Library ***\n");
+   exit (0);
+}

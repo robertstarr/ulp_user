@@ -1,0 +1,215 @@
+#usage "en: <qt>This ULP generates the CONNECT list for a new Device, that consists of several Symbols (Gates),<br> "
+       "which have been extracted from one big Symbol by GROUP; CUT; and PASTE.</nobr><p> "
+       "Example:<br> "
+       "It is possible to generate a Device with Symbol and Package from a BSDL file or text file (spreadsheet) with "
+       "the help of <i>RUN make-symbol-device-package-bsdl</i>. In cases where the Symbol becomes too big, due to the "
+       "number of pins, and it does not fit onto a single schematic sheet, you can divide into several smaller Symbols with "
+       "the commands GROUP, CUT, EDIT xx.sym, PASTE ...., and adopt the Connect list from the 'original Device'.<p> "
+       "Please note:<br> "
+       "There must not be pins with same names. So it is not possible to use this ULP for Devices that consist of "
+       "identical Symbols (gates like NAND or OP-AMP..). "
+       "<p>"
+       "<author>librarian@cadsoft.de</author></qt>"
+       ,
+       "de: <qt><nobr>Dieses ULP erstellt die CONNECT-Liste für ein neues Device, das aus mehreren Symbolen (Gates) besteht,<br> "
+       "die wiederum durch GROUP; CUT; und PASTE aus einem großen Symbol erstellt wurden.<p></nobr>"
+       "Beispiel:<br>"
+       "Mit <i>RUN make-symbol-device-package-bsdl</i> kann mit einer BSDL- oder Textdatei (Tabelle) ein Device mit Symbol "
+       "und Package generiert werden. In den Fällen, in denen das Symbol durch die Anzahl der Pins zu groß wird, "
+       "um es im Schaltplan auf eine Seite zu platzieren, kann mit GROUP - CUT - EDIT xx.sym - PASTE .... das Symbol in "
+       "mehrere kleinere Symbole aufgeteilt werden und mit Hilfe dieses ULPs die Connect-Liste vom 'Original-Device' übernommen werden.<p>"
+       "ACHTUNG:<br>"
+       "Es dürfen keine Pin-Namen doppelt vorkommen. So ist es z.B. nicht möglich dieses ULP für ein Device, das aus mehreren gleichen "
+       "Symbolen (Gates wie NAND oder OP-AMP) besteht, zu benutzen."
+       "<p>"
+       "<author>librarian@cadsoft.de</author></qt>"
+
+
+
+string Version = "1.0";  // 2006.12.01 alf@cadsoft.de
+
+
+string DeviceVariant, Pin_Name[], Pad_Name[];
+string DeviceSet;
+string Device_Sets[];
+string Variant[];
+string Package[];
+string Device_Variant[], Device_Package[];
+int    cntD = 0;
+int    cntConnect = 0;
+
+string actualpackage = " ";
+
+string cmd;
+string DeviceDescription;
+
+string replacenewline(string nl) {
+  string a[];
+  int n = strsplit(a, nl, '\n');
+  if (n > 0) {
+    nl = "";
+    for (int x = 0; x < n - 1; x++) {
+      nl += a[x] + "\\n";
+    }
+    nl += a[x];
+  }
+  return "'" + nl + "'";
+}
+
+
+string checkVariant(string s) {
+  if (s == "''") s = "''''";
+  return s;
+}
+
+
+void getPackage(int x) {
+  actualpackage = Device_Package[x]+".PAC";
+  return;
+}
+
+
+void getVariant(int x) {
+  string p[], v[];
+  int cnt;
+  cnt = strsplit(p, Package[x], ' ');
+  cnt = strsplit(v, Variant[x], ' ');
+  for (int n = 0; n < cnt; n++) {
+    Device_Variant[n] = v[n];
+    Device_Package[n] = p[n];
+  }
+  return;
+}
+
+
+string getPadName(string name) {
+  for (int n = 0; n < cntConnect; n++) {
+    if (name == Pin_Name[n]) return Pad_Name[n];
+  }
+  return "";
+}
+
+
+if (library) {
+  string file;
+  if (deviceset) {
+    deviceset(DEV) {
+      DeviceSet = DEV.name;
+      DEV.devices(D) {
+        cntConnect = 0;
+        D.gates(G) {
+          G.symbol.pins(P) {
+            cntConnect++;                  // count all pins
+          }
+        }
+      }
+    }
+    if (!cntConnect) {
+      dlgMessageBox("!This Deviceset use no Symbol(s)", "OK");
+      exit(0);
+    }
+
+    int selD = -1;
+    int selV = -1;
+    library(L) {
+      L.devicesets(DEV) {    // collect only devicesets with the same counts of connects as the actual deviceset
+        int cntC;
+        if (DEV.name != DeviceSet) {
+          DEV.devices(D) {
+            cntC = 0;
+            D.gates(G) {
+              G.symbol.pins(P) cntC++;
+            }
+            if (cntC == cntConnect) {
+              Device_Sets[cntD] = DEV.name;
+              Variant[cntD] += D.name + " ";   // Package Variant
+              Package[cntD] += D.package.name + " ";
+            }
+          }
+          if (cntC == cntConnect) cntD++;
+        }
+      }
+      string use_Device;
+      int listsel = 0;
+      do {
+        int RESULT = dlgDialog(filename(argv[0])) {
+          dlgHBoxLayout {
+            dlgLabel(DeviceSet+".DEV");
+            dlgLabel(" Variant:"+DeviceVariant);
+          }
+          dlgSpacing(8);
+
+          dlgHBoxLayout {
+            dlgGridLayout {
+              dlgCell(0,  1) dlgLabel("Select a &Device\nto get Connect list");
+              dlgCell(1,  1) dlgListView("DeviceSet", Device_Sets, selD, listsel) { getVariant(selD); actualpackage = " "; }
+              dlgCell(0,  2) dlgLabel("Select a Package &Variant") ;
+              dlgCell(1,  2) dlgListView("Variant", Device_Variant, selV) getPackage(selV);
+              dlgCell(2,  2) dlgLabel(actualpackage, 1);
+            }
+            dlgStretch(1);
+          }
+          dlgHBoxLayout {
+            dlgPushButton("+OK") dlgAccept();
+            dlgPushButton("-Cancel") dlgReject();
+            dlgPushButton("&Help") dlgMessageBox(usage);
+          }
+        };
+        if (!RESULT) exit(0);
+
+        if (selD < 0) dlgMessageBox("no device selected!", "OK");
+      } while (selD < 0);
+    }
+    library(L) {
+      file = filesetext(L.name, "~connect.scr");
+      L.devicesets(DEV) {
+        if (DEV.name == Device_Sets[selD]) {
+          DEV.devices(D) {
+            if (D.name == Device_Variant[selV]) {
+              int n = 0;
+              D.gates(G) {
+                G.symbol.pins(P) {
+                  Pin_Name[n] = P.name;
+                  Pad_Name[n] = P.contact.name;
+                  n++;
+                }
+              }
+            }
+          }
+          DeviceDescription = DEV.description;
+        }
+      }
+    }
+    deviceset(DEV) {
+      int variant_not_used = 1;
+      DEV.devices(D) {
+        if (D.name == Device_Variant[selV]) {
+          variant_not_used = 0;
+          dlgMessageBox("This Package-Variant are used, select a unused variant!", "OK");
+          exit(0);
+        }
+      }
+      if (variant_not_used) {
+        output(file, "wtD") {
+          DEV.devices(D) {
+            printf("PACKAGE %s %s;\n", Device_Package[selV], Device_Variant[selV]);
+            D.gates(G) {
+              G.symbol.pins(P) {
+                string pad = getPadName(P.name);
+                if (!pad) dlgMessageBox("No PAD found for "+ P.name +"\nCheck Pinname of Symbols", "OK");
+                printf("CONNECT %s.%s %s;\n", G.name, P.name, pad);
+              }
+            }
+            string t[];
+            printf("DESCRIPTION %s;\n", replacenewline(DeviceDescription+"<br><i>Connect-List generated from </i><b>"+ Device_Sets[selD] +".DEV</b> Variant <b>"+ checkVariant(Device_Variant[selV]) +"</b> with <i><b>"+ filename(argv[0])+"</b></i>"));
+          }
+          printf("WIN FIT;\n");
+        }
+        exit("SCRIPT '"+ file + "';\n");
+      }
+    }
+  }
+  else dlgMessageBox("Open a Device", "OK");
+}
+
+else dlgMessageBox("Start this ULP in a LBR (Device)", "OK");

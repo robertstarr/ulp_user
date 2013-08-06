@@ -1,0 +1,275 @@
+/**************************************************************************************
+This functionGenerateScripts.cul is a subroutine for the CreateSymSMDPackage.ulp
+Do not edit, remove or delete.
+****************************************************************************************/
+
+// Script Functions
+
+// CreateSOP (double sided)
+string createSOP(string pName, int numPins, real pitch, real lgh, real d, real d1, real wPad, real lPad,
+         real padOffs, real linewidth, int roundness, int newPack) {
+   string tString = "", str = "";
+   int ltDocu=51, ltPlace=21, ltNames=25, ltValues=27, k;
+   
+   if(newPack) {
+      sprintf(tString,"%s\nEdit %s.pac;",tString,pName);
+   }
+   sprintf(tString,"%s\nGrid mm;",tString);
+   sprintf(tString,"%s\nSet wire_bend 2;",tString);
+   // description
+   if(!newPack) {
+      package(P) {
+         str=P.description;
+      }
+   } else {
+      str="";
+   }
+   sprintf(tString,"%s\nDescription '<b>%s</b> %s, %.2f mm Pitch<br>\\n%s';",
+      tString,pName,longName(pName,0),pitch,str);
+   
+   // outlines and pin 1 marking
+   sprintf(tString,"%s\nLayer %d;",tString,ltPlace);
+   sprintf(str,"Wire %.4f (%.4f %.4f) (%.4f %.4f) (%.4f %.4f) (%.4f %.4f) (%.4f %.4f);", 
+      linewidth, -(lgh/2-linewidth/2), d1/2-linewidth/2, -(lgh/2-linewidth/2), -(d1/2-linewidth/2),
+      lgh/2-linewidth/2, -(d1/2-linewidth/2), lgh/2-linewidth/2, d1/2-linewidth/2, 
+      -(lgh/2-linewidth/2), d1/2-linewidth/2);
+   sprintf(tString,"%s\n%s",tString,str);
+   if(padOffs <0.1) {
+      sprintf(str,"change layer %d (0 %f);",ltDocu,-(d1/2-linewidth/2));
+      sprintf(tString,"%s\n%s",tString,str);
+      sprintf(str,"change layer %d (0 %f);",ltDocu,(d1/2-linewidth/2));
+      sprintf(tString,"%s\n%s",tString,str);
+      sprintf(tString,"%s\nLayer %d;",tString,ltPlace);
+   }
+   // semicircle
+   sprintf(str,"Arc %.4f cw round (%.4f 0.508) (%.4f -0.508) (%.4f -0.508);",linewidth, 
+      -(lgh/2-linewidth/2),-(lgh/2-linewidth/2),-(lgh/2-linewidth/2));
+   // Alternate a circle above pin 1
+   // sprintf(str,"Circle %.4f (%.4f %.4f) (%.4f %.4f);",linewidth , -(lgh/2-0.75), -(d1/2-0.75), -(lgh/2-0.5), -(d1/2-0.75));
+   sprintf(tString,"%s\n%s",tString,str);
+   
+   // rectangles for pins
+   sprintf(tString,"%s\nLayer %d;",tString,ltDocu);
+   for (k = 1;k<=numPins/2;k++) {
+      if(numPins%4) {
+         // Pin lies on symmetry axis
+         
+         // bottom side
+         sprintf(str,"Rect R0 (%.4f %.4f) (%.4f %.4f);",
+            pitch*(floor(numPins/4)+1-k)+0.8*wPad/2, -d/2, pitch*(floor(numPins/4)+1-k)-0.8*wPad/2, -d1/2);
+         sprintf(tString,"%s\n%s",tString,str);
+         // top side
+         sprintf(str,"Rect R0 (%.4f %.4f) (%.4f %.4f);",
+            pitch*(floor(numPins/4)+1-k)+0.8*wPad/2, d/2, pitch*(floor(numPins/4)+1-k)-0.8*wPad/2, d1/2);
+         sprintf(tString,"%s\n%s",tString,str);
+      } else {
+         // pin lies besides the symmetry axis
+         
+         // bottom side
+         sprintf(str,"Rect R0 (%.4f %.4f) (%.4f %.4f);",
+            pitch*(numPins/4-k)+pitch/2+0.8*wPad/2, -d/2, pitch*(numPins/4-k)+pitch/2-0.8*wPad/2, -d1/2);
+         sprintf(tString,"%s\n%s",tString,str);
+         // top side
+         sprintf(str,"Rect R0 (%.4f %.4f) (%.4f %.4f);",
+            pitch*(numPins/4-k)+pitch/2+0.8*wPad/2, d/2, pitch*(numPins/4-k)+pitch/2-0.8*wPad/2, d1/2);
+         sprintf(tString,"%s\n%s",tString,str);
+      }
+   }
+   
+   // SMD pads
+   for(k = 1;k<=numPins/2;k++){
+      if(numPins%4){
+         // Pin lies on symmetry axis
+         
+         // bottom side
+         if(k==1){
+            sprintf(str,"Smd '%d' %.4f %.4f -%d R0 (%.4f %.4f);",
+               k, wPad, lPad, roundness, -(pitch*(floor(numPins/4)+1-k)), -(d1/2+lPad/2+padOffs));
+         } else {
+            sprintf(str,"Smd '%d' %.4f %.4f -0 R0 (%.4f %.4f);",
+               k, wPad, lPad, -(pitch*(floor(numPins/4)+1-k)), -(d1/2+lPad/2+padOffs));
+         }
+         sprintf(tString,"%s\n%s",tString,str);
+         // top side
+         sprintf(str,"Smd '%d' %.4f %.4f -0 R0 (%.4f %.4f);",
+            k+numPins/2, wPad, lPad, pitch*(floor(numPins/4)+1-k), d1/2+lPad/2+padOffs);
+         sprintf(tString,"%s\n%s",tString,str);
+      } else {
+         // pin lies besides the symmetry axis
+         
+         // bottom side
+         if(k==1) {
+            sprintf(str,"Smd '%d' %.4f %.4f -%d R0 (%.4f %.4f);",
+               k, wPad, lPad, roundness, -(pitch*(numPins/4-k)+pitch/2), -(d1/2+lPad/2+padOffs));
+         } else {
+            sprintf(str,"Smd '%d' %.4f %.4f -0 R0 (%.4f %.4f);",
+               k, wPad, lPad, -(pitch*(numPins/4-k)+pitch/2), -(d1/2+lPad/2+padOffs));
+         }
+         sprintf(tString,"%s\n%s",tString,str);
+         // top side
+         sprintf(str,"Smd '%d' %.4f %.4f -0 R0 (%.4f %.4f);",
+            k+numPins/2, wPad, lPad, pitch*(numPins/4-k)+pitch/2, d1/2+lPad/2+padOffs);
+         sprintf(tString,"%s\n%s",tString,str);
+      }
+   }
+   
+   // place name und value
+   sprintf(tString,"%s\nLayer %d;",tString,ltNames);
+   sprintf(tString,"%s\nChange Size 1.27;",tString);
+   sprintf(tString,"%s\nChange Ratio 12;",tString);
+   sprintf(tString,"%s\nText '>NAME' R90 (%.4f %.4f);",tString, -(lgh/2+0.25),-d1/2 );
+   sprintf(tString,"%s\nLayer %d;",tString,ltValues);
+   sprintf(tString,"%s\nText '>VALUE' R90 (%.4f %.4f);",tString, lgh/2+0.25+linewidth+1.27,-d1/2 );
+   
+   return tString;
+}
+
+// Create QFP (quad sided)
+string createQFP(string pName, int numPins, real pitch, real d, real d1, real wPad, real lPad,
+         real padOffs, real linewidth, int roundness, int newPack) {
+   string tString = "", str = "";
+   int ltDocu=51, ltPlace=21, ltNames=25, ltValues=27, k;
+   
+   if(newPack) {
+      sprintf(tString,"%s\nEdit %s.pac;",tString,pName);
+   }
+   sprintf(tString,"%s\nGrid mm;",tString);
+   sprintf(tString,"%s\nSet wire_bend 2;",tString);
+   // description
+   if(!newPack) {
+      package(P) {
+         str=P.description;
+      }
+   } else {
+      str="";
+   }
+   sprintf(tString,"%s\nDescription '<b>%s</b> %s, %.2f mm Pitch<br>\\n%s';",
+      tString,pName,longName(pName,1),pitch,str);
+   
+   // outlines and pin 1 marking
+   if(padOffs<0.1) {
+      sprintf(tString,"%s\nLayer %d;",tString,ltDocu);
+   } else {
+      sprintf(tString,"%s\nLayer %d;",tString,ltPlace);
+   }
+   sprintf(str,"Wire %.4f (%.4f %.4f) (%.4f %.4f) (%.4f %.4f) (%.4f %.4f) ", //
+      linewidth, -(d1/2-linewidth/2), d1/2-linewidth/2-0.75, -(d1/2-linewidth/2), -(d1/2-linewidth/2-0.25), //
+      -(d1/2-linewidth/2-0.25), -(d1/2-linewidth/2), d1/2-linewidth/2-0.25, -(d1/2-linewidth/2));
+   sprintf(tString,"%s\n%s",tString,str);
+   sprintf(str,"(%.4f %.4f) (%.4f %.4f) (%.4f %.4f) (%.4f %.4f) (%.4f %.4f);", //
+      d1/2-linewidth/2, -(d1/2-linewidth/2-0.25), d1/2-linewidth/2, d1/2-linewidth/2-0.25, //
+      d1/2-linewidth/2-0.25, d1/2-linewidth/2, -(d1/2-linewidth/2-0.75), d1/2-linewidth/2, //
+      -(d1/2-linewidth/2), d1/2-linewidth/2-0.75);
+   sprintf(tString,"%s%s",tString,str);
+   sprintf(tString,"%s\nLayer %d;",tString,ltPlace);
+   sprintf(str,"Circle %.4f (%.4f %.4f) (%.4f %.4f);",linewidth , -(d1/2-1.25), d1/2-1.25, -(d1/2-1), d1/2-1.25);
+   sprintf(tString,"%s\n%s",tString,str);
+   
+   // Rechtecke für Pins
+   sprintf(tString,"%s\nLayer %d;",tString,ltDocu);
+   for (k = 1;k<=numPins/4;k++) {
+      if(numPins%8) {
+         // Pin lies on symmetry axis
+         
+         // left side
+         sprintf(str,"Rect R0 (%.4f %.4f) (%.4f %.4f);",//
+            -d/2, pitch*(floor(numPins/8)+1-k)+0.8*wPad/2, -d1/2, pitch*(floor(numPins/8)+1-k)-0.8*wPad/2);
+         sprintf(tString,"%s\n%s",tString,str);
+         // right side
+         sprintf(str,"Rect R0 (%.4f %.4f) (%.4f %.4f);",//
+            d/2, pitch*(floor(numPins/8)+1-k)+0.8*wPad/2, d1/2, pitch*(floor(numPins/8)+1-k)-0.8*wPad/2);
+         sprintf(tString,"%s\n%s",tString,str);
+         // bottom side
+         sprintf(str,"Rect R0 (%.4f %.4f) (%.4f %.4f);",//
+            pitch*(floor(numPins/8)+1-k)+0.8*wPad/2, -d/2, pitch*(floor(numPins/8)+1-k)-0.8*wPad/2, -d1/2);
+         sprintf(tString,"%s\n%s",tString,str);
+         // top side
+         sprintf(str,"Rect R0 (%.4f %.4f) (%.4f %.4f);",//
+            pitch*(floor(numPins/8)+1-k)+0.8*wPad/2, d/2, pitch*(floor(numPins/8)+1-k)-0.8*wPad/2, d1/2);
+         sprintf(tString,"%s\n%s",tString,str);
+      } else {
+         // pin lies besides the symmetry axis
+         
+         // left side
+         sprintf(str,"Rect R0 (%.4f %.4f) (%.4f %.4f);",//
+            -d/2, pitch*(numPins/8-k)+pitch/2+0.8*wPad/2, -d1/2, pitch*(numPins/8-k)+pitch/2-0.8*wPad/2);
+         sprintf(tString,"%s\n%s",tString,str);
+         // right side
+         sprintf(str,"Rect R0 (%.4f %.4f) (%.4f %.4f);",//
+            d/2, pitch*(numPins/8-k)+pitch/2+0.8*wPad/2, d1/2, pitch*(numPins/8-k)+pitch/2-0.8*wPad/2);
+         sprintf(tString,"%s\n%s",tString,str);
+         // bottom side
+         sprintf(str,"Rect R0 (%.4f %.4f) (%.4f %.4f);",//
+            pitch*(numPins/8-k)+pitch/2+0.8*wPad/2, -d/2, pitch*(numPins/8-k)+pitch/2-0.8*wPad/2, -d1/2);
+         sprintf(tString,"%s\n%s",tString,str);
+         // top side
+         sprintf(str,"Rect R0 (%.4f %.4f) (%.4f %.4f);",//
+            pitch*(numPins/8-k)+pitch/2+0.8*wPad/2, d/2, pitch*(numPins/8-k)+pitch/2-0.8*wPad/2, d1/2);
+         sprintf(tString,"%s\n%s",tString,str);
+      }
+   }
+   
+   // SMD Pads
+   for (k = 1;k<=numPins/4;k++) {
+      if(numPins%8) {
+         // Pin lies on symmetry axis
+         
+         // left side
+         if(k==1) {
+            sprintf(str,"Smd '%d' %.4f %.4f -%d R0 (%.4f %.4f);",//
+               k, lPad, wPad, roundness, -(d1/2+lPad/2+padOffs), pitch*(floor(numPins/8)+1-k));
+         } else {
+            sprintf(str,"Smd '%d' %.4f %.4f -0 R0 (%.4f %.4f);",//
+               k, lPad, wPad, -(d1/2+lPad/2+padOffs), pitch*(floor(numPins/8)+1-k));
+         }
+         sprintf(tString,"%s\n%s",tString,str);
+         // right side
+         sprintf(str,"Smd '%d' %.4f %.4f -0 R0 (%.4f %.4f);",//
+            k+numPins/4*2, lPad, wPad, d1/2+lPad/2+padOffs, -(pitch*(floor(numPins/8)+1-k)));
+         sprintf(tString,"%s\n%s",tString,str);
+         // bottom side
+         sprintf(str,"Smd '%d' %.4f %.4f -0 R0 (%.4f %.4f);",//
+            k+numPins/4*1, wPad, lPad, -(pitch*(floor(numPins/8)+1-k)), -(d1/2+lPad/2+padOffs));
+         sprintf(tString,"%s\n%s",tString,str);
+         // top side
+         sprintf(str,"Smd '%d' %.4f %.4f -0 R0 (%.4f %.4f);",//
+            k+numPins/4*3, wPad, lPad, pitch*(floor(numPins/8)+1-k), d1/2+lPad/2+padOffs);
+         sprintf(tString,"%s\n%s",tString,str);
+      } else {
+         // pin lies besides the symmetry axis
+         
+         // left side
+         if(k==1) {
+            sprintf(str,"Smd '%d' %.4f %.4f -%d R0 (%.4f %.4f);",//
+               k, lPad, wPad, roundness,-(d1/2+lPad/2+padOffs), pitch*(numPins/8-k)+pitch/2);
+         } else {
+            sprintf(str,"Smd '%d' %.4f %.4f -0 R0 (%.4f %.4f);",//
+               k, lPad, wPad, -(d1/2+lPad/2+padOffs), pitch*(numPins/8-k)+pitch/2);
+         }
+         sprintf(tString,"%s\n%s",tString,str);
+         // right side
+         sprintf(str,"Smd '%d' %.4f %.4f -0 R0 (%.4f %.4f);",//
+            k+numPins/4*2, lPad, wPad, d1/2+lPad/2+padOffs, -(pitch*(numPins/8-k)+pitch/2));
+         sprintf(tString,"%s\n%s",tString,str);
+         // bottom side
+         sprintf(str,"Smd '%d' %.4f %.4f -0 R0 (%.4f %.4f);",//
+            k+numPins/4*1, wPad, lPad, -(pitch*(numPins/8-k)+pitch/2), -(d1/2+lPad/2+padOffs));
+         sprintf(tString,"%s\n%s",tString,str);
+         // top side
+         sprintf(str,"Smd '%d' %.4f %.4f -0 R0 (%.4f %.4f);",//
+            k+numPins/4*3, wPad, lPad, pitch*(numPins/8-k)+pitch/2, d1/2+lPad/2+padOffs);
+         sprintf(tString,"%s\n%s",tString,str);
+      }
+   }
+   
+   // place name und value
+   sprintf(tString,"%s\nLayer %d;",tString,ltNames);
+   sprintf(tString,"%s\nChange Size 1.27;",tString);
+   sprintf(tString,"%s\nChange Ratio 12;",tString);
+   sprintf(tString,"%s\nText '>NAME' R0 (%.4f %.4f);",tString, d1/2+0.25,-d/2 );
+   sprintf(tString,"%s\nLayer %d;",tString,ltValues);
+   sprintf(tString,"%s\nText '>VALUE' R0 (%.4f 0);",tString, -d1/2+0.25+linewidth );
+   
+   
+   return tString;
+}

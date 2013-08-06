@@ -1,0 +1,32 @@
+#usage 	"<b>Deletes any empty layers in all libraries in a folder</b><p>\n"
+		"Requires the presence of the ULPs <i>del-empty-lib-layers.ulp</i> and <i>ulpmessage.ulp</i>"
+		"<p>"
+		"Load any library from a library folder and execute this ULP.<br>"
+		"All libraries in that folder will have their unused/empty layers deleted."
+		"<p>"
+		"Credit: Adapted from 'run-loop-all-lbr-script.ulp' (librarian@cadsoft.de)"
+		"<p>"
+		"<author>Author: Warren Brayshaw </author><p><p>"
+
+string a[], cmd;
+//-------- main program --------------------------------------------------
+if  (library) {
+	    library(L) {
+		    string lbr_path = filedir(L.name);
+		    int n = fileglob(a, lbr_path + "*.lbr");
+		    if (n) {
+				for (int xl = 0; xl < n; xl++) {
+					string h;
+					sprintf(h, "OPEN '" + lbr_path + filename(a[xl]) + "';\nRUN del-empty-lib-layers.ulp;\n");
+					cmd += h;
+				}
+		    }
+			cmd += "RUN ulpmessage 'DONE:<p>All libraries in this folder have had empty &quot;User Defined Layers&quot; removed.<p>" + lbr_path + "'";
+        }
+    }
+else dlgMessageBox("Start this ULP from a Library", "OK");
+//dlgMessageBox(cmd);	  
+exit (cmd);
+   
+
+

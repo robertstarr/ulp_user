@@ -1,0 +1,16 @@
+#usage "run setalpha 1 90\n"
+"to set the alpha value of whatever color layer 1 is using to 90\n"
+
+
+int Layer = strtol(argv[1]);
+int Alpha = strtol(argv[2]);
+
+board(B) B.layers(L) {
+   if (L.number == Layer) {
+      int Color = (palette(L.color) & 0x00FFFFFF) | (Alpha << 24);
+      string s;
+      sprintf(s, "SET PALETTE %d 0x%08X;", L.color, Color);
+      exit(s);
+      }
+   }
+

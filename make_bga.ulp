@@ -1,0 +1,240 @@
+#usage "<b>Make A BGA Package</b>\n"
+       "<p>"
+       "Generates a BGA package.."
+       "<p>"
+       "<author>Author: ed@anuff.com</author>"
+
+/*
+ * make_bga.ulp
+ *
+ * Copyright (c) 2004 Ed Anuff <ed@anuff.com>. All Rights Reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *
+*/
+
+string package_file;
+
+string packablelib;
+
+string replaceString(string source, string find, string replace) {
+
+	string result = source;
+	
+	int i = strstr(source, find);
+	if (i > -1) {
+		string head = strsub(source, 0, i);
+		string tail = strsub(source, i + strlen(find));
+		result = head + replace + tail;
+	}
+	
+	return result;
+}
+
+string trimString(string source) {
+
+	string result = source;
+	
+	int head = -1;
+	
+	for (int i = 0; source[i]; i++) {
+		if (!isspace(source[i])) {
+			head = i - 1;
+			break;
+		}
+   	}
+   	
+   	if (head > -1) {
+   		result = strsub(source, head);
+   	}
+	
+	for (i = (strlen(result) - 1); result[i]; i--) {
+		if (!isspace(result[i])) {
+			break;
+		}
+		else {
+			result[i] = 0;
+		}
+   	}
+   	
+ 	return result;
+}
+
+string cleanWhitespace(string text) {
+	string oldtext = "";
+
+	do 
+	{
+		oldtext = text;
+		replaceString(text, "  ", " ");
+	} while (text != oldtext);
+
+	return trimString(text);
+}
+
+string cleanName(string name) {
+
+	name = strupr(name);
+	name = replaceString(name, "_", " ");
+	name = replaceString(name, ".", " ");
+	name = replaceString(name, "(", " ");
+	name = replaceString(name, ")", " ");
+	name = replaceString(name, "/", " ");
+	//name = replaceString(name, "-", " ");
+	name = replaceString(name, "\\", " ");
+
+	name = cleanWhitespace(name);
+	name = replaceString(name, " ", "_");
+
+	return name;
+}
+
+void makeBGAPackage(string package_name, int cols, int rows, real pad, real pitch) {
+	package_file = package_name + "_package.scr";
+
+	packablelib = "EDIT " + package_name + ".pac;\n";
+
+	real col_width = (cols - 1) * pitch; 
+	real row_height = (rows - 1) * pitch; 
+
+	real pads_left = - col_width / 2;
+	real pads_top = row_height / 2;
+
+	real package_width = (cols + 1) * pitch; 
+	real package_height = (rows + 1) * pitch; 
+
+	real left = - package_width / 2;
+	real top = package_height / 2;
+	real right = package_width / 2;
+	real bottom = - package_height / 2;
+
+	real cx = -2.0;
+	real cy = top + 0.5;
+	
+	string pad_x_str;
+	string pad_y_str;
+	string pad_d_str;
+	string left_str;
+	string bottom_str;
+	string top_str;
+	string right_str;
+	string left1_str;
+	string top1_str;
+	string cx_str;
+	string cy_str;
+	string pitch_str;
+
+	sprintf(left_str, "%8f", left);
+	sprintf(bottom_str, "%8f", bottom);
+	sprintf(top_str, "%8f", top);
+	sprintf(right_str, "%8f", right);
+	sprintf(left1_str, "%8f", left + 1);
+	sprintf(top1_str, "%8f", top - 1);
+	sprintf(cx_str, "%8f", cx);
+	sprintf(cy_str, "%8f", cy);
+	sprintf(pitch_str, "%8f", pitch);
+	sprintf(pad_d_str, "%8f", pad);
+
+	packablelib += "LAYER 1;\n";
+	packablelib += "GRID " + pitch_str + " mm;\n";
+
+	for (int y = 0; y < rows; y++) 
+	{
+		for (int x = 0; x < cols; x++) 
+		{
+			int c = y;
+			if (c > 7) c++;
+			if (c > 13) c++;
+			if (c > 15) c++;
+			if (c > 17) c++;
+			
+			string px_str;
+			string py_str;
+			string pad_id;
+			
+			sprintf(px_str, "%8f", pads_left + (x * pitch));
+			sprintf(py_str, "%8f", pads_top - (y * pitch));
+			sprintf(pad_id, "%s%u", "" + (c + 65), x + 1);
+			
+			packablelib += "SMD '" + pad_id + "' " + pad_d_str + " " + pad_d_str + " -100 R0 (" + px_str + " " + py_str + ");\n";
+		}
+	}
+
+	packablelib += "LAYER 21;\n";
+	packablelib += "SET WIRE_BEND 2;\n";
+	packablelib += "WIRE (" + left_str + " " + bottom_str + ") (" + right_str + " " + bottom_str + ") (" + right_str + " " + top_str + ") (" + left1_str + " " + top_str + ") (" + left_str + " " + top1_str + ") (" + left_str + " " + bottom_str + ");\n";
+	packablelib += "LAYER 25;\n";
+	packablelib += "TEXT '>NAME' (" + cx_str + " " + cy_str + ");\n";
+	packablelib += "SET WIRE_BEND 0;\n";
+	packablelib += "LAYER 1;\n";
+	packablelib += "WINDOW FIT;\n";
+	packablelib += "GRID 0.5 mm;\n";
+
+	//output(package_file, "wt") {
+	//	printf("%s", packablelib);
+	//}
+	
+}
+
+int main() {
+	if (!library) {
+		dlgMessageBox(usage + "<hr><b>ERROR: No library!</b><p>\nThis program can only work in the library editor.");
+		return 1;
+	}
+
+	string package_name = "bga256";
+	int rows = 16;
+	int cols = 16;
+	real pitch = .65;
+	real pad = .35;
+	
+	int result = dlgDialog("Enter Parameters") {
+		dlgHBoxLayout {
+			dlgStretch(1);
+			dlgLabel("Make BGA Package");
+			dlgStretch(1);
+		}
+		dlgHBoxLayout {
+			dlgGroup("Dimensions") {
+				dlgLabel("Rows:");
+				dlgIntEdit(rows);
+				dlgLabel("Columns:");
+				dlgIntEdit(cols);
+				dlgLabel("Pitch:");
+				dlgRealEdit(pitch);
+				dlgLabel("Pad size:");
+				dlgRealEdit(pad);
+			}
+		}
+		dlgHBoxLayout {
+			dlgLabel("Package Name:");
+			dlgStringEdit(package_name);
+		}
+		dlgSpacing(10);
+		dlgHBoxLayout {
+			dlgStretch(1);
+			dlgPushButton("+OK")    dlgAccept();
+			dlgPushButton("Cancel") dlgReject();
+		}
+	};
+
+	if (result > 0) {
+		makeBGAPackage(package_name, cols, rows, pad, pitch);
+		exit(packablelib);
+//		dlgMessageBox(";Make BGA Package ULP completed.\n\nScript file created:\n" + package_file + "\n\nTo create the package, run this script from the library editor.", "&Ok");
+	}
+	
+	return 0;
+}

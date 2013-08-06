@@ -1,0 +1,81 @@
+#usage "<b>Change char in symbol pin names</b>\n"
+       "<p>This script loops through all symbols in a library and changes any character in the PIN name to a new character.<p>"
+       "<author>Author: http://www.bobstarr.net</author>"
+
+string ulp_path = "";
+string script_change = "";
+
+string grid = "GRID MIL 100;\n";
+
+int Result = 0;
+
+// new text sizes/ratios in mils
+
+string tFind = "\\";
+string tRepl = "#";
+
+void DoSymbol(UL_SYMBOL S) {
+    string name;
+    S.pins(P) {
+        name = P.name;
+	for (int i=0; name[i]; ++i) {
+           if (name[i] == tFind[0])
+		name[i] = tRepl[0];
+        }
+        printf("NAME '%s' (%f %f);", name, u2mil(P.x), u2mil(P.y));
+    } 
+}
+
+void menue(void) {
+   dlgDialog("Change Pin Name Character") {
+         dlgGroup("Replace Pinname Char") {
+            dlgHBoxLayout { dlgLabel("Find character :\t"); dlgStringEdit(tFind); }
+            dlgHBoxLayout { dlgLabel("Replace with   :\t"); dlgStringEdit(tRepl); }
+         }
+      dlgPushButton("+&OK")     { dlgAccept(); return; }
+      dlgPushButton("-&Cancel") { dlgReject(); exit (0);}
+   };
+}
+
+if (library) {
+   char bkslash = '/';
+   int pos = strrchr(argv[0], bkslash);
+   if (pos >= 0) {
+      ulp_path = strsub(argv[0], 0, pos + 1);
+   }
+   int n = 0;
+   library(L) {
+   int posb = strrchr(argv[0], bkslash);
+   if (posb >= 0) {
+      ulp_path = strsub(argv[0], 0, posb + 1);
+   }
+
+   menue();
+
+   script_change = filesetext(L.name, "~~~.scr");
+
+   output(script_change, "wtD") {
+      printf("DISPLAY 95 96;\n");
+      printf("%s",grid);
+      int firstf = 1;
+
+      if (symbol) symbol(S) {
+         DoSymbol(S);
+      }
+      else
+      {	
+        L.symbols(S) {
+           printf("EDIT %s.SYM;\n", S.name);
+           DoSymbol(S);
+        }
+      }
+
+      //printf("write;\n");
+      printf("GRID DEFAULT;\n");
+   }
+   }
+  exit ("SCRIPT '" + script_change + "';\n");
+} else {
+   dlgMessageBox("\n*** Start this ULP in a Library ***\n");
+   exit (0);
+}

@@ -1,0 +1,43 @@
+#usage "<qt><b>Rename Board Parts with U$ Prefix</b><p>\n"
+       "This ULP renames all package only parts prefixed with U$ to\n"
+       "another name so that the board renumber ULP will work properly "
+       "on arbitrary package only parts present in a board file.\n"
+       "<p>THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND, "
+       "EXPRESSED OR IMPLIED.<p>\n"
+       "<author>Author: http://www.bobstarr.net</author></qt>"
+
+#require 4.1106
+
+string Version = "Version 1.0.0";
+
+string fname = "";
+
+// main
+if (board)
+{
+    board(B)
+    {
+        int n;
+        fname = filesetext(B.name, "_rename_udollar.scr");
+        output(fname, "wtD")
+        {
+            B.elements(E) {
+                int cont = 0;
+                E.package.contacts(C){
+                    cont = 1;
+                }
+                if (!cont) {
+                    if (strstr(E.name, "U$") == 0)
+                    {
+                        printf("NAME '%s' 'FEATURE%s';\n", E.name, strsub(E.name, 2));
+                    }
+                }
+            }
+        }
+    }
+    //exit;   // ("script '" + fname + "';\n");
+}
+else 
+{
+    dlgMessageBox("Start this  ULP from a Board", "OK");
+}
