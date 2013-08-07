@@ -162,6 +162,8 @@
 // 1.51 MB   06/21/13 Added option to override and include DNP parts in
 //                    the part order files.
 //                    
+// 1.52 MB   07/06/13 Fixed case sensitivity for attribute names when
+//                    collecting the known part attribute names at startup.
 //////////////////////////////////////////////////////////////////////////////
 //
 // THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
@@ -298,7 +300,7 @@ string HelpTextEN =
 //////////////////////////////////////////////////////////////////////////////
 //
 
-string strVersion = "1.51";
+string strVersion = "1.52";
 
 int nPartCount;
 
@@ -513,49 +515,53 @@ void CollectPartData(void)
 
                     P.attributes(A)
                     {
-                        if ((A.name == "PARTNUM") || (A.name == "PARTNO") || (A.name == "PN"))
+                        // Get the attribute name and value in upper case
+                        string aname  = strupr(A.name);
+                        string avalue = strupr(A.value);
+                        
+                        if ((aname == "PARTNUM") || (aname == "PARTNO") || (aname == "PN"))
                         {
-                            //if (strPartNumAttrName != A.name)
-                            //    strPartNumAttrName = A.name;
+                            //if (strPartNumAttrName != aname)
+                            //    strPartNumAttrName = aname;
 
                             // trim any leading/trailing white space from part number
-                            partnum = TrimWhiteSpace(A.value);
+                            partnum = TrimWhiteSpace(avalue);
 
                             // set to nullkey if empty PARTNO attribute
                             if (partnum == "")
                                 partnum = nullKey;
                         }
-                        else if (A.name == "VALUE")
+                        else if (aname == "VALUE")
                         {
                             // Attribute VALUE overrides native value
-                            if (strlen(A.value))
-                                val = A.value;
+                            if (strlen(avalue))
+                                val = avalue;
                         }
-                        else if (A.name == "BOM")
+                        else if (aname == "BOM")
                         {
                             // Exclude part from BOM?
-                            if (A.value == "EXCLUDE")
+                            if (avalue == "EXCLUDE")
                                 exclude = 1;
                         }
-                        else if (A.name == "DNP")
+                        else if (aname == "DNP")
                         {
                             // Exclude part from BOM?
-                            if (A.value == "T")
+                            if (avalue == "T")
                                 dnp = 1;
                         }
-                        else if (A.name == "QTY")
+                        else if (aname == "QTY")
                         {
                             // Exclude part from BOM?
                             qty = strtol(A.value);
                         }
-                        else if (A.name == "DESC")
+                        else if (aname == "DESC")
                         {
                             // Part description override (mainly for BOM-ENTRY devices)
                             desc = TrimWhiteSpace(A.value);
                         }
                         else
                         {
-                            if (IsKnownAttribute(A.name))
+                            if (IsKnownAttribute(aname))
                             {
                                 if (strlen(attrs))
                                     attrs += "/";
@@ -3512,7 +3518,7 @@ else
 
         SCH.attributes(A)
         {
-            if (A.name == "DATABASE")
+            if (strupr(A.name) == "DATABASE")
             {
                 string fname = A.value;
                 if (fname[0] == '.')
