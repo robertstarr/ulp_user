@@ -519,7 +519,7 @@ void CollectPartData(void)
                         string aname  = strupr(A.name);
                         string avalue = strupr(A.value);
                         
-                        if ((aname == "PARTNUM") || (aname == "PARTNO") || (aname == "PN"))
+                        if ((aname == "PARTNUM") || (aname == "PARTNO") || (aname == "PN") || (aname == "MPN"))
                         {
                             //if (strPartNumAttrName != aname)
                             //    strPartNumAttrName = aname;
