@@ -221,5 +221,5 @@ pip-log.txt
 # SCR and backup files 
 *.scr
 *.bak
-
+*.cfg
 
