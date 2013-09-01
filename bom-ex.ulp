@@ -154,16 +154,19 @@
 //                    
 // 1.48 MB   07/19/12 Added filtering for pick part dialog.
 //
-// 1.49 MB   08/05/12 Remove database create/edit features. Databases files
+// 1.49 RES  08/05/12 Remove database create/edit features. Databases files
 //                    should be edited externally with a spreadsheet.
 //
-// 1.50 MB   02/22/13 Added package check scanning feature.
+// 1.50 RES  02/22/13 Added package check scanning feature.
 //
-// 1.51 MB   06/21/13 Added option to override and include DNP parts in
+// 1.51 RES  06/21/13 Added option to override and include DNP parts in
 //                    the part order files.
 //                    
-// 1.52 MB   07/06/13 Fixed case sensitivity for attribute names when
+// 1.52 RES  07/06/13 Fixed case sensitivity for attribute names when
 //                    collecting the known part attribute names at startup.
+//
+// 1.53 RES  02/22/13 Added package check scanning feature.
+//
 //////////////////////////////////////////////////////////////////////////////
 //
 // THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
@@ -173,7 +176,7 @@
 
 #require 5.1000
 
-#usage "en: <b>Export a Bill Of Material</b> - v1.49\n"
+#usage "en: <b>Export a Bill Of Material</b> - v1.53\n"
            "<p>"
            "Generates a project's <i>Bill Of Material</i>."
            "<p>"
@@ -300,7 +303,7 @@ string HelpTextEN =
 //////////////////////////////////////////////////////////////////////////////
 //
 
-string strVersion = "1.52";
+string strVersion = "1.53";
 
 int nPartCount;
 
@@ -1626,7 +1629,7 @@ int GetDatabaseColumn(string colname)
 }
 
 //////////////////////////////////////////////////////////////////////////////
-// Package Checking Functions
+// Package and Value Checking Functions
 
 void PackageCheck()
 {
@@ -1765,6 +1768,67 @@ void PackageList()
                     dlgLabel(temp, 1);
                     dlgStretch(1);
                 }
+                dlgPushButton("-Close")  dlgReject();
+            }
+        };
+    }
+}
+
+void ValueCheck()
+{
+    int result = 0;
+    int nsel = 0;
+    int count = 0;
+    int good = 0;
+    
+    numeric string ValueView[];
+        
+    if (Database[0])
+    {
+        string temp;
+        sprintf(temp, "Part\tValue\tDescription");
+        ValueView[count++] = temp;
+        
+        for (int i=0; i < nPartCount; i++)
+        {
+            string key  = GetKey(i);
+            string val  = PartVal[i];
+            string desc = BOMDatabaseLookup(key, "Description");
+            
+            // skip if no package specified in database
+            if (val == "" || val == nullKey)
+                continue;
+                
+            // log warning if substring of database package not found in device package name
+            if (strstr(desc, val) >= 0)
+            {
+                ++good;
+                continue;
+            }
+
+            // Otherwise issue a possible value warning for the part
+            sprintf(temp, "%s\t%s\t%s", PartName[i], val, desc);
+            ValueView[count++] = temp;
+        }
+
+        result = dlgDialog("Part Value Checker")
+        {
+            dlgHBoxLayout dlgSpacing(600);
+            {
+                dlgListView("", ValueView, nsel)
+                {
+                }
+            }
+            dlgHBoxLayout
+            {
+                --count;
+                string temp;
+                if (!count)
+                    sprintf(temp, "%d part values checked, no value conflicts detected!", good); 
+                else
+                    sprintf(temp, "WARNING: %d part values not found in description text!", count); 
+                dlgLabel(temp, 1);
+                dlgStretch(1);
                 dlgPushButton("-Close")  dlgReject();
             }
         };
@@ -3383,6 +3447,32 @@ void SaveConfigSettings()
     }
 }
 
+int ToolsDialog()
+{
+    int result = dlgDialog("BOM-EX Tools")
+    {
+        dlgHBoxLayout dlgSpacing(200);
+        
+        dlgVBoxLayout
+        {
+            dlgGroup("Tools")
+            {
+                dlgPushButton("Verify all Part Values") ValueCheck();
+                dlgPushButton("Verify all Package Codes") PackageCheck();
+                dlgPushButton("List all Package Codes") PackageList();
+                dlgPushButton("&Import Part Numberss") ImportPartNums();
+            }
+        }
+
+        dlgVBoxLayout
+        {
+            dlgPushButton("-Close") dlgReject();
+        }
+    };
+
+    return result;
+}
+    
 // MAIN SCRIPT EXECUTION ENTRY POINT //////////////////////////////
 
 int AppDialog()
@@ -3456,27 +3546,25 @@ int AppDialog()
             {
                 dlgVBoxLayout
                 {
-                    dlgPushButton("Package Check") PackageCheck();
-                    dlgPushButton("Package List") PackageList();
-                }
-                dlgVBoxLayout
-                {
-                    dlgPushButton("A&ssign Part#") EditPartSet();
+                    dlgPushButton("Tools") ToolsDialog();
                     dlgPushButton("&Previe&w") ViewList();                
                 }
                 dlgVBoxLayout
                 {
-                    dlgPushButton("&Clear Part#") ClearPartNumberSet();
+                }
+                dlgVBoxLayout
+                {
+                    dlgPushButton("A&ssign Part#") EditPartSet();
                     dlgPushButton("&Save BOM") SaveBOM();
                 }
                 dlgVBoxLayout
                 {
-                    dlgPushButton("C&lear All Part#s") ClearAllPartNumbers();
+                    dlgPushButton("&Clear Part#") ClearPartNumberSet();
                     dlgPushButton("E&xport BOM") ExportBOM();
                 }
                 dlgVBoxLayout
                 {
-                    dlgPushButton("&Import Part#s") ImportPartNums();
+                    dlgPushButton("C&lear All Part#s") ClearAllPartNumbers();
                     dlgPushButton("Sa&ve Script") SaveScriptData();
                 }
                 dlgVBoxLayout
