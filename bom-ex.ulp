@@ -1798,9 +1798,15 @@ void ValueCheck()
             // skip if no package specified in database
             if (val == "" || val == nullKey)
                 continue;
-                
+
+            // If the part value and part number match, we can
+            // safely assume it's not a part with a real "value"
+            // like a resistor, cap, diode, etc.
+            if (val == PartNum[i])
+                continue;
+        
             // log warning if substring of database package not found in device package name
-            if (strstr(desc, val) >= 0)
+            if (strstr(strupr(desc), strupr(val)) >= 0)
             {
                 ++good;
                 continue;
@@ -1826,7 +1832,7 @@ void ValueCheck()
                 if (!count)
                     sprintf(temp, "%d part values checked, no value conflicts detected!", good); 
                 else
-                    sprintf(temp, "WARNING: %d part values not found in description text!", count); 
+                    sprintf(temp, "WARNING: %d possible part value conflicts found!", count); 
                 dlgLabel(temp, 1);
                 dlgStretch(1);
                 dlgPushButton("-Close")  dlgReject();
