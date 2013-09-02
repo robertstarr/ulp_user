@@ -3455,27 +3455,41 @@ void SaveConfigSettings()
 
 int ToolsDialog()
 {
-    int result = dlgDialog("BOM-EX Tools")
+    int result = dlgDialog("BOM Tools")
     {
         dlgHBoxLayout dlgSpacing(200);
-        
         dlgVBoxLayout
         {
-            dlgGroup("Tools")
+            dlgGroup("BOM Tools")
             {
-                dlgPushButton("Verify all Part Values") ValueCheck();
-                dlgPushButton("Verify all Package Codes") PackageCheck();
-                dlgPushButton("List all Package Codes") PackageList();
-                dlgPushButton("&Import Part Numberss") ImportPartNums();
+                dlgPushButton("Verify all Part Values") dlgAccept(1);   //ValueCheck();
+                dlgPushButton("Verify all Package Codes") dlgAccept(2); // PackageCheck();
+                dlgPushButton("List all Package Codes") dlgAccept(3);   //PackageList();
+                dlgPushButton("&Import Part Numberss") dlgAccept(4);    //ImportPartNums();
             }
         }
-
         dlgVBoxLayout
         {
             dlgPushButton("-Close") dlgReject();
         }
     };
 
+    switch(result)
+    {
+        case 1:
+            ValueCheck();
+            break;
+        case 2:
+            PackageCheck();
+            break;
+        case 3:
+            PackageList();
+            break;
+        case 4:
+            ImportPartNums();
+            break;
+    }            
+        
     return result;
 }
     
