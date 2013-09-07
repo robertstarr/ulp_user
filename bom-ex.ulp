@@ -1796,7 +1796,7 @@ void ValueCheck()
             string desc = BOMDatabaseLookup(key, "Description");
             
             // skip if no package specified in database
-            if (val == "" || val == nullKey)
+            if (desc == "" || val == "" || val == nullKey)
                 continue;
 
             // If the part value and part number match, we can
