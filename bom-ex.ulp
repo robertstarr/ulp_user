@@ -165,7 +165,11 @@
 // 1.52 RES  07/06/13 Fixed case sensitivity for attribute names when
 //                    collecting the known part attribute names at startup.
 //
-// 1.53 RES  02/22/13 Added package check scanning feature.
+// 1.53 RES  07/22/13 Added package check scanning feature.
+//
+// 1.54 RES  09/11/13 Enhanced value checker function to tokenize the value
+//                    value string delimited by a space and search for each 
+//                    token in the part description text.
 //
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -176,7 +180,7 @@
 
 #require 5.1000
 
-#usage "en: <b>Export a Bill Of Material</b> - v1.53\n"
+#usage "en: <b>Export a Bill Of Material</b> - v1.54\n"
            "<p>"
            "Generates a project's <i>Bill Of Material</i>."
            "<p>"
@@ -303,7 +307,7 @@ string HelpTextEN =
 //////////////////////////////////////////////////////////////////////////////
 //
 
-string strVersion = "1.53";
+string strVersion = "1.54";
 
 int nPartCount;
 
@@ -1792,8 +1796,8 @@ void ValueCheck()
         for (int i=0; i < nPartCount; i++)
         {
             string key  = GetKey(i);
-            string val  = PartVal[i];
-            string desc = BOMDatabaseLookup(key, "Description");
+            string val  = strupr(PartVal[i]);
+            string desc = strupr(BOMDatabaseLookup(key, "Description"));
             
             // skip if no package specified in database
             if (desc == "" || val == "" || val == nullKey)
@@ -1804,15 +1808,36 @@ void ValueCheck()
             // like a resistor, cap, diode, etc.
             if (val == PartNum[i])
                 continue;
-        
-            // log warning if substring of database package not found in device package name
-            if (strstr(strupr(desc), strupr(val)) >= 0)
+
+            // If the part value substring is found in the part description,
+            // then assume the value match is good.        
+            if (strstr(desc, val) >= 0)
             {
                 ++good;
                 continue;
             }
 
-            // Otherwise issue a possible value warning for the part
+            // Check part "Values" that are space delimited (eg "1k 1%"), break these
+            // int tokens and search for each token separately.
+            string a[];
+            int token=0;
+            int n = strsplit(a, val, ' ');
+            if (n > 0)
+            {
+                int i;
+                for (i=0; i < n; i++)
+                {
+                    if (strstr(desc, a[i]) >= 0)
+                        ++token;
+                }
+                if (token == n)
+                {
+                    ++good;
+                    continue;
+                }
+            }
+
+            // Otherwise, log a warning if substring of value is found in database part description
             sprintf(temp, "%s\t%s\t%s", PartName[i], val, desc);
             ValueView[count++] = temp;
         }
@@ -1833,13 +1858,14 @@ void ValueCheck()
                     sprintf(temp, "%d part values checked, no value conflicts detected!", good); 
                 else
                     sprintf(temp, "WARNING: %d possible part value conflicts found!", count); 
-                dlgLabel(temp, 1);
+                dlgLabel(temp, 0);
                 dlgStretch(1);
                 dlgPushButton("-Close")  dlgReject();
             }
         };
     }
 }
+
 
 //////////////////////////////////////////////////////////////////////////////
 // Export a generic BOM parts order file for all parts.
