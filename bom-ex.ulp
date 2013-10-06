@@ -171,6 +171,11 @@
 //                    value string delimited by a space and search for each 
 //                    token in the part description text.
 //
+// 1.55 RES  09/24/13 Modified Digikey order file generation to allow sorting
+//                    only by the mfg part number and ignore the PartVal
+//                    to avoid duplicate line items when folks use the part
+//                    value field as a generic catch all.
+//
 //////////////////////////////////////////////////////////////////////////////
 //
 // THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
@@ -180,7 +185,7 @@
 
 #require 5.1000
 
-#usage "en: <b>Export a Bill Of Material</b> - v1.54\n"
+#usage "en: <b>Export a Bill Of Material</b> - v1.55\n"
            "<p>"
            "Generates a project's <i>Bill Of Material</i>."
            "<p>"
@@ -307,7 +312,7 @@ string HelpTextEN =
 //////////////////////////////////////////////////////////////////////////////
 //
 
-string strVersion = "1.54";
+string strVersion = "1.55";
 
 int nPartCount;
 
@@ -326,6 +331,7 @@ numeric string PartValSave[];
 numeric string PartDevChange[];
 
 int Selected = -1;
+int SortCol = 0;
 
 enum { ltParts, ltValues };     // List Types
 enum { ofText, ofTextTabbed, ofTextCSV, ofHTML };        // Output Formats
@@ -789,9 +795,11 @@ void GenerateList(void)
     {
     case ltParts:
         GeneratePartList();
+        SortCol = 1;
         break;
     case ltValues:
         GenerateValueList();
+        SortCol = 5;
         break;
     }
 }
@@ -2106,6 +2114,7 @@ int ExportDigiKey()
 {
     int csvflag = 1;
     int incflag = 0;
+    int sortByPartNum = 1;
 
     int result = dlgDialog("Export Digi-Key Parts Order")
     {
@@ -2124,6 +2133,7 @@ int ExportDigiKey()
                     dlgRadioButton("&CSV comma separated fields", csvflag);
                 }
                 dlgCheckBox("Include parts marked as DNP in order also", incflag);
+                dlgCheckBox("Sort by PartNum only (ignore part value)", sortByPartNum);
             }
             dlgVBoxLayout
             {
@@ -2165,7 +2175,10 @@ int ExportDigiKey()
         printf("%s\n", strjoin(strDKFields, delimit[0]));
 
         // sort by part value
-        sort(nPartCount, index, PartVal, PartNum, PartDev, PartName);
+        if (sortByPartNum)
+            sort(nPartCount, index, PartNum);
+        else        
+            sort(nPartCount, index, PartVal, PartNum, PartDev, PartName);
 
         for (n1=0, n2=0; ++n2 <= nPartCount;)
         {
@@ -2174,17 +2187,28 @@ int ExportDigiKey()
             if (n2 < nPartCount)
             {
                 int i2 = index[n2];
-                // [RES144] check for same value but different partnum
-                if ((PartVal[i1] == PartVal[i2]) && (PartDev[i1] == PartDev[i2]))
+                // [RES155] check for different partnum only
+                if (sortByPartNum)
                 {
-                    if (strlen(PartNum[i1]) && strlen(PartNum[i2]))
-                    {
-                        if (PartNum[i1] == PartNum[i2])
-                            continue;
-                    }
-                    else
-                    {
+                    if ((strlen(PartNum[i1]) == 0) || (strlen(PartNum[i2]) == 0))
                         continue;
+                    if (PartNum[i1] == PartNum[i2])
+                        continue;
+                }
+                else
+                {                
+                    // [RES144] check for same value but different partnum
+                    if ((PartVal[i1] == PartVal[i2]) && (PartDev[i1] == PartDev[i2]))
+                    {
+                        if (strlen(PartNum[i1]) && strlen(PartNum[i2]))
+                        {
+                            if (PartNum[i1] == PartNum[i2])
+                                continue;
+                        }
+                        else
+                        {
+                            continue;
+                        }
                     }
                 }
             }
@@ -3433,10 +3457,13 @@ void DisplayHelp(void)
 
 void OnListTypeChange()
 {
-    if (ListType == ltParts)
+    if (ListType == ltParts) {
         GeneratePartList();
-    else
+        SortCol = 1;
+    } else {
         GenerateValueList();
+        SortCol = 5;
+    }
 
     Selected = 0;
 }
@@ -3541,7 +3568,7 @@ int AppDialog()
         {
             // Set the default list view height
             dlgVBoxLayout dlgSpacing(500);
-            dlgListView("", Lines, Selected) OnClickListView();
+            dlgListView("", Lines, Selected, SortCol) OnClickListView();
         }
             
         dlgHBoxLayout
