@@ -176,6 +176,9 @@
 //                    to avoid duplicate line items when folks use the part
 //                    value field as a generic catch all.
 //
+// 1.56 RES  09/24/13 Added support for assmebly variants.
+//                    
+//
 //////////////////////////////////////////////////////////////////////////////
 //
 // THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
@@ -185,7 +188,7 @@
 
 #require 5.1000
 
-#usage "en: <b>Export a Bill Of Material</b> - v1.55\n"
+#usage "en: <b>Export a Bill Of Material</b> - v1.56\n"
            "<p>"
            "Generates a project's <i>Bill Of Material</i>."
            "<p>"
@@ -312,9 +315,11 @@ string HelpTextEN =
 //////////////////////////////////////////////////////////////////////////////
 //
 
-string strVersion = "1.55";
+string strVersion = "1.56";
 
 int nPartCount;
+int nBOMCount;
+string strBOMCount;
 
 numeric string Lines[];
 
@@ -375,6 +380,13 @@ int WindowMinWidth      = 1200;
 string strPartNumAttrName = "PARTNO";
 
 int BldQty1             = 1;    // specifies the qty of units to build
+
+// Build Variant Support
+string CurrentVariant = "";
+string Variants[] = { "" };
+int    cntVD = 0;
+int    VDsel = 0;
+
 
 //////////////////////////////////////////////////////////////////////////////
 // First, process any command line options
@@ -504,10 +516,24 @@ int IsKnownDevice(string devname)
 // Collect all part data for the BOM and process and handle any attribute
 // modifiers found for the part.
 
-void CollectPartData(void)
-{
-    nPartCount = 0;
+string tmp;
 
+void CollectPartData(string var)
+{
+    // We must zero out all the part names each time this function is called,
+    // otherwise the names still exist after each call and the lookup() call
+    // that checks for duplicates causes problems since it thinks everything
+    // is a duplicate on subsequent calls to this function.
+    
+    int i;
+    for(i=0; i < nPartCount; i++)
+        PartName[i]="";
+    
+    nPartCount = nBOMCount = 0;
+    
+    int dnp = 0;
+    int exclude = 0;
+    
     schematic(SCH)
     {
         SCH.sheets(S)
@@ -516,8 +542,8 @@ void CollectPartData(void)
             {
                 if ((P.device.package) || IsKnownDevice(P.device.name))
                 {
-                    int exclude = 0;
-                    int dnp = 0;
+                    exclude = 0;
+                    dnp = 0;
 
                     // PART NUMBER CANNOT BE EMPTY FOR LIST BY VALUE SORT!
                     string partnum = nullKey;
@@ -526,6 +552,9 @@ void CollectPartData(void)
                     string desc    = "";
                     int qty        = 0;
 
+                    if (!P.populate)
+                        dnp = 1;
+                    
                     P.attributes(A)
                     {
                         // Get the attribute name and value in upper case
@@ -607,12 +636,21 @@ void CollectPartData(void)
                         PartDNP[nPartCount]     = dnp;
                         PartQty[nPartCount]     = qty;
 
+                        if (!dnp)
+                            ++nBOMCount;
+                            
                         nPartCount++;
                     }
                 }
             }
         }
     }
+
+    //string msg;
+    //sprintf(msg, "Variant='%s' Count=%d BOMCount=%d", var, nPartCount, nBOMCount);
+    //dlgMessageBox(msg, "OK");
+
+    sprintf(strBOMCount, "  Total Parts:%d", nBOMCount);
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -3455,27 +3493,6 @@ void DisplayHelp(void)
     };
 }
 
-void OnListTypeChange()
-{
-    if (ListType == ltParts) {
-        GeneratePartList();
-        SortCol = 1;
-    } else {
-        GenerateValueList();
-        SortCol = 5;
-    }
-
-    Selected = 0;
-}
-
-void OnClickListView()
-{
-    if (ListType == 0)
-        EditPart();
-    else
-        EditPartSet();
-}
-
 // load the last config settings saved
 
 void LoadConfigSettings()
@@ -3548,17 +3565,51 @@ int ToolsDialog()
     
 // MAIN SCRIPT EXECUTION ENTRY POINT //////////////////////////////
 
+void OnListTypeChange()
+{
+    if (ListType == ltParts) {
+        GeneratePartList();
+        SortCol = 1;
+    } else {
+        GenerateValueList();
+        SortCol = 5;
+    }
+    Selected = 0;
+}
+
+void OnClickListView()
+{
+    if (ListType == 0)
+        EditPart();
+    else
+        EditPartSet();
+}
+
+void OnVariantComboChange()
+{
+    CurrentVariant = Variants[VDsel];
+    setvariant(CurrentVariant);
+    CollectPartData(CurrentVariant);
+    GenerateList();
+}
+
 int AppDialog()
 {
     int rtn = dlgDialog("BOM-EX v" + strVersion)
     {
         // Set the default view width
         dlgHBoxLayout dlgSpacing(WindowMinWidth);
-                   
+            
         dlgHBoxLayout
         {
-            dlgLabel("Database:");
-            dlgLabel(DatabaseFilename, 1);
+            //dlgLabel("Database:");
+            //dlgLabel(DatabaseFilename, 1);
+            //dlgStretch(1);
+            
+            dlgLabel("Assembly &Variant ");
+            dlgComboBox(Variants, VDsel) OnVariantComboChange();
+            dlgLabel(strBOMCount, 1);
+
             dlgStretch(1);
             dlgPushButton("&Load DB") if (OkToClose()) LoadDatabase("");
             dlgPushButton("H&elp") DisplayHelp();
@@ -3586,6 +3637,7 @@ int AppDialog()
                 
                 dlgGroup("View By")
                 {
+                    
                     dlgHBoxLayout 
                     {
                         dlgRadioButton("&Parts", ListType) OnListTypeChange();
@@ -3694,10 +3746,21 @@ else
                 break;
             }
         }
+            
+        // Get the assembly variant names and set active variant.
+        
+        CurrentVariant = variant();
+        
+        SCH.variantdefs(VD) {
+            if (CurrentVariant == VD.name)
+                VDsel = cntVD;
+            sprintf(Variants[cntVD], "%s", VD.name);
+            cntVD++;
+        }
     }
 
-    CollectPartData();
-
+    setvariant(CurrentVariant);
+    CollectPartData(CurrentVariant);
     GenerateList();
 
     int rtn = AppDialog();
