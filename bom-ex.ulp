@@ -176,8 +176,10 @@
 //                    to avoid duplicate line items when folks use the part
 //                    value field as a generic catch all.
 //
-// 1.56 RES  09/24/13 Added support for assmebly variants.
-//                    
+// 1.56 RES  10/10/13 Added support for assembly variants. Note that a 
+//                    DNP attributes overrides the new assembly variant
+//                    place option. Thus, DNP attribute now act in a global
+//                    fashion to exclude parts.
 //
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -186,7 +188,7 @@
 //
 //////////////////////////////////////////////////////////////////////////////
 
-#require 5.1000
+#require 6.0200
 
 #usage "en: <b>Export a Bill Of Material</b> - v1.56\n"
            "<p>"
@@ -450,7 +452,7 @@ string TrimQuotes(string s)
     return s;
 }
 
-// Trim DNP suffix from from a string
+// Trim DNP suffix from a string
 string TrimDNPSuffix(string s)
 {
     // we have to strip off any (DNP) suffix from the part name

@@ -24,6 +24,9 @@
 // v1.07 - 01/30/2012   Fixed ingroup() usage for Eagle v6.
 //
 // v1.08 - 05/08/2012   Corrected bugs with ingroup() usage for Eagle v6.2
+//
+// v1.09 - 10/10/2013   Added option to remove attributes for group.
+//
 //////////////////////////////////////////////////////////////////////////////
 //
 // THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
@@ -31,7 +34,7 @@
 //
 //////////////////////////////////////////////////////////////////////////////
 
-string Version = "1.08";
+string Version = "1.09";
 
 string fileName;
 
@@ -218,7 +221,7 @@ if (schematic)
              exit(0);
         }
 
-        int Result = dlgDialog(title)
+        int nResult = dlgDialog(title)
         {
             dlgHBoxLayout
             {
@@ -248,12 +251,13 @@ if (schematic)
             }
             dlgHBoxLayout
             {
-                dlgPushButton("OK") dlgAccept();
+                dlgPushButton("Add") dlgAccept(1);
+                dlgPushButton("Remove") dlgAccept(2);
                 dlgPushButton("-Cancel") dlgReject();
             }
         };
 
-        if (!Result)
+        if (!nResult)
             exit(0);
 
         int cnt = 0;
@@ -271,24 +275,34 @@ if (schematic)
                         // make sure it has a package and name
                         if (P.device.package && P.name)
                         {
-                            string disp;
-        
-                            if (fDisplay == 0)
-                                disp = "OFF";
-                            else if (fDisplay == 1)
-                                disp = "VALUE";
-                            else
-                                disp = "NAME";
-        
-                            string tmp;
-                            sprintf(tmp, "CHANGE DISPLAY %s;\n", disp);
-                            strCmd += tmp;
-                            sprintf(tmp, "ATTRIBUTE %s %s '%s';\n", P.name, strAttrName, strAttrValue);
-                            strCmd += tmp;
-        
-                            //dlgMessageBox(strCmd);
-        
-                            ++cnt;
+                            // Add attribute to group
+                            if (nResult == 1)
+                            {
+                                string disp;
+            
+                                if (fDisplay == 0)
+                                    disp = "OFF";
+                                else if (fDisplay == 1)
+                                    disp = "VALUE";
+                                else
+                                    disp = "NAME";
+            
+                                string tmp;
+                                sprintf(tmp, "CHANGE DISPLAY %s;\n", disp);
+                                strCmd += tmp;
+                                sprintf(tmp, "ATTRIBUTE %s %s '%s';\n", P.name, strAttrName, strAttrValue);
+                                strCmd += tmp;
+            
+                                ++cnt;
+                            }
+                            else if (nResult == 2)  // remove attribute from group
+                            {
+                                string tmp;
+                                sprintf(tmp, "ATTRIBUTE %s %s DELETE;\n", P.name, strAttrName);
+                                strCmd += tmp;
+                                
+                                ++cnt;
+                            }
                         }
                     }
                 }
@@ -298,6 +312,7 @@ if (schematic)
         if (!cnt)
           dlgMessageBox("No items selected!");
 
+        //dlgMessageBox(strCmd);
         exit(strCmd);
     }
 }
