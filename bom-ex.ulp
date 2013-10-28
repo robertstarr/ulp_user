@@ -181,6 +181,8 @@
 //                    place option. Thus, DNP attribute now act in a global
 //                    fashion to exclude parts.
 //
+// 1.57 RES  10/24/13 Minor enhancements.
+//
 //////////////////////////////////////////////////////////////////////////////
 //
 // THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
@@ -190,7 +192,7 @@
 
 #require 6.0200
 
-#usage "en: <b>Export a Bill Of Material</b> - v1.56\n"
+#usage "en: <b>Export a Bill Of Material</b> - v1.57\n"
            "<p>"
            "Generates a project's <i>Bill Of Material</i>."
            "<p>"
@@ -317,7 +319,7 @@ string HelpTextEN =
 //////////////////////////////////////////////////////////////////////////////
 //
 
-string strVersion = "1.56";
+string strVersion = "1.57";
 
 int nPartCount;
 int nBOMCount;
@@ -1333,7 +1335,8 @@ void EditPartEntry(string partname)
             dlgHBoxLayout
             {
                 dlgVBoxLayout dlgSpacing(300);
-                dlgListView("", PickView, nPickSel)
+                int nSortCol = 5;
+                dlgListView("", PickView, nPickSel, nSortCol)
                 {
                     if (dlgSelectionChanged())
                         OnPickSelChanged();
@@ -3151,7 +3154,8 @@ int ExportPartNums()
                     else
                     {
                         // Export all non-null part numbers
-                        printf("%s : %s\n", part_num, partnames);
+                        //printf("%s : %s\n", part_num, partnames);
+                        printf("%s\n", part_num);
                         records++;
                     }
                 }
