@@ -183,6 +183,11 @@
 //
 // 1.57 RES  10/24/13 Minor enhancements.
 //
+// 1.58 RES  11/26/13 Corrected list view sort problems when regnerating view
+//                    list during part edits and such.
+//
+// 1.59 RES  11/30/13 Improved part value checker tool warnings.
+//
 //////////////////////////////////////////////////////////////////////////////
 //
 // THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
@@ -192,7 +197,7 @@
 
 #require 6.0200
 
-#usage "en: <b>Export a Bill Of Material</b> - v1.57\n"
+#usage "en: <b>Export a Bill Of Material</b> - v1.59\n"
            "<p>"
            "Generates a project's <i>Bill Of Material</i>."
            "<p>"
@@ -319,7 +324,7 @@ string HelpTextEN =
 //////////////////////////////////////////////////////////////////////////////
 //
 
-string strVersion = "1.57";
+string strVersion = "1.59";
 
 int nPartCount;
 int nBOMCount;
@@ -837,11 +842,11 @@ void GenerateList(void)
     {
     case ltParts:
         GeneratePartList();
-        SortCol = 1;
+        //SortCol = 1;
         break;
     case ltValues:
         GenerateValueList();
-        SortCol = 5;
+        //SortCol = 5;
         break;
     }
 }
@@ -1856,10 +1861,13 @@ void ValueCheck()
 
             // If the part value and part number match, we can
             // safely assume it's not a part with a real "value"
-            // like a resistor, cap, diode, etc.
+            // like a resistor, cap, diode, etc. Note we also
+            // compare partnum as a substring of the value.
             if (val == PartNum[i])
                 continue;
-
+            if (strstr(PartNum[i], val) >= 0)
+                continue;
+            
             // If the part value substring is found in the part description,
             // then assume the value match is good.        
             if (strstr(desc, val) >= 0)
@@ -3764,6 +3772,11 @@ else
             cntVD++;
         }
     }
+
+    if (ListType == ltParts)
+        SortCol = 1;
+    else if (ListType == ltValues)
+        SortCol = 5;
 
     setvariant(CurrentVariant);
     CollectPartData(CurrentVariant);
