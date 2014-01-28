@@ -55,7 +55,7 @@ if (board) board(B)
 
         printf ("\nRefDes LocationX LocationY Rotation Value Package\n");
 
-        B.elements(E)
+        B.elements(E) if (E.populate)
         {
             int wasSmd,
             xmax =-2147483648,
@@ -177,7 +177,7 @@ if (board) board(B)
 
         printf ("\nRefDes LocationX LocationY Rotation Value Package\n");
 
-        B.elements(E)
+        B.elements(E) if (E.populate)
         {
             int wasSmd,
                  xmax =-2147483648,
@@ -300,7 +300,7 @@ if (board) board(B)
 
         printf ("\nRefDes LocationX LocationY Rotation Value Package\n");
 
-        B.elements(E)
+        B.elements(E) if (E.populate)
         {
             int wasSmd,
                  xmax =-2147483648,
