@@ -2,7 +2,7 @@
 //
 // BOM-EX ENHANCED BILL OF MATERIALS
 //
-// Copyright (C) 2010-2012, Robert E. Starr
+// Copyright (C) 2010-2014, Robert E. Starr
 //
 // Get the latest version at http://www.bobstarr.net
 //
@@ -188,6 +188,8 @@
 //
 // 1.59 RES  11/30/13 Improved part value checker tool warnings.
 //
+// 1.60 RES  03/10/14 Changed HTML report to center text cells left/top.
+//
 //////////////////////////////////////////////////////////////////////////////
 //
 // THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
@@ -197,7 +199,7 @@
 
 #require 6.0200
 
-#usage "en: <b>Export a Bill Of Material</b> - v1.59\n"
+#usage "en: <b>Export a Bill Of Material</b> - v1.60\n"
            "<p>"
            "Generates a project's <i>Bill Of Material</i>."
            "<p>"
@@ -324,7 +326,7 @@ string HelpTextEN =
 //////////////////////////////////////////////////////////////////////////////
 //
 
-string strVersion = "1.59";
+string strVersion = "1.60";
 
 int nPartCount;
 int nBOMCount;
@@ -957,7 +959,7 @@ string MakeListHTML(void)
 
     for (int l = 0; Lines[l]; l++)
     {
-        List += "<tr>";
+        List += "<tr valign=\"top\">";
         string a[];
         int n = strsplit(a, Lines[l], '\t');
 
