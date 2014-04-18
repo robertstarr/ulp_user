@@ -954,7 +954,7 @@ string MakeListHTML(void)
 {
     string List;
     //List = "<b>" + MakeListHeader() + "</b>\n<p>\n";
-    List += "<table>\n";
+    List += "<table border=\"1\">\n";
     int numHeaders;
 
     for (int l = 0; Lines[l]; l++)
