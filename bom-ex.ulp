@@ -1630,7 +1630,7 @@ void ClearAllPartNumbers(void)
 //   2    "VID"                 "DK" for Digikey Corp
 //                              "ME" for Mouser Electronics
 //                              "AE" for Allied Electronics
-//   3    "Vendor Part Num"     Specifies DigiKey part number
+//   3    "Vendor Part Num"     Specifies vendor part number
 //   4    "Description"         Optional - nice to have
 //   5    "Pkg Code"            Optional - package check name (0805, etc)
 //

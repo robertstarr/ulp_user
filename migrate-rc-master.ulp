@@ -188,6 +188,7 @@ string xlate_rcl_name(string old_name)
         "R-US_R0402MP:R_402MP",
         "R-US_R0603:R_0603",
         "R-US_R0603MP:R_0603MP",
+        "R-US_M0805:R_0805",
         "R-US_R0805:R_0805",
         "R-US_R0805MP:R_0805MP",
         "R-US_R0805W:R_0805",
@@ -288,6 +289,11 @@ string xlate_rcl_name(string old_name)
         name[2] = 'U';
         name[3] = 'S';
     }
+    if (strstr(name, "R-EU", 0) == 0)
+    {
+        name[2] = 'U';
+        name[3] = 'S';
+    }
     if (strstr(name, "CPOL-EU", 0) == 0)
     {
         name[5] = 'U';
@@ -376,7 +382,7 @@ if (schematic)
                             (P.device.library == "resistor") || (P.device.library == "R") || (P.device.library == "r"))
                         {
 
-	                  //printf("# LIB(%s), NAME(%s) DEVNAME(%s)\n", P.device.library, P.name, P.device.name);
+	                        //printf("# LIB(%s), NAME(%s) DEVNAME(%s)\n", P.device.library, P.name, P.device.name);
 
                             // ***************************************************************
                             // * Translate rcl.lbr parts to rc-master or rc-master-smd
@@ -397,7 +403,7 @@ if (schematic)
                                 }
                                 else
                                 {
-                                    printf("# UNKNOWN RCL.LBR PACKAGE (%s) %s;\n", P.name, P.device.name);
+                                    printf("# UNKNOWN RCL.LBR PACKAGE (%s) '%s'\n", P.name, P.device.name);
                                 }
                             }
                         }
