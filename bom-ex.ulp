@@ -190,6 +190,10 @@
 //
 // 1.60 RES  03/10/14 Changed HTML report to center text cells left/top.
 //
+// 1.61 RES  06/17/14 Added sort by part number option on other part order
+//                    export options. Initially this was only on the Digikey
+//                    option.
+//
 //////////////////////////////////////////////////////////////////////////////
 //
 // THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
@@ -199,7 +203,7 @@
 
 #require 6.0200
 
-#usage "en: <b>Export a Bill Of Material</b> - v1.60\n"
+#usage "en: <b>Export a Bill Of Material</b> - v1.61\n"
            "<p>"
            "Generates a project's <i>Bill Of Material</i>."
            "<p>"
@@ -326,7 +330,7 @@ string HelpTextEN =
 //////////////////////////////////////////////////////////////////////////////
 //
 
-string strVersion = "1.60";
+string strVersion = "1.61";
 
 int nPartCount;
 int nBOMCount;
@@ -1936,7 +1940,8 @@ int ExportGeneric()
     int csvflag = 1;
     int unkflag = 0;
     int incflag = 0;
-
+    int sortByPartNum = 1;
+    
     int result = dlgDialog("Export Generic BOM")
     {
         dlgHBoxLayout
@@ -1957,6 +1962,7 @@ int ExportGeneric()
 
                 dlgCheckBox("Export unknown vendors only", unkflag);
                 dlgCheckBox("Include parts marked as DNP also", incflag);
+                dlgCheckBox("Sort by PartNum only (ignore part value)", sortByPartNum);                
             }
 
             dlgVBoxLayout
@@ -2028,17 +2034,28 @@ int ExportGeneric()
             if (n2 < nPartCount)
             {
                 int i2 = index[n2];
-                // [RES144] check for same value but different partnum
-                if ((PartVal[i1] == PartVal[i2]) && (PartDev[i1] == PartDev[i2]))
+                // [RES155] check for different partnum only
+                if (sortByPartNum)
                 {
-                    if (strlen(PartNum[i1]) && strlen(PartNum[i2]))
-                    {
-                        if (PartNum[i1] == PartNum[i2])
-                            continue;
-                    }
-                    else
-                    {
+                    if ((strlen(PartNum[i1]) == 0) || (strlen(PartNum[i2]) == 0))
                         continue;
+                    if (PartNum[i1] == PartNum[i2])
+                        continue;
+                }
+                else
+                {                
+                    // [RES144] check for same value but different partnum
+                    if ((PartVal[i1] == PartVal[i2]) && (PartDev[i1] == PartDev[i2]))
+                    {
+                        if (strlen(PartNum[i1]) && strlen(PartNum[i2]))
+                        {
+                            if (PartNum[i1] == PartNum[i2])
+                                continue;
+                        }
+                        else
+                        {
+                            continue;
+                        }
                     }
                 }
             }
@@ -2393,6 +2410,7 @@ int ExportAllied()
 {
     int csvflag = 1;
     int incflag = 0;
+    int sortByPartNum = 1;
     
     int result = dlgDialog("Export Allied Parts Order")
     {
@@ -2411,6 +2429,7 @@ int ExportAllied()
                     dlgRadioButton("&CSV comma separated fields", csvflag);
                 }
                 dlgCheckBox("Include parts marked as DNP in order also", incflag);
+                dlgCheckBox("Sort by PartNum only (ignore part value)", sortByPartNum);                
             }
             dlgVBoxLayout
             {
@@ -2461,17 +2480,28 @@ int ExportAllied()
             if (n2 < nPartCount)
             {
                 int i2 = index[n2];
-                // [RES144] check for same value but different partnum
-                if ((PartVal[i1] == PartVal[i2]) && (PartDev[i1] == PartDev[i2]))
+                // [RES155] check for different partnum only
+                if (sortByPartNum)
                 {
-                    if (strlen(PartNum[i1]) && strlen(PartNum[i2]))
-                    {
-                        if (PartNum[i1] == PartNum[i2])
-                            continue;
-                    }
-                    else
-                    {
+                    if ((strlen(PartNum[i1]) == 0) || (strlen(PartNum[i2]) == 0))
                         continue;
+                    if (PartNum[i1] == PartNum[i2])
+                        continue;
+                }
+                else
+                {                
+                    // [RES144] check for same value but different partnum
+                    if ((PartVal[i1] == PartVal[i2]) && (PartDev[i1] == PartDev[i2]))
+                    {
+                        if (strlen(PartNum[i1]) && strlen(PartNum[i2]))
+                        {
+                            if (PartNum[i1] == PartNum[i2])
+                                continue;
+                        }
+                        else
+                        {
+                            continue;
+                        }
                     }
                 }
             }
@@ -2595,7 +2625,8 @@ int ExportMouserTXT()
 {
     int optnum = 0;
     int incflag = 0;
-        
+    int sortByPartNum = 1;
+            
     int result = dlgDialog("Export Mouser Parts Order")
     {
         dlgHBoxLayout
@@ -2613,6 +2644,7 @@ int ExportMouserTXT()
                     dlgRadioButton("Manufacturer Part Numbers", optnum);
                 }    
                 dlgCheckBox("Include parts marked as DNP in order also", incflag);
+                dlgCheckBox("Sort by PartNum only (ignore part value)", sortByPartNum);
             }
         }
         dlgHBoxLayout
@@ -2664,17 +2696,28 @@ int ExportMouserTXT()
             if (n2 < nPartCount)
             {
                 int i2 = index[n2];
-                // [RES144] check for same value but different partnum
-                if ((PartVal[i1] == PartVal[i2]) && (PartDev[i1] == PartDev[i2]))
+               // [RES155] check for different partnum only
+                if (sortByPartNum)
                 {
-                    if (strlen(PartNum[i1]) && strlen(PartNum[i2]))
-                    {
-                        if (PartNum[i1] == PartNum[i2])
-                            continue;
-                    }
-                    else
-                    {
+                    if ((strlen(PartNum[i1]) == 0) || (strlen(PartNum[i2]) == 0))
                         continue;
+                    if (PartNum[i1] == PartNum[i2])
+                        continue;
+                }
+                else
+                {                
+                    // [RES144] check for same value but different partnum
+                    if ((PartVal[i1] == PartVal[i2]) && (PartDev[i1] == PartDev[i2]))
+                    {
+                        if (strlen(PartNum[i1]) && strlen(PartNum[i2]))
+                        {
+                            if (PartNum[i1] == PartNum[i2])
+                                continue;
+                        }
+                        else
+                        {
+                            continue;
+                        }
                     }
                 }
             }
@@ -2796,7 +2839,8 @@ string strMEFields[] = {
 int ExportMouserCSV()
 {
     int incflag = 0;
-    
+    int sortByPartNum = 1;
+
     int result = dlgDialog("Export Mouser Parts Order")
     {
         dlgHBoxLayout
@@ -2810,6 +2854,7 @@ int ExportMouserCSV()
                 }
 
                 dlgCheckBox("Include parts marked as DNP in order also", incflag);
+                dlgCheckBox("Sort by PartNum only (ignore part value)", sortByPartNum);
             }
             
             dlgVBoxLayout
@@ -2861,17 +2906,28 @@ int ExportMouserCSV()
             if (n2 < nPartCount)
             {
                 int i2 = index[n2];
-                // [RES144] check for same value but different partnum
-                if ((PartVal[i1] == PartVal[i2]) && (PartDev[i1] == PartDev[i2]))
+                // [RES155] check for different partnum only
+                if (sortByPartNum)
                 {
-                    if (strlen(PartNum[i1]) && strlen(PartNum[i2]))
-                    {
-                        if (PartNum[i1] == PartNum[i2])
-                            continue;
-                    }
-                    else
-                    {
+                    if ((strlen(PartNum[i1]) == 0) || (strlen(PartNum[i2]) == 0))
                         continue;
+                    if (PartNum[i1] == PartNum[i2])
+                        continue;
+                }
+                else
+                {                
+                    // [RES144] check for same value but different partnum
+                    if ((PartVal[i1] == PartVal[i2]) && (PartDev[i1] == PartDev[i2]))
+                    {
+                        if (strlen(PartNum[i1]) && strlen(PartNum[i2]))
+                        {
+                            if (PartNum[i1] == PartNum[i2])
+                                continue;
+                        }
+                        else
+                        {
+                            continue;
+                        }
                     }
                 }
             }
@@ -3029,14 +3085,20 @@ int ExportMouser()
 int ExportPartNums()
 {
     int nOption;
-    
+    int sortByPartNum = 1;
+        
     int result = dlgDialog("Export Part Numbers")
     {
         dlgGroup("Export Options")
         {
-            dlgRadioButton("All part number attributes assigned in schematic", nOption);
-            dlgRadioButton("Only part numbers not found in the parts database", nOption);
+            dlgGroup("File Format")
+            {
+                dlgRadioButton("All part number attributes assigned in schematic", nOption);
+                dlgRadioButton("Only part numbers not found in the parts database", nOption);
+            }
+            dlgCheckBox("Sort by PartNum only (ignore part value)", sortByPartNum);                        
         }
+        
         dlgHBoxLayout
         {
             dlgPushButton("OK") dlgAccept();
@@ -3082,17 +3144,28 @@ int ExportPartNums()
             if (n2 < nPartCount)
             {
                 int i2 = index[n2];
-                // [RES144] check for same value but different partnum
-                if ((PartVal[i1] == PartVal[i2]) && (PartDev[i1] == PartDev[i2]))
+                // [RES155] check for different partnum only
+                if (sortByPartNum)
                 {
-                    if (strlen(PartNum[i1]) && strlen(PartNum[i2]))
-                    {
-                        if (PartNum[i1] == PartNum[i2])
-                            continue;
-                    }
-                    else
-                    {
+                    if ((strlen(PartNum[i1]) == 0) || (strlen(PartNum[i2]) == 0))
                         continue;
+                    if (PartNum[i1] == PartNum[i2])
+                        continue;
+                }
+                else
+                {                
+                    // [RES144] check for same value but different partnum
+                    if ((PartVal[i1] == PartVal[i2]) && (PartDev[i1] == PartDev[i2]))
+                    {
+                        if (strlen(PartNum[i1]) && strlen(PartNum[i2]))
+                        {
+                            if (PartNum[i1] == PartNum[i2])
+                                continue;
+                        }
+                        else
+                        {
+                            continue;
+                        }
                     }
                 }
             }
