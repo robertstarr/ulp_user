@@ -54,7 +54,7 @@ if (board)
                         
                         if (!found)
                         {   
-                            cmd += S.name + " ";
+                            cmd += "'" + S.name + "' ";
                             netname[cnt] = S.name;                            
                             ++cnt;
                         }
@@ -68,6 +68,8 @@ if (board)
             dlgMessageBox("No airwires selected with group command", "OK");
             exit(0);
         }
+
+        //dlgMessageBox(cmd);
         
         exit(cmd);
     }
