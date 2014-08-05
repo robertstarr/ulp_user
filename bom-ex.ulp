@@ -194,6 +194,8 @@
 //                    export options. Initially this was only on the Digikey
 //                    option.
 //
+// 1.62 RES  08/05/14 Added logic to reckognize MFPN for part numbers.
+//
 //////////////////////////////////////////////////////////////////////////////
 //
 // THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
@@ -203,7 +205,7 @@
 
 #require 6.0200
 
-#usage "en: <b>Export a Bill Of Material</b> - v1.61\n"
+#usage "en: <b>Export a Bill Of Material</b> - v1.62\n"
            "<p>"
            "Generates a project's <i>Bill Of Material</i>."
            "<p>"
@@ -330,7 +332,7 @@ string HelpTextEN =
 //////////////////////////////////////////////////////////////////////////////
 //
 
-string strVersion = "1.61";
+string strVersion = "1.62";
 
 int nPartCount;
 int nBOMCount;
@@ -576,7 +578,7 @@ void CollectPartData(string var)
                         string aname  = strupr(A.name);
                         string avalue = strupr(A.value);
                         
-                        if ((aname == "PARTNUM") || (aname == "PARTNO") || (aname == "PN") || (aname == "MPN"))
+                        if ((aname == "PARTNUM") || (aname == "PARTNO") || (aname == "PN") || (aname == "MPN") || (aname == "MFPN"))
                         {
                             //if (strPartNumAttrName != aname)
                             //    strPartNumAttrName = aname;
