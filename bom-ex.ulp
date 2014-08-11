@@ -2162,6 +2162,24 @@ int ExportGeneric()
     return records;
 }
 
+
+//////////////////////////////////////////////////////////////////////////////
+// str_replace
+//
+// Replaces all occurrences of a substring found within a string.
+
+string str_replace(string search, string replace, string subject) {
+    int lastpos = 0;
+    while(strstr(subject, search, lastpos) >= 0) {
+        int pos = strstr(subject, search, lastpos);
+        string before = strsub(subject, 0, pos);
+        string after = strsub(subject, pos + strlen(search));
+        subject = before + replace + after;
+        lastpos = pos + strlen(replace);
+    }
+    return subject;
+}
+
 //////////////////////////////////////////////////////////////////////////////
 // Export a Digi-Key format upload BOM in CSV or TAB format
 //
@@ -2370,7 +2388,7 @@ int ExportDigiKey()
             if ((vendor_id == "DK") || (vendor_id == nullKey))
             {
                 printf("%s%s", partno_dk, delimit);
-                printf("%s%s", mfg_name, delimit);
+                printf("%s%s", str_replace(",", "", mfg_name), delimit);
                 printf("%s%s", part_num, delimit);
                 printf("%s%s", cust_ref, delimit);
                 printf("%s%s", quantity1, delimit);
