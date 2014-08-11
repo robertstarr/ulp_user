@@ -3626,7 +3626,7 @@ int ToolsDialog()
                 dlgPushButton("Verify all Part Values") dlgAccept(1);   //ValueCheck();
                 dlgPushButton("Verify all Package Codes") dlgAccept(2); // PackageCheck();
                 dlgPushButton("List all Package Codes") dlgAccept(3);   //PackageList();
-                dlgPushButton("&Import Part Numberss") dlgAccept(4);    //ImportPartNums();
+                dlgPushButton("&Import Part Numbers") dlgAccept(4);    //ImportPartNums();
             }
         }
         dlgVBoxLayout
