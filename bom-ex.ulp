@@ -196,6 +196,8 @@
 //
 // 1.62 RES  08/05/14 Added logic to reckognize MFPN for part numbers.
 //
+// 1.63 RES  08/11/14 Added option to show parts with EXCLUDE attribute.
+//
 //////////////////////////////////////////////////////////////////////////////
 //
 // THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
@@ -205,7 +207,7 @@
 
 #require 6.0200
 
-#usage "en: <b>Export a Bill Of Material</b> - v1.62\n"
+#usage "en: <b>Export a Bill Of Material</b> - v1.63\n"
            "<p>"
            "Generates a project's <i>Bill Of Material</i>."
            "<p>"
@@ -332,7 +334,7 @@ string HelpTextEN =
 //////////////////////////////////////////////////////////////////////////////
 //
 
-string strVersion = "1.62";
+string strVersion = "1.63";
 
 int nPartCount;
 int nBOMCount;
@@ -361,6 +363,7 @@ enum { ofText, ofTextTabbed, ofTextCSV, ofHTML };        // Output Formats
 int ListType            = ltParts;
 int OutputFormat        = ofText;
 int ApplyAllAttrs       = 0;
+int ShowExcludedParts   = 0;
 
 string DefaultFileName;
 
@@ -598,9 +601,12 @@ void CollectPartData(string var)
                         }
                         else if (aname == "BOM")
                         {
-                            // Exclude part from BOM?
-                            if (avalue == "EXCLUDE")
-                                exclude = 1;
+                            if (!ShowExcludedParts)
+                            {
+                                // Exclude part from BOM?
+                                if (avalue == "EXCLUDE")
+                                    exclude = 1;
+                            }
                         }
                         else if (aname == "DNP")
                         {
@@ -3752,6 +3758,7 @@ int AppDialog()
                     dlgHBoxLayout 
                     {
                         dlgCheckBox("Apply part number attributes globally", ApplyAllAttrs);
+                        dlgCheckBox("Show Excluded Parts", ShowExcludedParts) OnVariantComboChange();                        
                     }
                 }                
             }
