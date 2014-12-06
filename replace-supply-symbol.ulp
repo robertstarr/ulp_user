@@ -84,6 +84,7 @@ else
                         if ((P.device.name == SymbolName))  // && (P.device.package == ""))
                         {
                             printf("REPLACE %s %s;\n", P.name, ReplaceName);
+		        printf("VALUE %s %s;\n", P.name, ReplaceName);
                         }
                     }
                 }
