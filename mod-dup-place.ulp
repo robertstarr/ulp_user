@@ -1,0 +1,296 @@
+#usage "<b>Duplicate the placement of a module</b>\n"
+       "<p>"
+       "This program duplicates the board placement of a module from a source hierarchical module. "
+       "The ULP displays and allows the user to select the source module placement to duplicate "
+       "from and desitination module is duplicated with X/Y offsets currently set.<p>"
+       "<author>http://www.bobstarr.net</author>"
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// Copyright (C) 2014, Robert E. Starr (http://www.bobstarr.net)
+// 
+// REVISION HISTORY:
+//
+// v1.00 - 12/11/2014 (RES) - Initial Release
+//
+//////////////////////////////////////////////////////////////////////////////
+//
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
+// EXPRESSED OR IMPLIED. IF YOU DON'T LIKE IT, DON'T USE IT!
+//
+//////////////////////////////////////////////////////////////////////////////
+
+string Version = "1.00";
+
+string fileName;
+
+string configFilename = "mod-dup-place.cfg";
+
+// Variables below are stored/recalled from config file
+
+real offsetX = 0.0;
+real offsetY = 0.0;
+
+int fScriptExec = 1;    // execute script automatically after generating
+
+int nSelSrc, nSrcCnt;
+int nSelDest, nDestCnt;
+int nIDCount;
+
+string strSrc, strSrcMod[];
+string strDest, strDestMod[];
+
+//////////////////////////////////////////////////////////////////////////////
+
+void LoadConfigSettings()
+{
+    string a[];
+    int n;
+
+    // Should be 5 lines of data in config file
+    if ((n = fileread(a, filedir(argv[0])+configFilename)) == 3)
+    {
+        int i = 0;
+        offsetX        = strtod(a[i++]);
+        offsetY        = strtod(a[i++]);
+        fScriptExec    = strtol(a[i++]);
+    }
+}
+
+void SaveConfigSettings()
+{
+    // save the config settings 
+    output(filedir(argv[0])+configFilename, "wt")
+    {
+        printf("%f\n", offsetX);
+        printf("%f\n", offsetY);
+        printf("%d\n", fScriptExec);
+    }
+}
+
+int MoveModule(UL_BOARD B)
+{
+    int i;
+    int cnt;
+    real xpos[], ypos[], angle[];
+    string pid[], mirror[];
+
+    cnt = 0;
+        
+    /* First collect x/y, angle and mirror data for the source module */
+
+    printf("#\n# Duplicate module '%s' placement from '%s'\n#\n", strDest, strSrc);
+                
+    B.elements(E)
+    {
+        string key[];
+        if (strsplit(key, E.name, ':') == 2)
+        { 
+            if (key[0] == strSrc)
+            {
+                real x, y;
+                
+                switch (B.grid.unit)
+                {
+                    case GRID_UNIT_MIC:
+                        x = u2mic(E.y);
+                        y = u2mic(E.y);
+                        break;
+                    case GRID_UNIT_MIL:
+                        x = u2mil(E.x);
+                        y = u2mil(E.y);
+                        break;
+                    case GRID_UNIT_MM:
+                        x = u2mm (E.x);
+                        y = u2mm (E.y);
+                        break;
+                    case GRID_UNIT_INCH:
+                        x = u2inch(E.x);
+                        y = u2inch(E.y);
+                        break;
+                }
+                
+                xpos[cnt]  = x;
+                ypos[cnt]  = y;
+                angle[cnt] = E.angle;
+                pid[cnt]   = key[1];
+    
+                if (E.mirror)
+                    mirror[cnt] = key[0];
+
+                /* printf("# %s|%f|%f|%f\n", E.name, x, y, E.angle); */
+                    
+                ++cnt;
+            }
+        }
+    }
+
+    /* Now move the destination module to match the source placement with an offset */
+
+    for (i=0; i < cnt; i++)
+    {
+        string name;
+        sprintf(name, "%s:%s", strDest, pid[i]);
+        
+        printf("MOVE %s (%5.4f %5.4f);\n", name, xpos[i] + offsetX, ypos[i] + offsetY);
+        printf("ROTATE =R%f %s;\n", angle[i], name);
+                
+        if (mirror[i])
+            printf("MIRROR %s;\n", name);
+    }
+
+    return cnt;    
+}
+
+
+void OnComboChangeSource()
+{
+    strSrc = strSrcMod[nSelSrc];
+}
+
+void OnComboChangeDest()
+{
+    strDest = strDestMod[nSelDest];
+}
+
+int MainAppDialog()
+{
+    int nResult = dlgDialog("Module Duplicate Placement")
+    {
+        string title = "Module Duplicate Placement v" + Version;
+
+        dlgVBoxLayout
+        {
+            dlgSpacing(5);
+            
+            dlgGroup(title)
+            {
+                dlgVBoxLayout
+                {
+                    dlgGroup("Source/Destination")
+                    {
+                        dlgGridLayout
+                        {
+                            dlgCell(1,0) dlgLabel("Source module to duplicate placement from");
+                            dlgCell(1,1) dlgComboBox(strSrcMod, nSelSrc) OnComboChangeSource();
+
+                            dlgCell(2,0) dlgLabel("Destination module to place with offset");
+                            dlgCell(2,1) dlgComboBox(strDestMod, nSelDest) OnComboChangeDest();
+                        }
+                    }
+                    
+                    dlgGridLayout
+                    {
+                        dlgCell(1,0) dlgLabel("X-Offset");
+                        dlgCell(1,1) dlgRealEdit(offsetX);
+        
+                        dlgCell(2,0) dlgLabel("Y-Offset");
+                        dlgCell(2,1) dlgRealEdit(offsetY);
+                    }                        
+                }
+            }
+        }
+
+        dlgHBoxLayout
+        {
+            dlgPushButton("OK") dlgAccept();
+            dlgPushButton("-Cancel") dlgReject();
+            dlgCheckBox("&Execute Script", fScriptExec);
+        }
+    };
+    
+    return nResult;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Script Entry Point
+
+if (board) board(B)
+{
+    LoadConfigSettings();
+    
+    project.schematic(S)
+    {
+    	S.allparts(P)
+        {
+            // Module instances
+            if (P.modulepart)
+            {
+                P.modulepart.instances(I)
+                { 
+                 	if (P.device.package)
+                 	{
+                        string key[];
+                        
+                        if (strsplit(key, P.name, ':') == 2)
+                        { 
+                            /* Collect unique module names */
+    		    			if (!lookup(strSrcMod, key[0], 0)) 
+    						{          
+                    			strSrcMod[nSrcCnt++] = key[0];
+                    			strDestMod[nDestCnt++] = key[0];
+    						}
+    					}
+                	}
+                }
+            }
+        }
+    }
+
+    if (nDestCnt < 2)
+    {
+        dlgMessageBox("\n   Must have at least two module instances    \n");        
+        exit(0);
+    }
+    
+
+    nSelSrc = 0;
+    strSrc = strSrcMod[nSelSrc];
+    
+    nSelDest = 1;
+    strDest = strDestMod[nSelDest];
+    
+    if (MainAppDialog() == 0)
+    {
+        SaveConfigSettings();
+        exit(0);
+    }
+                
+    fileName = filesetext(B.name, "_ModDupPlace.scr");
+        
+    output(fileName)
+    {
+        printf("#\n# Generated by mod-dup-place.ulp\n#\n");
+        printf("# '%s at %s;\n", B.name, t2string(time()));
+        printf("# '%s;\n#\n", EAGLE_SIGNATURE);
+        
+        printf ("GRID ");
+
+        if (B.grid.unit == GRID_UNIT_MIC)
+            printf ("MIC\n");
+        else if (B.grid.unit == GRID_UNIT_MM)
+            printf ("MM\n");
+        else if (B.grid.unit == GRID_UNIT_MIL)
+            printf ("MIL\n");
+        else
+            printf ("INCH\n");
+
+        int cnt = 0;
+
+        cnt = MoveModule(B);        
+
+        SaveConfigSettings();
+
+        if (fScriptExec && cnt)
+            exit("SCRIPT '" + fileName + "';");
+        else
+            exit(0);
+    }
+}
+else
+{
+   dlgMessageBox("\n   Start this ULP in a Board    \n");
+   exit (0);
+}
+
+
