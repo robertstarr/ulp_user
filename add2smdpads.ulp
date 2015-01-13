@@ -1,0 +1,316 @@
+#usage "<b>Size SMD 2 PADS</b> - v1.00 (1/13/15)<p>"
+       "Resizes and spaces two SMD pads in the library editor."
+       "<p>"
+       "<author>http://www.bobstarr.net</author>";
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// SIZE 2 SMD PADS
+//
+// Copyright (C) 2009-2010, Robert E. Starr (http://www.bobstarr.net)
+// 
+// REVISION HISTORY:
+//
+// v1.00 - 02/13/2010 (RES) - Initial Release
+//
+//////////////////////////////////////////////////////////////////////////////
+//
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
+// EXPRESSED OR IMPLIED. IF YOU DON'T LIKE IT, DON'T USE IT!
+//
+//////////////////////////////////////////////////////////////////////////////
+
+string Version         = "1.03";
+string strIconImage    = "<img src=add2smdpads.png>";
+string ConfigFileName  = "add2smdpads.cfg";
+string ConfigFilePath;
+
+real dDimA             = 0.6;
+real dDimB             = 1.5;
+real dDimC             = 2.0;
+real dDimL             = 2.5;
+real dDimW             = 1.8;
+real dDimT             = 1.8;
+real dDime             = 0.5;
+
+int bDrawDocLayer      = 1;
+
+// Package Grid Units
+int    nGridUnits      = 0;
+int    nPrevUnits      = 0;
+string strGridUnits[]  = { "MM", "MIL", "INCH" };
+
+real MM_PER_INCH       = 0.0393700787;
+real INCHES_PER_MM     = 25.40;
+
+//////////////////////////////////////////////////////////////////////////////
+// Display the main application dialog
+
+void OnUnitsChange()
+{
+    switch(nGridUnits)
+    {
+    case 0: // MM
+        if (nPrevUnits == 1)
+        {
+            // MIL->MM
+            dDimA = (dDimA / 1000) * INCHES_PER_MM;
+            dDimB = (dDimB / 1000) * INCHES_PER_MM;
+            dDimC = (dDimC / 1000) * INCHES_PER_MM;
+            dDimW = (dDimW / 1000) * INCHES_PER_MM;
+            dDimL = (dDimL / 1000) * INCHES_PER_MM;
+            dDimT = (dDimT / 1000) * INCHES_PER_MM;
+            dDime = (dDime / 1000) * INCHES_PER_MM;
+        }
+        else
+        {
+            // INCH->MM
+            dDimA = dDimA * INCHES_PER_MM;
+            dDimB = dDimB * INCHES_PER_MM;
+            dDimC = dDimC * INCHES_PER_MM;
+            dDimW = dDimW * INCHES_PER_MM;
+            dDimL = dDimL * INCHES_PER_MM;
+            dDimT = dDimT * INCHES_PER_MM;
+            dDime = dDime * INCHES_PER_MM;
+        }
+        break;
+
+    case 1: // MIL
+        if (nPrevUnits == 2)
+        {
+            // INCH->MIL
+            dDimA = dDimA * 1000;
+            dDimB = dDimB * 1000;
+            dDimC = dDimC * 1000;
+            dDimW = dDimW * 1000;
+            dDimL = dDimL * 1000;
+            dDimT = dDimT * 1000;
+            dDime = dDime * 1000;
+        }
+        else
+        {
+            // MM->MIL
+            dDimA = (dDimA * 1000) * MM_PER_INCH;
+            dDimB = (dDimB * 1000) * MM_PER_INCH;
+            dDimC = (dDimC * 1000) * MM_PER_INCH;
+            dDimW = (dDimW * 1000) * MM_PER_INCH;
+            dDimL = (dDimL * 1000) * MM_PER_INCH;
+            dDimT = (dDimT * 1000) * MM_PER_INCH;
+            dDime = (dDime * 1000) * MM_PER_INCH;
+        }
+        break;
+
+    case 2: // INCH
+        if (nPrevUnits == 1)
+        {
+            // MIL->INCH
+            dDimA = dDimA / 1000;
+            dDimB = dDimB / 1000;
+            dDimC = dDimC / 1000;
+            dDimW = dDimW / 1000;
+            dDimL = dDimL / 1000;
+            dDimT = dDimT / 1000;
+            dDime = dDime / 1000;
+        }
+        else
+        {
+            // MM->INCH
+            dDimA = dDimA * MM_PER_INCH;
+            dDimB = dDimB * MM_PER_INCH;
+            dDimC = dDimC * MM_PER_INCH;
+            dDimL = dDimL * MM_PER_INCH;
+            dDimT = dDimT * MM_PER_INCH;            
+            dDime = dDime * MM_PER_INCH;
+        }
+        break;
+    }
+
+    nPrevUnits = nGridUnits;
+}
+
+int MainAppDialog()
+{
+    string title = "Add Two SMD Pads - v" + Version;
+
+    int nResult = dlgDialog(title)
+    {
+        dlgHBoxLayout
+        {
+            dlgVBoxLayout
+            {
+                dlgGroup("Pad Dimensions")
+                {
+                    dlgGridLayout
+                    {
+                        dlgCell(1,0) dlgLabel("A");
+                        dlgCell(1,1) dlgRealEdit(dDimA, 0.001, 1000.0);
+    
+                        dlgCell(2,0) dlgLabel("B");
+                        dlgCell(2,1) dlgRealEdit(dDimB, 0.001, 1000.0);
+    
+                        dlgCell(3,0) dlgLabel("C");
+                        dlgCell(3,1) dlgRealEdit(dDimC, 0.001, 100.0);
+                    }
+                }
+                dlgGroup("Body Dimensions")
+                {
+                    dlgGridLayout
+                    {
+                        dlgCell(1,0) dlgLabel("L");
+                        dlgCell(1,1) dlgRealEdit(dDimL, 0.001, 1000.0);
+    
+                        dlgCell(2,0) dlgLabel("W");
+                        dlgCell(2,1) dlgRealEdit(dDimW, 0.001, 1000.0);
+    
+                        dlgCell(3,0) dlgLabel("T");
+                        dlgCell(3,1) dlgRealEdit(dDimT, 0.001, 100.0);
+
+                        dlgCell(4,0) dlgLabel("e");
+                        dlgCell(4,1) dlgRealEdit(dDime, 0.001, 100.0);
+                    }
+                    dlgCheckBox("Draw tDoc Package Outline", bDrawDocLayer);
+                }
+                dlgGroup("Grid Units")
+                {
+                    dlgRadioButton("MM", nGridUnits)   OnUnitsChange();
+                    dlgRadioButton("Mil", nGridUnits)  OnUnitsChange();
+                    dlgRadioButton("Inch", nGridUnits) OnUnitsChange();
+                }
+                dlgStretch(1);
+            }
+            dlgGroup("Legend")
+            {
+                dlgHBoxLayout
+                {
+                    dlgLabel(strIconImage, 1);
+                }
+                dlgVBoxLayout
+                {
+                    dlgPushButton("OK") dlgAccept();
+                    dlgPushButton("-Cancel") dlgReject();
+                }
+            }
+        }
+    };
+
+    return nResult;
+}
+
+void LoadConfigSettings()
+{
+    // load the last config settings saved
+    string a[];
+    
+    // Should be 27 lines in config file
+    int n;
+    n = fileread(a, filedir(argv[0])+ConfigFileName);
+
+    //string txt;
+    //sprintf(txt, "%d, %s", n, a[20]);
+    //dlgMessageBox(txt);      
+
+    if (n == 8)
+    {
+        int i = 0;
+        nGridUnits     = strtol(a[i++]);
+        nPrevUnits = nGridUnits;
+        dDimA          = strtod(a[i++]);
+        dDimB          = strtod(a[i++]);
+        dDimC          = strtod(a[i++]);
+        dDimL          = strtod(a[i++]);
+        dDimW          = strtod(a[i++]);
+        dDimT          = strtod(a[i++]);
+        dDime          = strtod(a[i++]);        
+    }
+}
+
+void SaveConfigSettings()
+{
+    // save the config settings 
+    output(filedir(argv[0])+ConfigFileName, "wt")
+    {
+        printf("%d\n", nGridUnits);
+        printf("%f\n", dDimA);
+        printf("%f\n", dDimB);
+        printf("%f\n", dDimC);
+        printf("%f\n", dDimL);
+        printf("%f\n", dDimW);
+        printf("%f\n", dDimT);
+        printf("%f\n", dDime);
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Script Entry Point
+
+if (library)
+{
+    nPrevUnits = nGridUnits;
+
+    library(LBR)
+    {
+        LoadConfigSettings();
+        
+        // Show the main application dialog
+        int nResult = MainAppDialog();
+    
+        if (!nResult)
+            exit(0);
+
+        SaveConfigSettings();
+        
+        string scrText;
+        string tmp;
+    
+        real pitch = (dDimA/2)+(dDimB/2);
+
+        sprintf(tmp, "GRID %s %.4f ON;\n", strGridUnits[nGridUnits], pitch);
+        scrText += tmp;
+                
+        sprintf(tmp, "Layer 1;\n");
+        scrText += tmp;
+
+        sprintf(tmp, "SMD %.4f %.4f -0 '%d' (%.4f 0);\n", dDimA, dDimC, 1, -pitch);
+        scrText += tmp;
+            
+        sprintf(tmp, "SMD %.4f %.4f -0 '%d' (%.4f 0);\n", dDimA, dDimC, 2, pitch);
+        scrText += tmp;
+
+        if (bDrawDocLayer)
+        {
+            sprintf(tmp, "Change Style continuous;\n");
+            scrText += tmp;
+            
+            sprintf(tmp, "Set Wire_Bend 2;\n");
+            scrText += tmp;
+    
+            sprintf(tmp, "Layer 51;\n");
+            scrText += tmp;
+            
+            real y = dDimW/2;
+            real x = dDimL/2;
+            
+            sprintf(tmp, "Wire  0.0508 (-%.4f %.4f) (%.4f %.4f) (%.4f -%.4f) (-%.4f -%.4f) (-%.4f %.4f);\n", x, y, x, y, x, y, x, y, x, y);
+            scrText += tmp;
+    
+            sprintf(tmp, "Rect R0 (-%.4f -%.4f) (-%.4f %.4f);\n", x, y, x-dDime, y);
+            scrText += tmp;
+            
+            sprintf(tmp, "Rect R0 (%.4f -%.4f) (%.4f %.4f);\n", x, y, x-dDime, y);
+            scrText += tmp;
+                    
+            //dlgMessageBox(scrText);
+        }
+
+        sprintf(tmp, "GRID LAST\n");
+        scrText += tmp;
+        
+        exit(scrText);
+    }
+}
+else
+{
+    dlgMessageBox("Start this ULP in the Library Editor!", "OK");
+}
+
+// End-Of-File
