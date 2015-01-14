@@ -209,11 +209,12 @@ void LoadConfigSettings()
     //sprintf(txt, "%d, %s", n, a[20]);
     //dlgMessageBox(txt);      
 
-    if (n == 8)
+    if (n == 9)
     {
         int i = 0;
         nGridUnits     = strtol(a[i++]);
-        nPrevUnits = nGridUnits;
+        nPrevUnits     = nGridUnits;
+        bDrawDocLayer  = strtol(a[i++]);
         dDimA          = strtod(a[i++]);
         dDimB          = strtod(a[i++]);
         dDimC          = strtod(a[i++]);
@@ -230,6 +231,7 @@ void SaveConfigSettings()
     output(filedir(argv[0])+ConfigFileName, "wt")
     {
         printf("%d\n", nGridUnits);
+        printf("%d\n", bDrawDocLayer);
         printf("%f\n", dDimA);
         printf("%f\n", dDimB);
         printf("%f\n", dDimC);
