@@ -47,6 +47,8 @@ int fModeL = 1;         // normalize inductors if non-zero
 int fUCase = 0;         // force all other parts values to uppercase
 int fStyle = 0;         // 0=US, 1=Euro style
 int fTrimSpaces = 1;    // strip whitespaces from values text if non-zero
+int fLowerCase = 0;
+int fNoRsuffix = 1;
 
 int fTrimC = 0;         // 1= truncate 'pF' or 'nF' styles to 'p' or 'n'
 int fTrimL = 0;         // 1= truncate 'nH' or 'uH' styles to 'n' or 'u'
@@ -69,11 +71,12 @@ string trimSpaces(string source)
     string result;
     int i;
     int cnt=0;
-    for (i=0; source[i]; i++) {
-      if (isspace(source[i]))
-          continue;
-      result[cnt] = source[i];
-      cnt++;
+    for (i=0; source[i]; i++)
+    {
+        if (isspace(source[i]))
+            continue;
+        result[cnt] = source[i];
+        cnt++;
     }
     return result;
 }
@@ -142,6 +145,14 @@ int normalizeRValue(UL_PART part)
         ++cnt;
     }
 
+    if (fNoRsuffix)
+    {
+        /* Remove any R suffix if present */
+        if ((len = strlen(val)) > 0)
+            if (val[len-1] == 'R')
+                val[len-1] = 0;
+    }
+
 //printf("# DEBUG1 partName='%s', partValue='%s', val='%s'\n", partName, partValue, val);
 //printf("# DEBUG2 val='%s', ch=%c\n", val, ch);
 
@@ -192,9 +203,17 @@ int normalizeRValue(UL_PART part)
             }
             else
             {
-                // normlize to '100R' or '47R5' format
-                partValue = val +"R";
-                partValue += extra;
+                // normalize to '100R' or '47R5' format
+                if (fNoRsuffix)
+                {
+                    partValue = val;
+                    partValue += extra;
+                }
+                else
+                {
+                    partValue = val + "R";
+                    partValue += extra;
+                }
             }
             update = 1;
         }
@@ -246,6 +265,12 @@ int normalizeRValue(UL_PART part)
                     {
                         ch = val[i];
 
+                        if (ch == 'R' && fNoRsuffix)
+                        {
+                            val[i] = '.';
+                            break;
+                        }
+                        
                         if (ch == 'R' || ch == 'K' || ch == 'M')
                         {
                             mod = val[i];
@@ -253,7 +278,7 @@ int normalizeRValue(UL_PART part)
                             flag = 1;
                         }
                     }
-  
+                    
                     if (flag)
                         val += mod;
 
@@ -274,6 +299,9 @@ int normalizeRValue(UL_PART part)
         update = 1;
     }
 
+    if (fLowerCase)
+        partValue = strlwr(partValue);
+        
     if (part.value != partValue)
     {
         printf("# Normalize RESISTOR '%s' from '%s' to '%s'\n", part.name, part.value, partValue);
@@ -794,7 +822,7 @@ if (schematic)
                     dlgCheckBox("Normalize &RESISTOR values (ie 1.00K and 100R format)", fModeR);
                     dlgCheckBox("Normalize &CAPACITOR values (ie 10uF, 10pF or 1N5 format)", fModeC);
                     dlgCheckBox("Normalize &INDUCTOR values (ie 10uH, 10nH or 10mH format)", fModeL);
-                    dlgCheckBox("Force all other part values to &UPPER CASE", fUCase);
+                    dlgCheckBox("Force all unknown part type values to &UPPER CASE", fUCase);
                 }
 
                 dlgGroup("Options")
@@ -830,6 +858,8 @@ if (schematic)
                         dlgCheckBox("Trim all spaces from values text", fTrimSpaces);
                         dlgCheckBox("Trim CAP suffixes (nF->n, pF->p)", fTrimC);
                         dlgCheckBox("Trim INDUCTOR suffixes (nH->n, uH->u, mH->m)", fTrimL);
+                        dlgCheckBox("No R suffix (100R) on resistors", fNoRsuffix);
+                        dlgCheckBox("Force all value text to lower case", fLowerCase);
                      }
                 }
             }

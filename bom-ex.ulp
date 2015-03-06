@@ -639,6 +639,12 @@ void AddPartData(UL_PART P, UL_INSTANCE I)
                 PartDNP[nPartCount]     = dnp;
                 PartQty[nPartCount]     = qty;
     
+                if (PartSheet[nPartCount] == 0)
+                {
+                    dlgMessageBox(usage + "<hr><b>ERROR: No sheet for part %s", P.name);
+                    exit(1);
+                }
+
                 if (!dnp)
                     ++nBOMCount;
                     
