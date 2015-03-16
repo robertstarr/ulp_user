@@ -1,0 +1,214 @@
+#usage "<b>Make resistor package</b> - v1.00 (1/13/15)<p>"
+       "<p>"
+       "<author>http://www.bobstarr.net</author>";
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// MAKE RESISTOR PACKAGE
+//
+// Copyright (C) 2009-2010, Robert E. Starr (http://www.bobstarr.net)
+// 
+// REVISION HISTORY:
+//
+// v1.00 - 02/13/2010 (RES) - Initial Release
+//
+//////////////////////////////////////////////////////////////////////////////
+//
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
+// EXPRESSED OR IMPLIED. IF YOU DON'T LIKE IT, DON'T USE IT!
+//
+//////////////////////////////////////////////////////////////////////////////
+
+string Version         = "1.03";
+string strIconImage    = "<img src=make-resistor.png>";
+string ConfigFileName  = "make-resistor.cfg";
+string ConfigFilePath;
+
+real dDimP1            = 12.5;
+real dDim0d            = 0.7112;
+real dDimL1            = 6.5;
+real dDim0D            = 2.5;
+
+// Package Grid Units
+int    nGridUnits      = 0;
+int    nPrevUnits      = 0;
+string strGridUnits[]  = { "MM", "MIL", "INCH" };
+
+//////////////////////////////////////////////////////////////////////////////
+// Display the main application dialog
+
+int MainAppDialog()
+{
+    string title = "Add Two SMD Pads - v" + Version;
+
+    int nResult = dlgDialog(title)
+    {
+        dlgHBoxLayout
+        {
+            dlgVBoxLayout
+            {
+                dlgGroup("Pad Dimensions")
+                {
+                    dlgGridLayout
+                    {
+                        dlgCell(1,0) dlgLabel("P1");
+                        dlgCell(1,1) dlgRealEdit(dDimP1, 0.001, 1000.0);
+    
+                        dlgCell(2,0) dlgLabel("0d");
+                        dlgCell(2,1) dlgRealEdit(dDim0d, 0.001, 1000.0);
+                    }
+                }
+                dlgGroup("Body Dimensions")
+                {
+                    dlgGridLayout
+                    {
+                        dlgCell(1,0) dlgLabel("L1");
+                        dlgCell(1,1) dlgRealEdit(dDimL1, 0.001, 1000.0);
+    
+                        dlgCell(2,0) dlgLabel("0D");
+                        dlgCell(2,1) dlgRealEdit(dDim0D, 0.001, 1000.0);   
+                    }
+                }
+                dlgVBoxLayout
+                {
+                    dlgPushButton("OK") dlgAccept();
+                    dlgPushButton("-Cancel") dlgReject();
+                }
+                dlgStretch(1);
+            }
+            dlgGroup("Legend")
+            {
+                dlgHBoxLayout
+                {
+                    dlgLabel(strIconImage, 1);
+                }
+            }
+        }
+    };
+
+    return nResult;
+}
+
+void LoadConfigSettings()
+{
+    // load the last config settings saved
+    string a[];
+    
+    // Should be 27 lines in config file
+    int n;
+    n = fileread(a, filedir(argv[0])+ConfigFileName);
+
+    //string txt;
+    //sprintf(txt, "%d, %s", n, a[20]);
+    //dlgMessageBox(txt);      
+
+    if (n == 4)
+    {
+        int i = 0;
+        dDimP1         = strtod(a[i++]);
+        dDim0d         = strtod(a[i++]);
+        dDimL1         = strtod(a[i++]);
+        dDim0D         = strtod(a[i++]);  
+    }
+}
+
+void SaveConfigSettings()
+{
+    // save the config settings 
+    output(filedir(argv[0])+ConfigFileName, "wt")
+    {
+        printf("%f\n", dDimP1);
+        printf("%f\n", dDim0d);
+        printf("%f\n", dDimL1);
+        printf("%f\n", dDim0D);
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Script Entry Point
+
+if (library)
+{
+    nPrevUnits = nGridUnits;
+
+    library(LBR)
+    {
+        LoadConfigSettings();
+        
+        // Show the main application dialog
+        int nResult = MainAppDialog();
+    
+        if (!nResult)
+            exit(0);
+
+        SaveConfigSettings();
+        
+        string scrText;
+        string tmp;
+    
+        real pitch = dDimP1/2;
+        real dia = dDim0d*2;
+
+        sprintf(tmp, "GRID MM %.4f ON;\n", pitch);
+        scrText += tmp;               
+        sprintf(tmp, "CHANGE DRILL %.4f;\n", dDim0d);
+        scrText += tmp;
+        sprintf(tmp, "PAD %.4f OCTAGON '%d' (%.4f 0);\n", dia, 1, -pitch);
+        scrText += tmp;      
+        sprintf(tmp, "PAD %.4f OCTAGON '%d' (%.4f 0);\n", dia, 2, pitch);
+        scrText += tmp;
+        sprintf(tmp, "Change Style continuous;\n");
+        scrText += tmp;        
+        sprintf(tmp, "Set Wire_Bend 2;\n");
+        scrText += tmp;    
+        sprintf(tmp, "Layer 21;\n");
+        scrText += tmp;
+        
+        real y = dDim0D/2;
+        real x = dDimL1/2;
+        real z = dDim0d/2;
+        
+        sprintf(tmp, "Wire  0.2032 (-%.4f %.4f) (%.4f %.4f) (%.4f -%.4f) (-%.4f -%.4f) (-%.4f %.4f);\n",
+                x, y, x, y, x, y, x, y, x, y);
+        scrText += tmp;
+        
+        sprintf(tmp, "Rect R0 (-%.4f -%.4f) (-%.4f %.4f);\n", pitch-(dia*0.75), z, x, z);
+        scrText += tmp;
+        
+        sprintf(tmp, "Rect R0 (%.4f -%.4f) (%.4f %.4f);\n", pitch-(dia*0.75), z, x, z);
+        scrText += tmp;
+                    
+        sprintf(tmp, "Layer 25;\n");
+        scrText += tmp;                                        
+        sprintf(tmp, "Change Size 1.016;\n");
+        scrText += tmp;                               
+        sprintf(tmp, "Change Ratio 18;\n");
+        scrText += tmp;                                 
+        sprintf(tmp, "Change Align bottom left;\n");
+        scrText += tmp;                        
+        sprintf(tmp, "Text '>NAME' R0 (-%.4f %.4f);\n", x, y+0.40);
+        scrText += tmp;
+                                  
+        sprintf(tmp, "Layer 27;\n");
+        scrText += tmp;                                                
+        sprintf(tmp, "Change Size 0.8128;\n");
+        scrText += tmp;                                      
+        sprintf(tmp, "Change Ratio 10;\n");
+        scrText += tmp;                                       
+        sprintf(tmp, "Change Align bottom left;\n");
+        scrText += tmp;                                
+        sprintf(tmp, "Text '>VALUE' R0 (-%.4f -%.4f);\n", x, y+1.2);
+        scrText += tmp;
+        
+        sprintf(tmp, "GRID LAST;\n");
+        scrText += tmp;
+        
+        exit(scrText);
+    }
+}
+else
+{
+    dlgMessageBox("Start this ULP in the Library Editor!", "OK");
+}
+
+// End-Of-File

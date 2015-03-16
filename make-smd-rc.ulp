@@ -1,4 +1,4 @@
-#usage "<b>Size SMD 2 PADS</b> - v1.00 (1/13/15)<p>"
+#usage "<b>Make SMD R/C Package</b> - v1.00 (1/13/15)<p>"
        "Sizes and spaces two SMD pads in the library editor."
        "<p>"
        "<author>http://www.bobstarr.net</author>";
@@ -21,8 +21,8 @@
 //////////////////////////////////////////////////////////////////////////////
 
 string Version         = "1.03";
-string strIconImage    = "<img src=add2smdpads.png>";
-string ConfigFileName  = "add2smdpads.cfg";
+string strIconImage    = "<img src=make-smd-rc.png>";
+string ConfigFileName  = "make-smd-rc.cfg";
 string ConfigFilePath;
 
 real dDimA             = 0.6;
