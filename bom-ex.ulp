@@ -674,13 +674,13 @@ void CollectPartData(string var)
             // Module instances
             if (P.modulepart) {
                 P.modulepart.instances(I)
-                    AddPartData(P, I);
+                if(I.sheet!=0) AddPartData(P, I);
             }
             else
             {
                 // Sheet instances
                 P.instances(I)            
-                    AddPartData(P, I);
+                if(I.sheet!=0) AddPartData(P, I);
             }
         }
     }
