@@ -201,6 +201,8 @@
 //
 // 1.64 RES  12/02/14 Extended support for Eagle v7.
 //
+// 1.65 RES  12/02/14 Fix for parts with sheet 0.
+//
 //////////////////////////////////////////////////////////////////////////////
 //
 // THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
@@ -210,7 +212,7 @@
 
 #require 6.5100
 
-#usage "en: <b>Export a Bill Of Material</b> - v1.64\n"
+#usage "en: <b>Export a Bill Of Material</b> - v1.65\n"
            "<p>"
            "Generates a project's <i>Bill Of Material</i>."
            "<p>"
@@ -337,7 +339,7 @@ string HelpTextEN =
 //////////////////////////////////////////////////////////////////////////////
 //
 
-string strVersion = "1.64";
+string strVersion = "1.65";
 
 int nPartCount;
 int nBOMCount;
@@ -626,29 +628,33 @@ void AddPartData(UL_PART P, UL_INSTANCE I)
 
             if (!lookup(PartName, P.name, 0))
             {
-                PartSheet[nPartCount]   = I.sheet;
-                PartName[nPartCount]    = P.name;
-                PartVal[nPartCount]     = val;
-                PartValSave[nPartCount] = val;
-                PartAttr[nPartCount]    = attrs;
-                PartNum[nPartCount]     = partnum;
-                PartNumPrev[nPartCount] = partnum;
-                PartDev[nPartCount]     = P.device.name;
-                PartPkg[nPartCount]     = (P.device.package) ? P.device.package.name : "*";
-                PartDesc[nPartCount]    = (desc != "") ? desc : P.device.headline;
-                PartDNP[nPartCount]     = dnp;
-                PartQty[nPartCount]     = qty;
-    
-                if (PartSheet[nPartCount] == 0)
+                /* Ignore parts if sheet 0, this indicates uninvoked gates */
+                if (I.sheet == 0)
                 {
-                    dlgMessageBox(usage + "<hr><b>ERROR: No sheet for part %s", P.name);
-                    exit(1);
+                    string msg;
+                    sprintf(msg, "Warning: Part '%s' may have uninvoked gates!", P.name);
+                    dlgMessageBox(msg, "OK");
                 }
-
-                if (!dnp)
-                    ++nBOMCount;
-                    
-                nPartCount++;
+                else
+                {                
+                    PartSheet[nPartCount]   = I.sheet;
+                    PartName[nPartCount]    = P.name;
+                    PartVal[nPartCount]     = val;
+                    PartValSave[nPartCount] = val;
+                    PartAttr[nPartCount]    = attrs;
+                    PartNum[nPartCount]     = partnum;
+                    PartNumPrev[nPartCount] = partnum;
+                    PartDev[nPartCount]     = P.device.name;
+                    PartPkg[nPartCount]     = (P.device.package) ? P.device.package.name : "*";
+                    PartDesc[nPartCount]    = (desc != "") ? desc : P.device.headline;
+                    PartDNP[nPartCount]     = dnp;
+                    PartQty[nPartCount]     = qty;
+    
+                    if (!dnp)
+                        ++nBOMCount;
+                        
+                    nPartCount++;
+                }
             }
         }
     }
