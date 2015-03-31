@@ -1,0 +1,425 @@
+#usage "<b>Duplicate placement and routing of a hierarchical module</b>\n"
+       "<p>"
+       "This program duplicates the board placement and routing of a module "
+       "from a source hierarchical module. The ULP displays and allows the "
+       "user to select the source module placement to duplicate from and "
+       "desitination module is duplicated with X/Y offsets currently set.<p>"
+       "<author>http://www.bobstarr.net</author>"
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// Copyright (C) 2015, Robert E. Starr (http://www.bobstarr.net)
+// 
+// REVISION HISTORY:
+//
+// v1.00 - 02/25/2015 (RES) - Initial Release
+//
+//////////////////////////////////////////////////////////////////////////////
+//
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
+// EXPRESSED OR IMPLIED. IF YOU DON'T LIKE IT, DON'T USE IT!
+//
+//////////////////////////////////////////////////////////////////////////////
+
+string Version = "1.00";
+
+string fileName;
+
+string configFilename = "mod-duplicate.cfg";
+
+// Variables below are stored/recalled from config file
+
+real offsetX = 0.0;
+real offsetY = 0.0;
+
+string powerSig[];
+int nPowerSigCnt;
+
+int fScriptExec = 1;    // execute script automatically after generating
+
+int nSelSrc, nSrcCnt;
+int nSelDest, nDestCnt;
+int nIDCount;
+
+string strSrc, strSrcMod[];
+string strDest, strDestMod[];
+
+/* Common power signals to route, add more as needed */
+powerSig[nPowerSigCnt++] = "VDD";
+powerSig[nPowerSigCnt++] = "VSS";
+powerSig[nPowerSigCnt++] = "V+";
+powerSig[nPowerSigCnt++] = "V-";
+powerSig[nPowerSigCnt++] = "+5V";
+powerSig[nPowerSigCnt++] = "+3V3";
+powerSig[nPowerSigCnt++] = "+15V";
+//powerSig[nPowerSigCnt++] = "-15V";
+powerSig[nPowerSigCnt++] = "GND";
+powerSig[nPowerSigCnt++] = "AGND";
+powerSig[nPowerSigCnt++] = "CGND";
+                                                              
+//////////////////////////////////////////////////////////////////////////////
+
+void LoadConfigSettings()
+{
+    string a[];
+    int n;
+
+    // Should be 5 lines of data in config file
+    if ((n = fileread(a, filedir(argv[0])+configFilename)) == 3)
+    {
+        int i = 0;
+        offsetX        = strtod(a[i++]);
+        offsetY        = strtod(a[i++]);
+        fScriptExec    = strtol(a[i++]);
+    }
+}
+
+void SaveConfigSettings()
+{
+    // save the config settings 
+    output(filedir(argv[0])+configFilename, "wt")
+    {
+        printf("%f\n", offsetX);
+        printf("%f\n", offsetY);
+        printf("%d\n", fScriptExec);
+    }
+}
+
+string GetStyle(int n)
+{
+    if (n == 0)
+        return "CONTINUOUS";
+    else if (n == 1)
+        return "LONGDASH";
+    else if (n == 2)
+        return "SHORTDASH";
+    else  if (n == 3)
+        return "DASHDOT";
+    return "";
+}
+
+string GetViaShape(int n)
+{
+    if (n == 0)
+        return "SQUARE";
+    else if (n == 1)
+        return "ROUND";
+    else if (n == 2)
+        return "OCTAGON";
+    return "";
+}
+
+string GetPour(int n)
+{
+    if (n == 0)
+        return "SOLID";
+    else if (n == 1)
+        return "HATCH";
+    else if (n == 2)
+        return "CUTOUT";
+    return "";
+}
+
+int IsPowerSignal(string name)
+{
+    int i;
+    int found = 0;
+      
+    for(i=0; i < nPowerSigCnt; i++)
+    {
+        if (name == powerSig[i])
+        {
+            found = 1;
+            break;
+        }
+    }
+    
+    return found;
+}
+       
+int DuplicatePlacement(UL_BOARD B)
+{
+    int i;
+    int cnt = 0;
+    string pid[];
+    string name;
+                        
+    printf("#\n# Duplicate module '%s' PLACEMENT from '%s'\n#\n", strDest, strSrc);
+    printf("GRID MIL\n");
+                    
+    B.elements(E)
+    {
+        if (strsplit(pid, E.name, ':') == 2)
+        { 
+            if (pid[0] == strSrc)
+            {
+                sprintf(name, "%s:%s", strDest, pid[1]);
+        
+                printf("MOVE %s (%5.4f %5.4f);\n", name, u2mil(E.x) + offsetX, u2mil(E.y) + offsetY);
+                printf("ROTATE =R%f %s;\n", E.angle, name);
+                
+                if (E.mirror)
+                    printf("MIRROR %s;\n", name);
+                    
+                ++cnt;
+            }
+        }
+    }
+
+    return cnt;    
+}
+
+int DuplicateRoute(UL_BOARD B)
+{
+    int i;
+    int cnt = 0;
+    int pwrsig;
+    
+    string pid[];
+    string name;      
+    real dx,dy;
+    real x1, y1, x2, y2, x3, y3;
+    real xc, yc;
+                
+    printf("#\n# Duplicate module '%s' ROUTING from '%s'\n#\n", strDest, strSrc);
+    printf("GRID MIL\n");
+    printf("SET WIRE_BEND 2\n");
+               
+    dx = offsetX;
+    dy = offsetY;
+             
+    B.signals(S) 
+    {   
+        if (strsplit(pid, S.name, ':') == 2)
+        { 
+            if (pid[0] == strSrc)
+            {                  
+                sprintf(name, "%s:%s", strDest, pid[1]);
+                
+                /*** DUPLICATE WIRES ***/  
+                               
+                S.wires(W)
+                { 
+                    if (W.width)    /* airwire check */
+                    {               
+                        if(!W.arc)
+                        {
+                            /* Handle simple line case */
+                            printf("CHANGE LAYER %d\n", W.layer);
+                            printf("CHANGE STYLE %s;\n", GetStyle(W.style));
+                            printf("WIRE '%s' %f (%f %f) (%f %f)\n", 
+                                name, u2mil(W.width), 
+                                u2mil(W.x1)+dx, u2mil(W.y1)+dy, 
+                                u2mil(W.x2)+dx, u2mil(W.y2)+dy);
+                        }
+                        else
+                        {
+                            /* Handle ARC case */
+                            x1 = u2mil(W.arc.x1)+dx;
+                            y1 = u2mil(W.arc.y1)+dy;
+                            xc = u2mil(W.arc.xc)+dx;
+                            yc = u2mil(W.arc.yc)+dy;
+                            x2 = u2mil(2*W.arc.xc - W.arc.x1)+dx;
+                            y2 = u2mil(2*W.arc.yc - W.arc.y1)+dy;
+                            x3 = u2mil(W.arc.x2)+dx;
+                            y3 = u2mil(W.arc.y2)+dy;
+                            printf("CHANGE LAYER %d\n", W.arc.layer);
+                            printf("CHANGE WIDTH %f\n", u2mil(W.arc.width));
+                            printf("CHANGE STYLE %s;\n", GetStyle(W.style));
+                            printf("ARC '%s' CCW (%f %f) (%f %f) (%f %f)\n",
+                                name, x1, y1, x2, y2, x3, y3);
+                        }
+                    }
+                }
+                
+                /*** DUPLICATE VIAS ***/
+                
+                S.vias(V)
+                {
+                    printf("CHANGE DRILL %f\n", u2mil(V.drill));
+                    printf("VIA '%s' %f %s (%f %f)\n",
+                        name, u2mil(V.diameter[1]), GetViaShape(V.shape[1]),
+                        u2mil(V.x)+dx, u2mil(V.y)+dy);
+                }
+                
+                /*** DUPLICATE POLYGONS ***/
+                                
+                S.polygons(P)
+                {
+                    printf("CHANGE LAYER %d;\n", P.layer);
+                    printf("CHANGE ISOLATE %f;\n",u2mil(P.isolate));
+                    printf("CHANGE RANK %d;\n", P.rank);
+                    printf("CHANGE ORPHANS %s;\n", P.orphans ? "ON" : "OFF");                   
+                    printf("CHANGE POUR %s;\n", GetPour(P.pour));  
+                    printf("CHANGE RANK %d;\n", P.rank);                        
+                    printf("CHANGE SPACING %f;\n", u2mil(P.spacing));                       
+                    printf("CHANGE THERMALS %s;\n", P.thermals ? "ON" : "OFF");
+                        
+                    printf("POLYGON %s %f", name, u2mil(P.width));
+                    P.wires(W)
+                    {
+                       x1 = u2mil(W.x1)+dx;
+                       y1 = u2mil(W.y1)+dy;
+                       x2 = u2mil(W.x2)+dx;
+                       y2 = u2mil(W.y2)+dy;
+                       printf(" (%f %f)",x1,y1);
+                    }
+                    printf(" (%f %f);\n",x2,y2);
+                }
+                
+                ++cnt;
+            }
+        }
+    }
+        
+    return cnt;
+}
+
+void OnComboChangeSource()
+{
+    strSrc = strSrcMod[nSelSrc];
+}
+
+void OnComboChangeDest()
+{
+    strDest = strDestMod[nSelDest];
+}
+
+int MainAppDialog()
+{
+    int nResult = dlgDialog("Module Duplicate Placement")
+    {
+        string title = "Module Duplicate Placement v" + Version;
+
+        dlgVBoxLayout
+        {
+            dlgSpacing(5);
+            
+            dlgGroup(title)
+            {
+                dlgVBoxLayout
+                {
+                    dlgGroup("Source/Destination")
+                    {
+                        dlgGridLayout
+                        {
+                            dlgCell(1,0) dlgLabel("Source module to duplicate placement from");
+                            dlgCell(1,1) dlgComboBox(strSrcMod, nSelSrc) OnComboChangeSource();
+
+                            dlgCell(2,0) dlgLabel("Destination module to place with offset");
+                            dlgCell(2,1) dlgComboBox(strDestMod, nSelDest) OnComboChangeDest();
+                        }
+                    }
+                    
+                    dlgGridLayout
+                    {
+                        dlgCell(1,0) dlgLabel("X-Offset");
+                        dlgCell(1,1) dlgRealEdit(offsetX);
+        
+                        dlgCell(2,0) dlgLabel("Y-Offset");
+                        dlgCell(2,1) dlgRealEdit(offsetY);
+                    }                        
+                }
+            }
+        }
+
+        dlgHBoxLayout
+        {
+            dlgPushButton("OK") dlgAccept();
+            dlgPushButton("-Cancel") dlgReject();
+            dlgCheckBox("&Execute Script", fScriptExec);
+        }
+    };
+    
+    return nResult;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Script Entry Point
+
+if (board) board(B)
+{
+    LoadConfigSettings();
+    
+    project.schematic(S)
+    {
+        S.allparts(P)
+        {
+            // Module instances
+            if (P.modulepart)
+            {
+                P.modulepart.instances(I)
+                { 
+                    //printf("# DEBUG %s is a virtual part from %s in module %s with part instance on sheet %d\n",
+                    //    P.name, P.modulepart.name, P.module.name, I.sheet);
+                        
+                    if (P.device.package)
+                    {
+                        string key[];
+                        
+                        if (strsplit(key, P.name, ':') == 2)
+                        { 
+                            /* Collect unique module names */
+                            if (!lookup(strSrcMod, key[0], 0)) 
+                            {          
+                                strSrcMod[nSrcCnt++] = key[0];
+                                strDestMod[nDestCnt++] = key[0];
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (nDestCnt < 2)
+    {
+        dlgMessageBox("\n   Must have at least two module instances    \n");        
+        exit(0);
+    }
+
+    nSelSrc = 0;
+    strSrc = strSrcMod[nSelSrc];
+    
+    nSelDest = 1;
+    strDest = strDestMod[nSelDest];
+    
+    if (MainAppDialog() == 0)
+    {
+        SaveConfigSettings();
+        exit(0);
+    }
+                
+    fileName = filesetext(B.name, "_ModDupPlace.scr");
+        
+    output(fileName)
+    {
+        printf("#\n# Generated by mod-duplicate.ulp\n#\n");
+        printf("# '%s at %s;\n", B.name, t2string(time()));
+        printf("# '%s;\n#\n", EAGLE_SIGNATURE);
+        
+        int cnt = 0;
+
+        cnt = DuplicatePlacement(B);    
+        
+        if (cnt)
+            cnt = DuplicateRoute(B); 
+        
+        printf("RATSNEST;\n");
+        printf("GRID LAST;\n");
+        
+        SaveConfigSettings();
+
+        if (fScriptExec && cnt)
+            exit("SCRIPT '" + fileName + "';");
+        else
+            exit(0);
+    }
+}
+else
+{
+   dlgMessageBox("\n   Start this ULP in a Board    \n");
+   exit (0);
+}
+
+
