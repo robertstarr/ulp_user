@@ -504,7 +504,7 @@ int normalizeCValue(UL_PART part)
                             flag = 1;
                         }
                     }
-  
+
                     if (flag)
                         val += mod;
                     else

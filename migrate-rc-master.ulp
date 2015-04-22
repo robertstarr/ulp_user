@@ -18,6 +18,7 @@
 //
 // v1.02 - 03/11/2010 (RES) - Bug fix in xlate_rc_master() lookup loop.
 //
+// v1.03 - 04/17/2015 (RES) - Added support to rotate C symbols properly.
 //////////////////////////////////////////////////////////////////////////////
 //
 // THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
@@ -25,7 +26,7 @@
 //
 //////////////////////////////////////////////////////////////////////////////
 
-string strVersion   = "1.02";
+string strVersion   = "1.03";
 
 string _strFileName;
 
@@ -222,6 +223,8 @@ string xlate_rcl_name(string old_name)
         "R-US_R6332:R_6332",
         "R-US_R6332MP:R_6332MP",
         "R-US_R6332W:R_6332",
+        "R-US_M0805_N:R_0805",
+        "R-US_M0805:R_0805",
         "R-US_M1206:R_1206",
         // *** SMD INDUCTOR PACKAGES ***
         "L-USL0402:L_0402",
@@ -318,6 +321,14 @@ string xlate_rcl_name(string old_name)
     return temp;
 }
 
+real normalizeAngle(real angle)
+{
+    real newAngle = angle;
+    while (newAngle <= -180.0) newAngle += 360.0;
+    while (newAngle > 180.0) newAngle -= 360.0;
+    return newAngle;
+}
+
 //////////////////////////////////////////////////////////////////////////////
 // Script Entry Point
 
@@ -378,8 +389,11 @@ if (schematic)
                     {
                         string dev;
 
-                        if ((P.device.library == "rcl") || (P.device.library == "cap-pan40") ||
-                            (P.device.library == "resistor") || (P.device.library == "R") || (P.device.library == "r"))
+                        if ((P.device.library == "rcl") ||
+                            (P.device.library == "cap-pan40") ||
+                            (P.device.library == "resistor") ||
+                            (P.device.library == "R") ||
+                            (P.device.library == "r"))
                         {
 
 	                        //printf("# LIB(%s), NAME(%s) DEVNAME(%s)\n", P.device.library, P.name, P.device.name);
@@ -400,6 +414,20 @@ if (schematic)
                                 {
                                     //printf("# Replace (%s) %s with %s\n", P.name, P.device.name, dev);
                                     printf("REPLACE %s %s;\n", P.name, dev);
+                                 
+                                    // The cap symbols in rc-master are rotated from the
+                                    // original rcl.lbr library. Here we rotate the 
+                                    // symbol so it is replaced at the correct orientation.
+                                        
+                                    if (strstr(P.device.name, "C-") >= 0)
+                                    {
+                                        P.instances(I)
+                                        {
+                                            real angle = I.angle+270;
+                                            angle = normalizeAngle(angle);
+                                            printf("ROTATE =R%f %s;\n", angle, P.name);                                            
+                                        }
+                                    }
                                 }
                                 else
                                 {
