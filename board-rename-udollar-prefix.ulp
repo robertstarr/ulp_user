@@ -29,7 +29,7 @@ if (board)
                 if (!cont) {
                     if (strstr(E.name, "U$") == 0)
                     {
-                        printf("NAME '%s' 'FEATURE%s';\n", E.name, strsub(E.name, 2));
+                        printf("NAME '%s' 'PCBFEAT%s';\n", E.name, strsub(E.name, 2));
                     }
                 }
             }
