@@ -359,6 +359,9 @@ numeric string PartNumPrev[];
 numeric string PartValSave[];
 numeric string PartDevChange[];
 
+numeric string PartModule[];
+numeric string PartModulepartName[];
+
 int Selected = -1;
 int SortCol = 0;
 
@@ -649,6 +652,8 @@ void AddPartData(UL_PART P, UL_INSTANCE I)
                     PartDesc[nPartCount]    = (desc != "") ? desc : P.device.headline;
                     PartDNP[nPartCount]     = dnp;
                     PartQty[nPartCount]     = qty;
+                    PartModule[nPartCount]  = (P.module) ? P.module.name : "";
+                    PartModulepartName[nPartCount]  = (P.module) ? P.modulepart.name : "";
     
                     if (!dnp)
                         ++nBOMCount;
@@ -3374,6 +3379,8 @@ int WriteScriptData(string fileName)
     fileerror();
 
     int nsheet = -1;
+    string modulename = "";
+    string localpartname = "";
 
     output(fileName, "wt")
     {    
@@ -3386,20 +3393,32 @@ int WriteScriptData(string fileName)
             // Is the part we're changing on the current sheet?
             // If not, move the current sheet with this part.
 
-            if (nsheet != PartSheet[i])
+
+            if ( (modulename != PartModule[i]) || (nsheet != PartSheet[i]) )
             {
-                printf("EDIT .s%d;\n", PartSheet[i]);
+                if (PartModule[i] == "")
+                    printf("EDIT .s%d;\n", PartSheet[i]);
+                else
+                    printf("EDIT %s.m%d;\n", PartModule[i], PartSheet[i]);
+
                 nsheet = PartSheet[i];
+                modulename = PartModule[i];
             }
 
             // Do we have any part number changes on this sheet?
             // If so, set the new part number attribute.
+            // ..but first choose the local name of the part in its (sheet or module) context
+
+            if (modulename == "")
+                localpartname = PartName[i];
+            else
+                localpartname = PartModulepartName[i];
 
             if (ApplyAllAttrs || ((PartNum[i] != "") && (PartNum[i] != PartNumPrev[i])))
             {
                 // Now add the updated part number attribute back.
                 printf("ATTRIBUTE '%s' '%s' '%s';\n",
-                    PartName[i], strPartNumAttrName, PartNum[i]);
+                    localpartname, strPartNumAttrName, PartNum[i]);
             }
 
             // If the user has assigned a new part value different from
@@ -3407,13 +3426,13 @@ int WriteScriptData(string fileName)
             // change to the part also.
             
             if (PartVal[i] != PartValSave[i])
-                printf("VALUE %s '%s';\n", PartName[i], PartVal[i]);
+                printf("VALUE %s '%s';\n", localpartname, PartVal[i]);
                 
             // If the user has assigned a new package name different from
             // what was originally loaded, then generate change package command.
 
             if ((PartDevChange[i] != "") && (PartDevChange[i] != PartDev[i]))
-                printf("CHANGE PACKAGE %s '%s';\n", PartName[i], PartDevChange[i]);
+                printf("CHANGE PACKAGE %s '%s';\n", localpartname, PartDevChange[i]);
         }
 
         printf("EDIT .s1;\n");
