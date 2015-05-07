@@ -203,6 +203,8 @@
 //
 // 1.65 RES  12/02/14 Fix for parts with sheet 0.
 //
+// 1.66 RES  5/7/15   Fix for setting module part number ID references.
+//
 //////////////////////////////////////////////////////////////////////////////
 //
 // THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
@@ -212,7 +214,7 @@
 
 #require 6.5100
 
-#usage "en: <b>Export a Bill Of Material</b> - v1.65\n"
+#usage "en: <b>Export a Bill Of Material</b> - v1.66\n"
            "<p>"
            "Generates a project's <i>Bill Of Material</i>."
            "<p>"
@@ -339,7 +341,7 @@ string HelpTextEN =
 //////////////////////////////////////////////////////////////////////////////
 //
 
-string strVersion = "1.65";
+string strVersion = "1.66";
 
 int nPartCount;
 int nBOMCount;
