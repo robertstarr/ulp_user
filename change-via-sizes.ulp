@@ -44,10 +44,11 @@ void DoVia(UL_VIA V) {
    real roldsize = round(oldsize * 1000.0) / 1000.0;
    real rnewsize = round(newsize * 1000.0) / 1000.0;
    real rnewdia  = round(newdia  * 1000.0) / 1000.0;
+   real rviasize = round(viasize * 1000.0) / 1000.0;
 
-   //printf("# viasize=%f, oldsize=%f\n", viasize, roldsize);
+   //printf("# viasize=%f, oldsize=%f\n", rviasize, roldsize);
    
-   if (viasize == roldsize)
+   if (rviasize == roldsize)
    {
       //printf("# CHANGE AT (%.4f %.4f)\n", u2mm(V.x), u2mm(V.y));
       //printf("# viadrill=%f olddrill%f\n", viasize, roldsize);
