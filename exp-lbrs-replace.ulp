@@ -13,7 +13,7 @@
 
 #require 6.0301
 
-string Version = "6.0";
+string Version = "6.1";
 
 // Language:
 //----------
@@ -99,8 +99,24 @@ string WorkPath;
 string Status = "";
 int    n;
 int    NameIndex = 0;
-int    onelib = 0;
-int    prefixLibName = 1;
+int    onelib = 1;
+int    prefixLibName = 0;
+
+// A list of library names (less the lbr extension) to exclude 
+// from the export. Any parts from the library names in this list
+// will not get exported or replaced.
+
+string DefaultExcludes = 
+    "rcl:diode:rc-master:rc-master-smd:supply:supply0:supply1:supply2:supply3:supply4:"+
+    "led:jumper:frames:testpad";
+
+int ListCount = 0;
+int ListViewIndex = -1;
+int ListSortCol = 0;
+string ListView[];
+string ListState[];
+string LibName[];
+int LibState[];
 
 char   ascii127[]       =   { 181,  196,  214,  220,  223, 0 }; // not allowed character 2010-05-12
 // www: In 8859-1 these chars are { µ ,Ä ,Ö, Ü, ß } and therefore actually allowed as object names.
@@ -665,9 +681,24 @@ void CreateLbr(UL_LIBRARY LBR) {
   CreateHeader(LBR);
 }
 
+// This function checks the list of library names to exclude from the export.
+
+int IsExcludeLib(string libname)
+{
+    int i;
+    for(i=0; i < ListCount; i++)
+    {
+        if (LibName[i] == libname)
+            return LibState[i] ? 0 : 1;
+    }
+    return 0;
+}
+
 void make_lbr(void) {
   if (board) board(B) {
     B.libraries(LBR) {
+      if (IsExcludeLib(LBR.name))
+        continue;
       CurrentLbrName = LBR.name;
       CreateLbr(LBR);
       LBR.packages(PAC) {
@@ -733,6 +764,11 @@ void CreateReplaceScript()
                                 dname = ReplaceAt(strupr(P.device.library)) + "_" + ReplaceAt(P.device.name);
                             else
                                 dname = ReplaceAt(strupr(P.device.name));
+
+                            // Comment out any lib's we want to exclude from replacing
+                            if (IsExcludeLib(P.device.library))
+                                continue;
+                                
                             printf("REPLACE %s %s;\n", P.name, dname);
                         }
                     }
@@ -751,6 +787,8 @@ void make_one_lbr(void) {
   int noLbrs = 1;
   if (board) board(B) {
     B.libraries(LBR) {
+      if (IsExcludeLib(B.name))
+        continue;
       CurrentLbrName = filesetext(EditName, "");
       CreateOneLibHeader(LBR, B.name);
       noLbrs = 0;
@@ -758,12 +796,16 @@ void make_one_lbr(void) {
     }
     n = 0;
     B.libraries(LBR) {
+      if (IsExcludeLib(B.name))
+        continue;
       OutputPackages(LBR);
     }
 
   }
   if (schematic) schematic(SCH) {
     SCH.libraries(LBR) {
+      if (IsExcludeLib(LBR.name))
+        continue;
       CurrentLbrName = filesetext(EditName, "");
       CreateOneLibHeader(LBR, SCH.name);
       noLbrs = 0;
@@ -771,16 +813,22 @@ void make_one_lbr(void) {
     }
     n = 0;
     SCH.libraries(LBR) {
+      if (IsExcludeLib(LBR.name))
+        continue;
       OutputPackages(LBR);
     }
     n = 0;
     SCH.libraries(LBR) {
+      if (IsExcludeLib(LBR.name))
+        continue;
       LBR.devices(DEV) {
         OutputSymbols(LBR);
       }
     }
     n = 0;
     SCH.libraries(LBR) {
+      if (IsExcludeLib(LBR.name))
+        continue;
       LBR.devices(DEV) {
         OutputDevices(LBR);
       }
@@ -814,7 +862,120 @@ else {
 PureScriptName = filesetext(EditName, ".scr");               // name of generated script w/o path
 WorkPath = get_project_path();
 
+void CollectLibData()
+{
+    // We must zero out all the part names each time this function is called,
+    // otherwise the names still exist after each call and the lookup() call
+    // that checks for duplicates causes problems since it thinks everything
+    // is a duplicate on subsequent calls to this function.
+    
+    int i;
+    for(i=0; i < ListCount; i++)
+    {
+        LibName[i] = "";
+        LibState[i] = 0;
+    }
+    
+    ListCount = 0;
+
+    schematic(SCH)
+    {
+        SCH.libraries(LBR) 
+        {
+            LibName[ListCount]  = LBR.name;
+            LibState[ListCount] = 1;
+            ++ListCount;
+        }
+    }
+}
+
+int InitDefaultExcludeLibs()
+{
+    string a[];
+    int n = strsplit(a, DefaultExcludes, ':');
+    int i, x;
+    
+    for (i=0; i < n; i++)
+    {
+        for (x=0; x < ListCount; x++)
+        {
+            if (LibName[x] == a[i])
+            {
+                LibState[x] = 0;
+                break;
+            }
+        }
+    }
+    
+    return 0;
+}
+
+void PopulateView()
+{
+    int NumLines =  0;
+    ListView[NumLines++] = "Source Library\tExport";
+        
+    int i;
+    string state;
+    
+    for(i=0; i < ListCount; i++)
+    {
+        state = (LibState[i] > 0) ? "Yes" : "NO";
+        ListView[NumLines++] = LibName[i] + "\t" + state;
+    }
+    
+    ListView[NumLines] = "";
+}
+
+int ToggleLibState(string libname)
+{
+    int i;
+    for(i=0; i < ListCount; i++)
+    {
+        if (LibName[i] == libname)
+        {
+            if (LibState[i])
+                LibState[i] = 0;
+            else
+                LibState[i] = 1;
+            return i;
+        }
+    }
+    
+    return -1;
+}
+
+void OnClickListView()
+{
+    if (ListCount)
+    {
+        if (ListViewIndex >= 0)
+        {
+            string a[];
+            strsplit(a, ListView[ListViewIndex], '\t');
+            string libname = a[0];
+            // we have to strip off any (DNP) suffix from the part name
+            ToggleLibState(libname);
+            PopulateView();            
+        }
+        else
+        {
+            dlgMessageBox("Please select a library name from the list!");
+        }
+    }
+    else
+    {
+        dlgMessageBox("No Libraries Found!");
+    }
+    
+}
+
 int Result = dlgDialog(TR("Export EAGLE libraries from drawing")) {
+    
+    CollectLibData();
+    InitDefaultExcludeLibs();
+    PopulateView();
+    
     dlgHBoxLayout {
       dlgLabel("&" + TR("Path") + ":");
       dlgStringEdit(WorkPath);
@@ -828,11 +989,17 @@ int Result = dlgDialog(TR("Export EAGLE libraries from drawing")) {
     }
 
     //dlgCheckBox(" &" + TR("Merge to one library (name like drawing. Library names\n are used as prefix for symbol, package and device names)"), onelib);
+    dlgHBoxLayout
+    {
+        // Set the default list view height
+        dlgVBoxLayout dlgSpacing(500);
+        dlgListView("", ListView, ListViewIndex, ListSortCol) OnClickListView();
+    }
 
     dlgVBoxLayout {
       dlgGroup("Creation Mode") {
         dlgRadioButton("&Create multiple libraries", onelib);
-        dlgRadioButton("&Create one library and generate replace parts script", onelib);
+        dlgRadioButton("&Create one library and parts replace script", onelib);
         dlgHBoxLayout {
           dlgSpacing(16);
           dlgCheckBox("&Prefix parts with library name if 'Create one library' selected", prefixLibName);
