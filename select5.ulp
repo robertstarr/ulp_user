@@ -1,0 +1,421 @@
+//======================================================
+// SELECT v 1.0.4
+//
+// Eagle v5.7 or later is required. Only the Board and Schematic editors are supported
+//
+// Selects components or nets listed at the command line and filter/subtract/add or make new group
+// 
+// This software is released under the BSD 4-clause license:
+//
+// Copyright (c) 2010-2011, Damhave Systems
+// All rights reserved.
+
+// Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+
+//	*	Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+//	*	Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer
+// 		in the documentation and/or other materials provided with the distribution.
+//	*	Neither the name of the Damhave Systems nor the names of its contributors may be used to endorse or promote products derived from
+//	    this software without specific prior written permission.
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS
+// BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+// GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+// STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
+// OF SUCH DAMAGE.
+//======================================================
+
+#require 7.0200
+
+#usage	"<B>Selects components or nets listed at the command line</B>"
+"<P>"
+	"The component or nets specified at the commandline can be added or subtract from the existing group, filter the existing group, or define a new group.<br>"
+	"The components/nets are specified as a space separated list of exact names, names with wildcards (see the eagle SHOW command) or by using a regular expressions or any combination.<br>"
+	"The selection can also be saved or loaded from a specifed file. The .sel extension is automatically added to the filename. The save/load/clear of a selection are experimental features"
+	" - sometimes the selection of nets cannot be cleared from within the ulp, maybe a missing refresh.<br><br><br>"
+	"<b>Usage:</b>"
+	"<blockquote>run select [-c]{flag} {component}|{device type}|{package}|{value}<br>"
+	"run select -n{flag} {net}|{class type}<br>"
+	"run select &gt; filename<br>"
+	"run select &lt; filename</blockquote>"
+	"<b>Flags:</b>"
+	"<blockquote>a: add to existing group<br>"
+	"c: select Components<br>"
+	"d: select components of specified Device type<br>"	
+	"e: use regular Expressions (regex) instead of wildcards<br>"
+	"f: Filter existing group<br>"
+	"k: Keep nets when filtering components and vice versa<br>"
+	"l: select nets/signals of specified cLass<br>"
+	"n: select nets/signals<br>"
+	"p: select components with specified Packages<br>"	
+	"s: Subtract from existing group<br>"
+	"v: select components with specified Values<br>"	
+	"<I>The existing group is cleared unless one of the flags -a, -s or -f are used.<br>"
+	"The -c flag is default set if no -n is specified</I></blockquote>"
+	"<P>"
+	"<b>Examples:</b><br><br>"	
+	"Select all resistors and capacitors:"
+	"<blockquote>run select -c R* C*</blockquote>"	
+	"or"
+	"<blockquote>run select R* C*</blockquote>"	
+	"Select all resistors in 0603:"
+	"<blockquote>run select -c R* C*<br>"
+	"run select -fp *0603*</blockquote>"
+	"Select all LM358MX devices:"
+	"<blockquote>run select -d LM358MX</blockquote>"
+	"Select all 100nF capacitors:"
+	"<blockquote>run select C*<br>"
+	"run select -fv 100nF</blockquote>"
+	"Select all RESET nets/signals:"
+	"<blockquote>run select -n *RESET*</blockquote>"
+	"Select all positive supply nets:"
+	"<blockquote>run select -n *+*V*</blockquote>"			
+	"Select all negative supply nets:"
+	"<blockquote>run select -n *-*V*</blockquote>"
+	"Clear the selection group:"
+	"<blockquote>run select</blockquote>"
+	"Save the selection C1, C2, C3, C4 in the file decoupling.sel:"
+	"<blockquote>run select C1 C2 C3 C4<br>"
+	"run select &gt; decoupling</blockquote>"
+	"Load the selection group from the file decoupling.sel:"
+	"<blockquote>run select &lt; decoupling</blockquote>"
+	"Rotate all LEDs 45 degrees:"	
+	"<blockquote>run select -cd *LED*<br>"
+	"rotate R45&lt;ENTER&gt;<br>"
+	"&lt;RIGHT MOUSE CLICK&gt;&lt;ROTATE GROUP&gt;</blockquote>"
+	"Change all 0805 capactors to 0603:"
+	"<blockquote>run select -p *0805*<br>"
+	"run select -cf C*<br>"
+	"change package 'C0603K'&lt;ENTER&gt;<br>"
+	"&lt;RIGHT MOUSE CLICK&gt;&lt;CHANGE GROUP&gt;</blockquote>"
+	"<b>Hints:</b><br><br>"
+	"<I>When using this command as a more advanced show command it can be an advantage in the schematic editor to set the background color to black.<br>"
+	"This command is best used with the group commands. Select the tool you want and right click in your working area to see the options move group, copy group, change group, smash group, mirror group..</I>"				
+	"<P>"
+	"Copyright (c) 2010-2011 Damhave Systems"
+	"<P>"
+	"<Author>Danny Damhave<br>Damhave Systems<br>www.damhave.com</Author><br><br>"
+	"This ulp is released under the BSD 4-clause license. See source code for details!"
+
+	enum {false, true};
+int  firstInList = 1, addFlag = false, keepFlag = false, subtractFlag = false, selectClassesFlag = false, selectComponentsFlag = true, selectDeviceTypeFlag=false, regexFlag = false, filterFlag = false, selectNetsFlag = false, selectPackagesFlag = false, selectValuesFlag = false;
+
+int isMatch(string s, string test, int useRegex)
+{	
+	string regex = !useRegex ?  "^" : test;
+	if (!useRegex)
+	{
+		for(int i = 0; test[i];)
+		{
+			switch(test[i])
+			{
+				case '[': regex += strsub(test, i, strchr(test, ']', i) - i + 1), i += strchr(test, ']', i) - i + 1; break;
+				case '?': regex += ".", i++; break;
+				case '*': regex += ".*", i++; break;
+				case '+': case '^': case '$': case '.': case '{': case '}': case '(': case ')':  case '|': case '\\':
+				regex += "\\" + test[i], i++; break;
+				default: regex += test[i], i++;
+			}
+		}
+		regex +='$';
+	}
+	return strxstr(s, regex, 0) == 0;
+}
+
+int inList(string name)
+{
+	for(int i = firstInList; i < argc && argv[i] != ""; i++)
+	{
+		if (regexFlag)
+		{
+			if (isMatch(name, argv[i], regexFlag)) return true;
+		}
+		else
+		{
+			if (isMatch(strupr(name), strupr(argv[i]), regexFlag)) return true;		
+		}
+	}
+	return false;
+}
+
+int inListCaseSensitive(string name)
+{
+	for(int i = firstInList; i < argc && argv[i] != ""; i++)
+		if (isMatch(name, argv[i], regexFlag)) return true;
+	return false;
+}
+
+//		***** The ulp begins here *****
+if (!board && !schematic && !dlgMessageBox("Can only be used in the board and schematic editors.\n")) exit(1);
+if (EAGLE_VERSION < 5 || (EAGLE_VERSION == 5 && EAGLE_RELEASE < 7) && !dlgMessageBox("Requires Eagle v5.7 or later.\n")) exit(1);
+
+if (argc>firstInList)
+{
+	string flags = argv[firstInList];
+	if (flags[0] == '-')
+	{
+		if (strlen(flags) == 1 && !dlgMessageBox("No flags.\n")) exit(1);
+		for (int i = 1; flags[i]; i++)
+		{
+			switch (flags[i])			 					// Note: If no -n flag use default -c	
+			{
+				case 'a' : addFlag = true; break;
+				case 'c' : selectComponentsFlag = true; break;
+				case 'd' : selectDeviceTypeFlag = true; break;
+				case 'e' : regexFlag = true; break;
+				case 'f' : filterFlag = true; break;
+				case 'k' : keepFlag = true; break;
+				case 'l' : selectClassesFlag = true; break;
+				case 'n' : selectNetsFlag = true, selectComponentsFlag = false; break;
+				case 'p' : selectPackagesFlag = true; break;
+				case 's' : subtractFlag = true; break;
+				case 'v' : selectValuesFlag = true; break;
+				default : dlgMessageBox("No such flag.\n"); exit(1);
+			}
+		}	 
+		firstInList++;
+		if ((addFlag && subtractFlag) || (filterFlag && (addFlag || subtractFlag)) || (selectComponentsFlag && selectNetsFlag) || (selectComponentsFlag && selectClassesFlag) && !dlgMessageBox("Illegal flag combination.\n")) exit(1);
+	}
+	else if (flags[0] == '>' || flags[0] == '<')			// Check for save/load the selection from file	
+	{
+		string fName, fDir;
+		
+		if (flags == ">" || flags == "<")					// White space between operator and filename ?
+		{
+			if (argc<=firstInList && dlgMessageBox("No filename specified.\n")) exit(1);
+			fName = fDir + filesetext(argv[firstInList+1], ".sel");
+		}
+		else fName = fDir + filesetext(strsub(argv[firstInList], 1), ".sel"); // No space between operator and filename
+		
+		if (schematic) schematic(S) { fDir = filedir(S.name); } else if (board) board(brd) { fDir = filedir(brd.name); } // Get the path to the project directory
+		fName = fDir + fName;
+		if (flags[0] == '>')
+		{													// Save selection to file
+			output(fName, "wt")
+			{
+				if(schematic) schematic(S)
+				{
+					printf("-c");
+					S.parts(part) { if (ingroup(part)) printf(" %s", part.name); }
+					printf("\n-n");
+					S.sheets(sch) { sch.nets(net) { if (ingroup(net)) printf(" %s ", net.name); } }
+					printf("\n");
+				}
+				else if (board)	board(brd) 			
+				{
+					printf("-c");
+					brd.elements(element) { if (ingroup(element)) printf(" %s", element.name); }
+					printf("\n-n");
+					brd.signals(signal) { if (ingroup(signal)) printf(" %s", signal.name); }
+					printf("\n");
+				}
+			}
+		}
+		else 												// Load selection from file			
+		{
+			string lines[], list;
+			int l, nLines;
+
+			if (!filesize(fName) && dlgMessageBox("No such file.\n")) exit(1);
+			{				
+				nLines = fileread(lines, fName);
+
+				if (schematic) schematic(S) { clrgroup(S);  S.sheets(sch)  { clrgroup(sch); } }	// Make sure nothing is selected before the selection is loaded from file
+				if (board) board(brd) { clrgroup(brd); }
+				
+				for (l = 0; l < nLines; l++)
+				{
+					list = strsub(lines[l], 2)+" ";			// Remove -c or -n. The list now has a space in the beginning and at the end
+					if (strsub(lines[l], 0, 3) == "-c ") 	// Components ?
+					{
+						if(schematic) schematic(S)
+						{
+							S.parts(part) { if (strstr(list, " "+part.name+" ")>=0) setgroup(part); }
+						}
+						else if (board)	board(brd) 			
+						{
+							brd.elements(element) { if (strstr(list, " "+element.name+" ")>=0) setgroup(element); }
+						}
+					}
+					if (strsub(lines[l], 0, 3) ==  "-n ") 	// Nets ?
+					{
+						if(schematic) schematic(S)
+						{
+							S.sheets(sch) { sch.nets(net) { if (strstr(list, " "+net.name+" ")>=0) setgroup(net); } }
+						}
+						else if (board)	board(brd) 			
+						{
+							brd.signals(signal) { if (strstr(list, " "+signal.name+" ")>=0) setgroup(signal); }
+						}
+					}
+				}
+			}
+		}
+		exit(0);											// We are done with the save/load of a selection
+	}
+	else;													// The default no flags or filename is equivalent to -c
+}
+
+status("Selecting Objects...");
+
+if(schematic)
+{
+	if (!addFlag && !subtractFlag && !filterFlag) schematic(S) { clrgroup(S);  S.sheets(sch)  { clrgroup(sch); } }
+	if (argc>firstInList)
+	{
+		schematic(S)
+		{
+			S.sheets(sch) // Currently it seems that groups cannot cover more than the current sheet, so this will maybe work in the future ;-)
+			{
+				if (selectClassesFlag)
+				{
+					if (!addFlag && !subtractFlag && !keepFlag) sch.parts(part) part.instances(I) clrgroup(I);			
+					sch.nets(net)
+					{
+						if (inList(net.class.name))
+						{
+							if (filterFlag); else if (addFlag || !subtractFlag) setgroup(net); else if (subtractFlag) clrgroup(net);
+						}
+						else if (filterFlag) clrgroup(net);
+					}
+				}
+				else if (selectNetsFlag)
+				{
+					if (!addFlag && !subtractFlag && !keepFlag) sch.parts(part) clrgroup(part);			
+					sch.nets(net)
+					{
+						if (inList(net.name))
+						{
+							if (filterFlag); else if (addFlag || !subtractFlag) setgroup(net); else if (subtractFlag) clrgroup(net);
+						}
+						else if (filterFlag) clrgroup(net);
+					}
+				}
+				else if (selectComponentsFlag && !selectDeviceTypeFlag && !selectPackagesFlag && !selectValuesFlag)
+				{
+					if (!addFlag && !subtractFlag && !keepFlag) sch.nets(net) clrgroup(net);								
+					sch.parts(part)
+					{
+						if (inList(part.name))
+						{
+							if (filterFlag); else if (addFlag || !subtractFlag) part.instances(I) setgroup(I); else if (subtractFlag) part.instances(I) clrgroup(I);
+						}
+						else if (filterFlag) clrgroup(part);
+					}
+				}								
+				else if (selectDeviceTypeFlag)
+				{
+					if (!addFlag && !subtractFlag && !keepFlag) sch.nets(net) clrgroup(net);								
+					sch.parts(part)
+					{
+						if (inList(part.device.name))
+						{
+							if (filterFlag); else if (addFlag || !subtractFlag) setgroup(part); else if (subtractFlag) clrgroup(part);
+						}
+						else if (filterFlag) clrgroup(part);
+					}
+				}
+				else if (selectPackagesFlag)
+				{
+					if (!addFlag && !subtractFlag && !keepFlag) sch.nets(net) clrgroup(net);								
+					sch.parts(part)
+					{
+						if (part.device.package && inList(part.device.package.name)) // not all parts have a package!
+						{
+							if (filterFlag); else if (addFlag || !subtractFlag) part.instances(I) setgroup(I); else if (subtractFlag) part.instances(I) clrgroup(I);
+						}
+						else if (filterFlag) clrgroup(part);
+					}
+				}
+				else if (selectValuesFlag)
+				{
+					if (!addFlag && !subtractFlag && !keepFlag) sch.nets(net) clrgroup(net);								
+					sch.parts(part)
+					{
+						if (inListCaseSensitive(part.value))
+						{
+							if (filterFlag); else if (addFlag || !subtractFlag) part.instances(I) setgroup(I); else if (subtractFlag) part.instances(I) clrgroup(I);
+						}
+						else if (filterFlag) clrgroup(part);
+					}
+				}
+			}
+		}
+	}
+}
+
+
+else if(board)
+{
+	
+	if (!addFlag && !subtractFlag && !filterFlag) board(brd) { clrgroup(brd); }
+
+	if (argc>firstInList)
+	{
+		board(brd)
+		{
+			if (selectClassesFlag)
+			{
+				if (!addFlag && !subtractFlag && !keepFlag) brd.elements(element) clrgroup(element);				
+				brd.signals(signal)
+				{
+					if (inList(signal.class.name))
+					{
+						if (filterFlag); else if (addFlag || !subtractFlag) setgroup(signal); else if (subtractFlag) clrgroup(signal);
+					}
+					else if (filterFlag) clrgroup(signal);
+				}
+			}			
+			else if (selectNetsFlag)
+			{
+				if (!addFlag && !subtractFlag && !keepFlag) brd.elements(element) clrgroup(element);				
+				brd.signals(signal)
+				{
+					if (inList(signal.name))
+					{
+						if (filterFlag); else if (addFlag || !subtractFlag) setgroup(signal); else if (subtractFlag) clrgroup(signal);
+					}
+					else if (filterFlag) clrgroup(signal);
+				}
+			}			
+			else if (selectComponentsFlag && !selectDeviceTypeFlag && !selectPackagesFlag && !selectValuesFlag)
+			{
+				if (!addFlag && !subtractFlag && !keepFlag) brd.signals(signal) clrgroup(signal);				
+				brd.elements(element)
+				{
+					if (inList(element.name))
+					{
+						if (filterFlag); else if (addFlag || !subtractFlag) setgroup(element); else if (subtractFlag) clrgroup(element);
+					}
+					else if (filterFlag) clrgroup(element);
+				}
+			}
+			else if (selectPackagesFlag)
+			{
+				if (!addFlag && !subtractFlag && !keepFlag) brd.signals(signal) clrgroup(signal);				
+				brd.elements(element)
+				{
+					if (inList(element.package.name))
+					{
+						if (filterFlag); else if (addFlag || !subtractFlag) setgroup(element); else if (subtractFlag) clrgroup(element);
+					}
+					else if (filterFlag) clrgroup(element);
+				}
+			}
+			else if (selectValuesFlag)
+			{
+				if (!addFlag && !subtractFlag && !keepFlag) brd.signals(signal) clrgroup(signal);				
+				brd.elements(element)
+				{
+					if (inListCaseSensitive(element.value))
+					{
+						if (filterFlag); else if (addFlag || !subtractFlag) setgroup(element); else if (subtractFlag) clrgroup(element);
+					}
+					else if (filterFlag) clrgroup(element);
+				}
+			}
+		}
+	}
+}
+
+exit("WINDOW;");
