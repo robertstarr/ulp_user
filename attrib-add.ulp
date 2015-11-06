@@ -261,11 +261,13 @@ if (schematic)
             exit(0);
 
         int cnt = 0;
+        int sheetswitched; 
 
         strCmd = "";
 
         SCH.sheets(S)
         {
+            sheetswitched = 0;
             S.parts(P)
             {
                 P.instances(I)
@@ -278,6 +280,14 @@ if (schematic)
                             // Add attribute to group
                             if (nResult == 1)
                             {
+                                string tmp;
+                                if (sheetswitched == 0)
+                                {
+                                    sprintf(tmp, "EDIT .s%d;\n", S.number);
+                                    strCmd += tmp;
+                                    sheetswitched = 1;
+                                }
+
                                 string disp;
             
                                 if (fDisplay == 0)
@@ -286,8 +296,7 @@ if (schematic)
                                     disp = "VALUE";
                                 else
                                     disp = "NAME";
-            
-                                string tmp;
+                                
                                 sprintf(tmp, "CHANGE DISPLAY %s;\n", disp);
                                 strCmd += tmp;
                                 sprintf(tmp, "ATTRIBUTE %s %s '%s';\n", P.name, strAttrName, strAttrValue);
