@@ -149,20 +149,18 @@ int DuplicatePlacement(UL_BOARD B)
                     
     B.elements(E)
     {
-        if (strsplit(pid, E.name, ':') == 2)
-        { 
-            if (pid[0] == strSrc)
-            {
-                sprintf(name, "%s:%s", strDest, pid[1]);
+        if (strstr(E.name, strSrc + ':') == 0)
+        {
+            string component = strsub(E.name,strlen(strSrc) + 1);
+
+            sprintf(name, "%s:%s", strDest, component);
+            printf("MOVE %s (%5.4f %5.4f);\n", name, u2mil(E.x) + offsetX, u2mil(E.y) + offsetY);
+            printf("ROTATE =R%f %s;\n", E.angle, name);
         
-                printf("MOVE %s (%5.4f %5.4f);\n", name, u2mil(E.x) + offsetX, u2mil(E.y) + offsetY);
-                printf("ROTATE =R%f %s;\n", E.angle, name);
-                
-                if (E.mirror)
-                    printf("MIRROR %s;\n", name);
-                    
-                ++cnt;
-            }
+            if (E.mirror)
+                printf("MIRROR %s;\n", name);
+            
+            ++cnt;
         }
     }
 
@@ -190,85 +188,84 @@ int DuplicateRoute(UL_BOARD B)
              
     B.signals(S) 
     {   
-        if (strsplit(pid, S.name, ':') == 2)
-        { 
-            if (pid[0] == strSrc)
-            {                  
-                sprintf(name, "%s:%s", strDest, pid[1]);
-                
-                /*** DUPLICATE WIRES ***/  
-                               
-                S.wires(W)
-                { 
-                    if (W.width)    /* airwire check */
-                    {               
-                        if(!W.arc)
-                        {
-                            /* Handle simple line case */
-                            printf("CHANGE LAYER %d\n", W.layer);
-                            printf("CHANGE STYLE %s;\n", GetStyle(W.style));
-                            printf("WIRE '%s' %f (%f %f) (%f %f)\n", 
-                                name, u2mil(W.width), 
-                                u2mil(W.x1)+dx, u2mil(W.y1)+dy, 
-                                u2mil(W.x2)+dx, u2mil(W.y2)+dy);
-                        }
-                        else
-                        {
-                            /* Handle ARC case */
-                            x1 = u2mil(W.arc.x1)+dx;
-                            y1 = u2mil(W.arc.y1)+dy;
-                            xc = u2mil(W.arc.xc)+dx;
-                            yc = u2mil(W.arc.yc)+dy;
-                            x2 = u2mil(2*W.arc.xc - W.arc.x1)+dx;
-                            y2 = u2mil(2*W.arc.yc - W.arc.y1)+dy;
-                            x3 = u2mil(W.arc.x2)+dx;
-                            y3 = u2mil(W.arc.y2)+dy;
-                            printf("CHANGE LAYER %d\n", W.arc.layer);
-                            printf("CHANGE WIDTH %f\n", u2mil(W.arc.width));
-                            printf("CHANGE STYLE %s;\n", GetStyle(W.style));
-                            printf("ARC '%s' CCW (%f %f) (%f %f) (%f %f)\n",
-                                name, x1, y1, x2, y2, x3, y3);
-                        }
-                    }
-                }
-                
-                /*** DUPLICATE VIAS ***/
-                
-                S.vias(V)
-                {
-                    printf("CHANGE DRILL %f\n", u2mil(V.drill));
-                    printf("VIA '%s' %f %s (%f %f)\n",
-                        name, u2mil(V.diameter[1]), GetViaShape(V.shape[1]),
-                        u2mil(V.x)+dx, u2mil(V.y)+dy);
-                }
-                
-                /*** DUPLICATE POLYGONS ***/
-                                
-                S.polygons(P)
-                {
-                    printf("CHANGE LAYER %d;\n", P.layer);
-                    printf("CHANGE ISOLATE %f;\n",u2mil(P.isolate));
-                    printf("CHANGE RANK %d;\n", P.rank);
-                    printf("CHANGE ORPHANS %s;\n", P.orphans ? "ON" : "OFF");                   
-                    printf("CHANGE POUR %s;\n", GetPour(P.pour));  
-                    printf("CHANGE RANK %d;\n", P.rank);                        
-                    printf("CHANGE SPACING %f;\n", u2mil(P.spacing));                       
-                    printf("CHANGE THERMALS %s;\n", P.thermals ? "ON" : "OFF");
-                        
-                    printf("POLYGON %s %f", name, u2mil(P.width));
-                    P.wires(W)
+        if (strstr(S.name, strSrc + ':') == 0)
+        {
+            string net = strsub(S.name,strlen(strSrc) + 1);
+
+            sprintf(name, "%s:%s", strDest, net);
+
+            /*** DUPLICATE WIRES ***/  
+                           
+            S.wires(W)
+            { 
+                if (W.width)    /* airwire check */
+                {               
+                    if(!W.arc)
                     {
-                       x1 = u2mil(W.x1)+dx;
-                       y1 = u2mil(W.y1)+dy;
-                       x2 = u2mil(W.x2)+dx;
-                       y2 = u2mil(W.y2)+dy;
-                       printf(" (%f %f)",x1,y1);
+                        /* Handle simple line case */
+                        printf("CHANGE LAYER %d\n", W.layer);
+                        printf("CHANGE STYLE %s;\n", GetStyle(W.style));
+                        printf("WIRE '%s' %f (%f %f) (%f %f)\n", 
+                            name, u2mil(W.width), 
+                            u2mil(W.x1)+dx, u2mil(W.y1)+dy, 
+                            u2mil(W.x2)+dx, u2mil(W.y2)+dy);
                     }
-                    printf(" (%f %f);\n",x2,y2);
+                    else
+                    {
+                        /* Handle ARC case */
+                        x1 = u2mil(W.arc.x1)+dx;
+                        y1 = u2mil(W.arc.y1)+dy;
+                        xc = u2mil(W.arc.xc)+dx;
+                        yc = u2mil(W.arc.yc)+dy;
+                        x2 = u2mil(2*W.arc.xc - W.arc.x1)+dx;
+                        y2 = u2mil(2*W.arc.yc - W.arc.y1)+dy;
+                        x3 = u2mil(W.arc.x2)+dx;
+                        y3 = u2mil(W.arc.y2)+dy;
+                        printf("CHANGE LAYER %d\n", W.arc.layer);
+                        printf("CHANGE WIDTH %f\n", u2mil(W.arc.width));
+                        printf("CHANGE STYLE %s;\n", GetStyle(W.style));
+                        printf("ARC '%s' CCW (%f %f) (%f %f) (%f %f)\n",
+                            name, x1, y1, x2, y2, x3, y3);
+                    }
                 }
-                
-                ++cnt;
             }
+            
+            /*** DUPLICATE VIAS ***/
+            
+            S.vias(V)
+            {
+                printf("CHANGE DRILL %f\n", u2mil(V.drill));
+                printf("VIA '%s' %f %s (%f %f)\n",
+                    name, u2mil(V.diameter[1]), GetViaShape(V.shape[1]),
+                    u2mil(V.x)+dx, u2mil(V.y)+dy);
+            }
+            
+            /*** DUPLICATE POLYGONS ***/
+                            
+            S.polygons(P)
+            {
+                printf("CHANGE LAYER %d;\n", P.layer);
+                printf("CHANGE ISOLATE %f;\n",u2mil(P.isolate));
+                printf("CHANGE RANK %d;\n", P.rank);
+                printf("CHANGE ORPHANS %s;\n", P.orphans ? "ON" : "OFF");                   
+                printf("CHANGE POUR %s;\n", GetPour(P.pour));  
+                printf("CHANGE RANK %d;\n", P.rank);                        
+                printf("CHANGE SPACING %f;\n", u2mil(P.spacing));                       
+                printf("CHANGE THERMALS %s;\n", P.thermals ? "ON" : "OFF");
+                    
+                printf("POLYGON %s %f", name, u2mil(P.width));
+                P.wires(W)
+                {
+                   x1 = u2mil(W.x1)+dx;
+                   y1 = u2mil(W.y1)+dy;
+                   x2 = u2mil(W.x2)+dx;
+                   y2 = u2mil(W.y2)+dy;
+                   printf(" (%f %f)",x1,y1);
+                }
+                printf(" (%f %f);\n",x2,y2);
+            }
+            
+            ++cnt;
         }
     }
         
@@ -356,14 +353,27 @@ if (board) board(B)
                     if (P.device.package)
                     {
                         string key[];
-                        
-                        if (strsplit(key, P.name, ':') == 2)
-                        { 
-                            /* Collect unique module names */
-                            if (!lookup(strSrcMod, key[0], 0)) 
-                            {          
-                                strSrcMod[nSrcCnt++] = key[0];
-                                strDestMod[nDestCnt++] = key[0];
+
+                        int n = strsplit(key, P.name, ':');
+                        if (n > 1)
+                        {
+                            string modulename = "";
+                            for (int i = 0; i < n - 1; i++) 
+                            {
+                                if (modulename == "") 
+                                {
+                                    modulename = key[i];
+                                }
+                                else
+                                {
+                                    sprintf(modulename,"%s:%s",modulename,key[i]);
+                                }
+                                /* Collect unique module names */
+                                if (!lookup(strSrcMod, modulename, 0)) 
+                                {          
+                                    strSrcMod[nSrcCnt++] = modulename;
+                                    strDestMod[nDestCnt++] = modulename;
+                                }
                             }
                         }
                     }
