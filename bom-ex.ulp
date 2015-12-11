@@ -205,6 +205,8 @@
 //
 // 1.66 RES  5/7/15   Fix for setting module part number ID references.
 //
+// 1.67 RES  12/10/15 Updated DigiKey export column headings record.
+//
 //////////////////////////////////////////////////////////////////////////////
 //
 // THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
@@ -214,7 +216,7 @@
 
 #require 6.5100
 
-#usage "en: <b>Export a Bill Of Material</b> - v1.66\n"
+#usage "en: <b>Export a Bill Of Material</b> - v1.67\n"
            "<p>"
            "Generates a project's <i>Bill Of Material</i>."
            "<p>"
@@ -341,7 +343,7 @@ string HelpTextEN =
 //////////////////////////////////////////////////////////////////////////////
 //
 
-string strVersion = "1.66";
+string strVersion = "1.67";
 
 int nPartCount;
 int nBOMCount;
@@ -2209,11 +2211,11 @@ int ExportGeneric()
 // VID must be set to "DK"
 
 string strDKFields[] = {
-    "Digi-Key Part No.",          // field 0
+    "Digi-Key Part Number",       // field 0
     "Manufacturer Name",          // field 1
-    "Mfr Part No.",               // field 2
+    "Manufacturer Part Number",   // field 2
     "Customer Reference",         // field 3
-    "Qty1",                       // field 4
+    "Quantity 1",                 // field 4
     ""                            // null
 };
 
