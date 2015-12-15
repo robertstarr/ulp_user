@@ -321,7 +321,7 @@ if (schematic)
         if (!cnt)
           dlgMessageBox("No items selected!");
 
-        //dlgMessageBox(strCmd);
+        // dlgMessageBox(strCmd);
         exit(strCmd);
     }
 }
