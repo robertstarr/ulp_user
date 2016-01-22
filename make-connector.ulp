@@ -55,6 +55,7 @@ int fFlipRows       = 0;
 
 int nFirstPinCount  = 2;            // pin count in first connector
 int nLastPinCount   = 16;           // pin count in last connector
+int nStepInc        = 1;
 
 int nPadType        = 0;            // 0=thru-hole, 1=SMD
 
@@ -64,6 +65,7 @@ real dDrillSize     = 40.0;         // 40 mil drill
 real dPadDiameter   = 0.0;          // pad diameter (0=auto)
 real dSmdSizeX      = 40;
 real dSmdSizeY      = 100;
+real dStaggerY      = 0.0;
 
 string strPackagePrefix      = "PAC-";
 string strPackageSuffix      = "";
@@ -347,7 +349,7 @@ void CreateSymbolDIP(int nNumPins, int nStyle)
 void CreatePackageSIP(int nNumPins)
 {
     int i, pin;
-    real x, xStart;
+    real x, y, xStart;
 
     if (nNumPins < 2)
     {
@@ -397,22 +399,25 @@ void CreatePackageSIP(int nNumPins)
     if (fPadOrder > 0)
         x = -x;
 
+
     for (i=0; i < nNumPins; i++)
     {
         pin = i+1;
 
+        y = (i % 2) ? dStaggerY : -dStaggerY;
+
         if (nPadType)
-            printf("SMD %.4f %.4f -0 '%d' (%.4f 0);\n", dSmdSizeX, dSmdSizeY, pin, x);
+            printf("SMD %.4f %.4f -0 '%d' (%.4f %.4f);\n", dSmdSizeX, dSmdSizeY, pin, x, y);
         else
         {
             if (fLongPad)
-                printf("Pad '%d' Long %f R90 (%.4f 0);\n", pin, dPadDiameter, x);
+                printf("Pad '%d' Long %f R90 (%.4f %.4f);\n", pin, dPadDiameter, x, y);
             else
             {
                 if (i > 0)
-                    printf("Pad '%d' Octagon %f R90 (%.4f 0);\n", pin, dPadDiameter, x);
+                    printf("Pad '%d' Octagon %f R90 (%.4f %.4f);\n", pin, dPadDiameter, x, y);
                 else
-                    printf("Pad '%d' Square %f R90 (%.4f 0);\n", pin, dPadDiameter, x);
+                    printf("Pad '%d' Square %f R90 (%.4f %.4f);\n", pin, dPadDiameter, x, y);
             }
         }
         
@@ -747,6 +752,8 @@ void CreateSinglePinsDevice(int nNumPins)
     printf("Description '<b>%s</b>';\n", (fMaleFemale) ? "RECEPTACAL" : "HEADER");
     printf("Value %s;\n", fValueOn ? "On" : "Off");
 
+    printf("Package '%s%2.2d%s' '''''';\n", strPackagePrefix, nNameNum, strPackageSuffix);
+
     real y = 0.0;
 
     for (i=0; i < nNumPins; i++)
@@ -756,7 +763,6 @@ void CreateSinglePinsDevice(int nNumPins)
         y -= 100;       
     }
 
-    printf("Package '%s%2.2d%s' '''''';\n", strPackagePrefix, nNameNum, strPackageSuffix);
 
     printf("Technology '';\n");
 
@@ -905,6 +911,9 @@ int MainAppDialog()
     
                             dlgCell(2,0) dlgLabel("Last Connector Pin Count (1-200)");
                             dlgCell(2,1) dlgIntEdit(nLastPinCount, 2, 200);
+                            
+                            dlgCell(3,0) dlgLabel("Step Increment (1 or 2)");
+                            dlgCell(3,1) dlgIntEdit(nStepInc, 1, 2);
                         }
                     }
                 }  
@@ -936,11 +945,14 @@ int MainAppDialog()
                             dlgCell(6,0) dlgLabel("SMD Y Size");
                             dlgCell(6,1) dlgRealEdit(dSmdSizeY, 0.001, 100.0);
 
-                            dlgCell(7,0) dlgLabel("Package Name Prefix");
-                            dlgCell(7,1) dlgStringEdit(strPackagePrefix);
+                            dlgCell(7,0) dlgLabel("SIP Y Stagger");
+                            dlgCell(7,1) dlgRealEdit(dStaggerY, -100.0, 100.0);
 
-                            dlgCell(8,0) dlgLabel("Package Name Suffix");
-                            dlgCell(8,1) dlgStringEdit(strPackageSuffix);
+                            dlgCell(8,0) dlgLabel("Package Name Prefix");
+                            dlgCell(8,1) dlgStringEdit(strPackagePrefix);
+
+                            dlgCell(9,0) dlgLabel("Package Name Suffix");
+                            dlgCell(9,1) dlgStringEdit(strPackageSuffix);
                         }
                     }
 
@@ -1032,7 +1044,7 @@ void LoadConfigSettings()
     //sprintf(txt, "%d, %s", n, a[20]);
     //dlgMessageBox(txt);      
 
-    if (n == 30)
+    if (n >= 30)
     {
         int i = 0;
 
@@ -1056,6 +1068,9 @@ void LoadConfigSettings()
         nFirstPinCount = strtol(a[i++]);
         nLastPinCount  = strtol(a[i++]);
         nPadType       = strtol(a[i++]);
+        if (n > 30)
+        nStepInc       = strtol(a[i++]);        
+
     
         dPadPitch      = strtod(a[i++]);
         dRowSpacing    = strtod(a[i++]);
@@ -1063,6 +1078,8 @@ void LoadConfigSettings()
         dPadDiameter   = strtod(a[i++]);
         dSmdSizeX      = strtod(a[i++]);
         dSmdSizeY      = strtod(a[i++]);
+        if (n > 30)
+            dStaggerY      = strtod(a[i++]);
     
         strPackagePrefix      = a[i++];
         strPackageSuffix      = a[i++];
@@ -1097,6 +1114,7 @@ void SaveConfigSettings()
         printf("%d\n", nFirstPinCount);
         printf("%d\n", nLastPinCount);
         printf("%d\n", nPadType);
+        printf("%d\n", nStepInc);        
 
         printf("%f\n", dPadPitch);
         printf("%f\n", dRowSpacing);
@@ -1104,7 +1122,8 @@ void SaveConfigSettings()
         printf("%f\n", dPadDiameter);
         printf("%f\n", dSmdSizeX);
         printf("%f\n", dSmdSizeY);
-
+        printf("%f\n", dStaggerY);
+        
         printf("%s\n", strPackagePrefix);
         printf("%s\n", strPackageSuffix);
         printf("%s\n", strDevicePrefix);
@@ -1159,7 +1178,7 @@ if (library)
                 {
                     if (fSingleDual == 0)
                     {
-                        for (i=nFirstPinCount; i <= nLastPinCount; i++)  
+                        for (i=nFirstPinCount; i <= nLastPinCount; i+=nStepInc)  
                             CreateSymbolSIP(i, fMaleFemale);
                     }
                     else
@@ -1183,7 +1202,7 @@ if (library)
 
                 if (fSingleDual == 0)
                 {
-                    for (i=nFirstPinCount; i <= nLastPinCount; i++)
+                    for (i=nFirstPinCount; i <= nLastPinCount; i+=nStepInc)
                         CreatePackageSIP(i);
                 }
                 else
@@ -1205,6 +1224,9 @@ if (library)
                 printf("#\n\n");
 
                 int inc = (fSingleDual == 0) ? 1 : 2;
+                
+                if (nStepInc > 1)
+                    inc = nStepInc;
 
                 if (fGenFullPins)
                 {
