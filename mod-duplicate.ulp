@@ -188,11 +188,13 @@ int DuplicateRoute(UL_BOARD B)
              
     B.signals(S) 
     {   
+        printf("# DEBUG '%s' '%s'\n", S.name, strSrc);
+        
         if (strstr(S.name, strSrc + ':') == 0)
         {
             string net = strsub(S.name,strlen(strSrc) + 1);
 
-            sprintf(name, "%s:%s", strDest, net);
+            /* sprintf(name, "%s:%s", strDest, net); */
 
             /*** DUPLICATE WIRES ***/  
                            
@@ -413,7 +415,7 @@ if (board) board(B)
         cnt = DuplicatePlacement(B);    
         
         if (cnt)
-            cnt = DuplicateRoute(B); 
+            DuplicateRoute(B); 
         
         printf("RATSNEST;\n");
         printf("GRID LAST;\n");
