@@ -1,77 +1,69 @@
-#usage "<big><b>import-dxf</b></big> - v1.6"
-"<p>This ULP can import specially crafted DXF files. "
-"See <a href='https://github.com/erikwilson/import-dxf/'>github</a> "
-"for information on a workflow to convert various image formats "
-"into a vector file suitable for import to eagle.</p>"
+#usage "<b>DXFimport</b> V1.7<p>"
+       "This ULP can import DXF files that include polylines.<br>"
+       "Browse to the DXF file, setup your origins, input units, scale factor and linewidth then click convert. "
+       "The ULP will then show you the script in case you want to change the layer the input will be written to.<br>"
+       "Tested in version 5, 6, 7.<br>"
+       "<author>author Written by Jorge Garcia of Cadsoft Computer, heavily based off of Hank Wallace's DXF2SCR program.</author><br>"
+       "With special thanks to Robert Starr, Alfred Zaffran, Billy Coleman and Holger Moessinger."
 
-/*
-  This ULP can import DXF files that include polylines.
-  Browse to the DXF file, setup your origins, input units, scale factor and linewidth then click convert.
-  The ULP will then show you the script in case you want to change the layer the input will be written to.
-  Tested in both version 5 and version 6.
-  Written by Jorge Garcia of Cadsoft Computer, heavily based off of Hank Wallace's DXF2SCR program.
-  With special thanks to Robert Starr, Alfred Zaffran, Billy Coleman and Holger Moessinger.
-  Modified by Erik Wilson to include polygon output originally by Tim Ruetz.
-*/
-/*
-********************************************************************************
-*                                REVISION HISTORY
-*
-* -04/07/2011       Release .4 of import_dxf_polygons by Tim Ruetz
-*
-* -03/03/2012       Initial Release dxf-import by Jorge Garcia.
-*
-* -06/19/2012       Finally incorporated Holger Moessinger's improvements to
-*                   the polygon import, added him to special thanks section.
-*
-* -07/10/2012       Added support for LWPOLYLINE.
-*
-* -02/13/2013       Check maximum coodinate of eagle, Alfred Zaffran. This
-*                   feature keeps track of the size of the DXF file, if it's
-*                   outside the drawing limits of EAGLE the ULP will recognize
-*                   this and suggest a corrective offset which the user can
-*                   approve.
-*
-* -06/12/2013       Discovered that some files don't implement the proper
-*                   spacing so I modified the ULP to cope with that.
-*
-* -01/09/2014  BC - Added ability to input a scale factor and optionally scale
-*                   linewidth, Xorg, and Yorg
-*
-* -03/01/2014  EW - Adding polygon output, layer select, merge scaling from BC,
-*                   layout changes to 1.4, renamed import-dxf.
-*
-* -03/12/2014  JG - Implemented the ability to skip the section search state.
-*                   Some DXF files don't have an ENTITIES section which the old
-*                   ULP expected. This allows the ULP to try going through the
-*                   file again without expecting an ENTITIES section. The
-*                   downside is that some extraneous stuff may come in on the
-*                   import but usually the user will be able to tell and remove
-*                   those features. The generated script file has a comment
-*                   added to it when EAGLE uses that feature.
-*
-* -03/12/2014  JG - Assimilated Billy Coleman's scaling functionality. Added
-*                   him to the thank you list in the description.
-*
-* -03/13/2014  JG - Implemented a flag in the LWPOLYLINE state of dxf() to
-*                   make sure the state isn't exited, before processing the
-*                   object. Similar improvements where made in the VERTEX
-*                   state of DXF.
-*
-* -04/06/2014  EW - merge changes with v1.5 to create v1.6, docs & github
-*
-********************************************************************************
-*/
+string Version = "1.7";
 
-/*
-*******************************************************************************
+string Help = "<b>DXFimport "+Version+ "</b>\n <p>This ULP will import a DXF \
+file into EAGLE (Board, Schematic, Package or Symbol-Editor). \
+Use the browse button to find the DXF file, make sure to set \
+the units to whatever units are used by the DXF file. Set the width, Xorg, and \
+Yorg in whatever units you selected. Then set an appropriate scale factor and \
+click the OK button, the generated script will be shown for editing. Once \
+it's adjusted to your liking click Run.</p>";
+
+/* *******************************************************************
+  REVISION HISTORY
+
+2012-03-03  Initial Release.
+
+2012-06-19  Finally incorporated Holger Moessinger's improvements to
+            the polygon import, added him to special thanks section.
+
+2012-07-10  Added support for LWPOLYLINE.
+
+2013-02-13  Check maximum coodinate of eagle, Alfred Zaffran. This
+            feature keeps track of the size of the DXF file, if it's
+            outside the drawing limits of EAGLE the ULP will recognize
+            this and suggest a corrective offset which the user can
+            approve.
+
+2013-06-12  Discovered that some files don't implement the proper
+            spacing so I modified the ULP to cope with that.
+
+2014-03-12  Implemented the ability to skip the section search state.
+            Some DXF files don't have an ENTITIES section which the old
+            ULP expected. This allows the ULP to try going through the
+            file again without expecting an ENTITIES section. The
+            downside is that some extraneous stuff may come in on the
+            import but usually the user will be able to tell and remove
+            those features. The generated script file has a comment
+            added to it when EAGLE uses that feature.
+
+2014-03-12  Assimilated Billy Coleman's scaling functionality. Added
+            him to the thank you list in the description.
+
+2014-03-13  Implemented a flag in the LWPOLYLINE state of dxf() to
+            make sure the state isn't exited, before processing the
+            object. Similar improvements where made in the VERTEX
+            state of DXF.
+
+2015-02-10  make target layer selectable  alf@cadsoft.de
+
+********************************************************************* */
+
+/* ***********************************************************************
 Below I have retained Mr. Wallace's original "licensing" statement for two
 reasons:
-1. As a sign of respect for the original author of the code from which this
-ULP was developed and without which it would have not been possible to
-develop this ULP.
-2. This is quite possibly the funniest licensing statement any one will
-ever read.
+  1. As a sign of respect for the original author of the code from which this
+    ULP was developed and without which it would have not been possible to
+    develop this ULP.
+  2. This is quite possibly the funniest licensing statement any one will
+    ever read.
 
 Officially though, I will license this under the MIT open software license
 copied below:
@@ -127,52 +119,42 @@ a life.
 this program source code and executable is free for your use
 without restriction, but NO WARRANTY OR SUPPORT IS GIVEN.
 
-This program compiles under Microsoft's command line compiler,
-version 12.00.
---------------------------------------------------------------------
-*******************************************************************************
-*/
+This program compiles under Microsoft's command line compiler, version 12.00.
+-----------------------------------------------------------------------------
+************************************************************************** */
 
-/*
-*******************************************************************************
+/* ************************************************************************
 *                           GLOBAL VARIABLES
-*******************************************************************************
-*/
+************************************************************************** */
+// #include "/home/cadsoft/eagle/debug.ulp"
 
-string ConfigFileName = "import-dxf.cfg";
+string ConfigFileName = filesetext(argv[0], ".cfg");
 
-//string Version = "v1.6";
-// from import_dxf_1_6
-/*
-string Help = "<b>DXFimport "+Version+ "</b>\n <p>This ULP will import a DXF \
-file into EAGLE. Use the browse button to find the DXF file, make sure to set \
-the units to whatever units are used by the DXF file. Set the width, Xorg, and\
- Yorg in whatever units you selected. Then set an appropriate scale factor and\
- click the convert button, the generated script will be shown for editing. Once\
- it's adjusted to your liking click Run.</p>";
-*/
-real   XMax;                      /* Maximum dimensions of DXF file                           */
+real   XMax;                    /* Maximum dimensions of DXF file */
 real   YMax;
 real   XMin;
 real   YMin;
-real   Exmax = 2000000.;           /* Maximum dimensions EAGLE can draw in um                  */
-real   Eymax = 2000000.;
-real   Exmin = -2000000.;
-real   Eymin = -2000000.;
+real   Exmax = REAL_MAX;        /* Maximum dimensions EAGLE can draw in um */
+real   Eymax = REAL_MAX;
+real   Exmin = -REAL_MAX;
+real   Eymin = -REAL_MAX;
 real   S_factor;
-real   GUI_scale = 1.0;           /* Additional scale factor that can be used to resize dxf   */
+real   GUI_scale = 1.0;         /* Additional scale factor that can be used to resize dxf */
 int    GUI_in_unit = 0;
-int    GUI_scaled_Xorg = 0;       /* Checkbox variables                                       */
+int    GUI_scaled_Xorg = 0;     /* Checkbox variables */
 int    GUI_scaled_Yorg = 0;
 int    GUI_scaled_lwidth = 0;
 string GUI_script;
 string GUI_fileName;
-real   GUI_Xorg = 0.;
-real   GUI_Yorg = 0.;
-real   GUI_lwidth = 0.;
-string GUI_layer_list[];
-int    GUI_layer_sel = 0;
-int    GUI_polygon_mode = 1;
+real   GUI_Xorg = 0.0;
+real   GUI_Yorg = 0.0;
+real   GUI_lwidth = 0.001;
+string GUI_layers[];
+       GUI_layers[0] = "select a layer";
+int    GUI_layerselect = -1;
+int    Lcnt = 1;
+int    GUI_TargetLayer = 0;
+int    SavedTargetLayer = 0;
 
 /*
 *******************************************************************************
@@ -185,9 +167,9 @@ int    GUI_polygon_mode = 1;
 *                                  strcomp2()
 *
 * Description:  The purpose of this function is to take the input scompare and
-*              compare it to strings s1 and s2 for an exact match. If there is
-*              no match to either string it will return -1, if there is a match
-*              to one of the strings it will return the index of the
+*               compare it to strings s1 and s2 for an exact match. If there is
+*               no match to either string it will return -1, if there is a match
+*               to one of the strings it will return the index of the
 *               corresponding strstr function that succeeded.
 *
 *               The strstr function checks to see if a substring shows up within
@@ -283,38 +265,36 @@ real my(real y) {
 *******************************************************************************
 */
 
-string dxf(string dxffile, int units, real xorigin, real yorigin,
-           real liwidth, int ent, real scale, int layer_sel, int polygon_mode)
-{
-  string s[];                  /* This string array will store the DXF file                 */
-  string out;                  /* Out is the script generated by this function              */
-  string temp;                 /* Place holder*/
-  enum {state_SECTION,
-        state_ENTITIES,
-        state_SEARCH,
-        state_LINE,
-        state_ARC,
-        state_CIRCLE,
-        state_POLYLINE,
-        state_VERTEX,
-        state_LWPOLYLINE};     /* Defines states for the main state machine                */
-  enum {order_FIRST,
-        order_SECOND,
-        order_THIRD,
-        order_FOURTH,
-        order_FIFTH};          /* Defines states for the secondary state machines          */
-  int    i;                     /* index variable for xa and ya                             */
-  int    p;                     /* dummy variable for for loop                              */
-  int    m;                     /* dummy variable for main while loop                       */
-  int    nlines;                /* number of lines in the text file                         */
+string dxf(string dxffile, int units, real xorigin, real yorigin, real liwidth, int ent, real scale) {
+  string s[];                 // This string array will store the DXF file
+  string out;                 // Out is the script generated by this function
+  string temp;                // Place holder
+  enum { state_SECTION,
+         state_ENTITIES,
+         state_SEARCH,
+         state_LINE,
+         state_ARC,
+         state_CIRCLE,
+         state_POLYLINE,
+         state_VERTEX,
+         state_LWPOLYLINE};  // Defines states for the main state machine
+  enum { order_FIRST,
+         order_SECOND,
+         order_THIRD,
+         order_FOURTH,
+         order_FIFTH};       // Defines states for the secondary state machines
+  int    i;                  // index variable for xa and ya
+  int    p;                  // dummy variable for for loop
+  int    m;                  // dummy variable for main while loop
+  int    nlines;             // number of lines in the text file
   int    state;
-  int    order;                 /* Used for internal state machines                         */
-  int    lines = 0;
-  int    arcs = 0;
-  int    circles = 0;
-  int    polylines = 0;
-  real   linewidth=0;
-  int    LWPOLY_FLAG=1;         /* See comment in LWPOLYLINE state                          */
+  int    order;              // Used for internal state machines
+  int    lines;
+  int    arcs;
+  int    circles;
+  int    polylines;
+  int    linewidth=1;
+  int    LWPOLY_FLAG=1;      // See comment in LWPOLYLINE state
   real   x;
   real   y;
   real   x1;
@@ -328,40 +308,41 @@ string dxf(string dxffile, int units, real xorigin, real yorigin,
   real   theta3;
   real   xorg;
   real   yorg;
-  real   xa[];                  /* xa and ya arrays hold the possible vertexes of a polyline */
+  real   xa[];               // xa and ya arrays hold the possible vertexes of a polyline
   real   ya[];
   real   plclosed;
-  real   bulgevalue[];          /* plclosed and bulgevalue array helps in dealing with...   */
+  real   bulgevalue[];       // plclosed and bulgevalue array helps in dealing with...
+                             // ...  closed polylines
 
-  /* ...  closed polylines                                    */
-
-  XMax = INT_MIN;
-  YMax = INT_MIN;
-  XMin = INT_MAX;
-  YMin = INT_MAX;
-
-  if (units == 1) {             /* Setup unit scale factor                                  */
-    S_factor = 1000;            /* Convert mm to um                                         */
+  if (units == 1) {          // Setup unit scale factor
+    S_factor = 1000;         // Convert mm to um
+    XMax = u2mm(INT_MIN)*S_factor;
+    YMax = u2mm(INT_MIN)*S_factor;
+    XMin = u2mm(INT_MAX)*S_factor;
+    YMin = u2mm(INT_MAX)*S_factor;
   }
   else {
-    S_factor = 25400;           /* Convert in to um                                         */
+    S_factor = 25400;              // Convert in to um
+    XMax = u2inch(INT_MIN)*S_factor;
+    YMax = u2inch(INT_MIN)*S_factor;
+    XMin = u2inch(INT_MAX)*S_factor;
+    YMin = u2inch(INT_MAX)*S_factor;
   }
 
-  S_factor *= scale;            /* Added scale factor affects everything except xorg, ...   */
   linewidth = liwidth * S_factor;
   xorg = xorigin * S_factor;
   yorg = yorigin * S_factor;
-  /* ... yorg and linewidth those are handled by the GUI      */
+  S_factor *= scale;              // Added scale factor affects everything except xorg, ...
+                                  // ... yorg and linewidth those are handled by the GUI
 
-  out += "# import-dxf generated script file.\n";
+  out += "# dxfimport generated script file.\n";
   out += "Grid mic 1 off;\n";
   out += "Set Wire_Bend 2;\n";
-  out += "Change Font Vector;\n";
-  sprintf(temp,"Change Width %0.2f;\n",linewidth);
+  sprintf(temp, "CHANGE LAYER %d;\n", GUI_TargetLayer); // 2015-02-10
   out += temp;
-  out += "Layer "+strsub(GUI_layer_list[GUI_layer_sel],0, 3)+";\n";
+  out += "Change Font Vector;\n";
 
-  if (ent >= 1) {               /* Allows the section search to be disabled                 */
+  if (ent >= 1) {                  // Allows the section search to be disabled
     state = state_SEARCH;
     out += "# Skipped Section Search\n";
   }
@@ -371,361 +352,334 @@ string dxf(string dxffile, int units, real xorigin, real yorigin,
 
   order = order_FIRST;
   lines = arcs = circles = polylines = 0;
-
   nlines = fileread(s, dxffile);
 
   for (m = 0;m < nlines;m++) {
     switch (state) {
-    case state_SECTION:   /* scan for SECTIONS in the DXF file                        */
-      if (strstr(s[m],"SECTION") != -1) {
-        if (ent >= 1) {
-          state = state_SEARCH;
-        }
-        else {
-          state = state_ENTITIES;
-        }
-      }
-      break;
-    case state_ENTITIES:  /* scan for ENTITIES in the DXF file                        */
-      if (strstr(s[m],"ENDSEC") != -1) {
-        state = state_SECTION;
-      }
-      if (strstr(s[m],"ENTITIES") != -1) {
-        state = state_SEARCH;
-      }
-      break;
-    case state_SEARCH:    /* scanning for LINE, ARC, CIRCLE, POLYLINE, SPLINE         */
-      if (strstr(s[m],"ENDSEC") != -1) {
-        if (ent >= 1) {
-          state = state_SEARCH;
-        }
-        else {
-          state = state_SECTION;
-        }
-      }
-      if (strstr(s[m],"LINE") != -1 && strlen(s[m]) == 4) {
-        sprintf(temp,"\n# line %d\n",lines++);
-        out += temp;
-        state = state_LINE;
-      }
-      if (strstr(s[m],"ARC") != -1 && strlen(s[m]) == 3) {
-        sprintf(temp,"\n# arc %d\n",arcs++);
-        out += temp;
-        state = state_ARC;
-      }
-      if (strstr(s[m],"CIRCLE") != -1 && strlen(s[m]) == 6) {
-        sprintf(temp,"\n# circle %d\n",circles++);
-        out += temp;
-        state = state_CIRCLE;
-      }
-      if (strstr(s[m],"POLYLINE") != -1 && strlen(s[m]) == 8) {
-        sprintf(temp,"\n# polyline %d\n",polylines++);
-        out += temp;
-        i=0;
-        state = state_POLYLINE;
-      }
-      if (strstr(s[m],"LWPOLYLINE") != -1 && strlen(s[m]) == 10) {
-        sprintf(temp,"\n# lwpolyline %d\n",polylines++);
-        out += temp;
-        i=0;              /* JG Support for LWPOLYLINE added 07/09/2012               */
-        state = state_LWPOLYLINE;
-      }
-      break;
-    case state_LINE:      /* absorbing LINE                                           */
-      switch(order) {     /* LINE 10, 20, 30 (start point), 11, 21, 31 (end point).   */
-      case order_FIRST:
-        if (strcomp2(s[m], " 10", "10") != -1) {
-          x = S_factor*strtod(s[m+1]);
-          order = order_SECOND;
-        }
-        break;
-      case order_SECOND:
-        if (strcomp2(s[m], " 20", "20") != -1) {
-          y = S_factor*strtod(s[m+1]);
-          order = order_THIRD;
-        }
-        break;
-      case order_THIRD:
-        if (strcomp2(s[m], " 11", "11") != -1) {
-          x1 = S_factor*strtod(s[m+1]);
-          order = order_FOURTH;
-        }
-        break;
-      case order_FOURTH:
-        if (strcomp2(s[m], " 21", "21") != -1) {
-          y1 = S_factor*strtod(s[m+1]);
-          sprintf(temp,
-                  "Wire (%0.2f %0.2f) (%0.2f %0.2f);\n",
-                  mx(x+xorg),
-                  my(y+yorg),
-                  mx(x1+xorg),
-                  my(y1+yorg));
-          out += temp;          /* Write to script                                          */
-          state = state_SEARCH;
-          order = order_FIRST;
-        }
-        break;
-      }
-      break;
-    case state_ARC:             /* absorbing ARC                                            */
-      switch(order) {   /* ARC 10, 20, 30 (center), 40 (radius), 50 (start angle), 51 (end) */
-      case order_FIRST:
-        if (strcomp2(s[m], " 10", "10") != -1) {
-          x = S_factor*strtod(s[m+1]);
-          order = order_SECOND;
-        }
-        break;
-      case order_SECOND:
-        if (strcomp2(s[m], " 20", "20") != -1) {
-          y = S_factor*strtod(s[m+1]);
-          order = order_THIRD;
-        }
-        break;
-      case order_THIRD:
-        if (strcomp2(s[m], " 40", "40") != -1) {
-          r = S_factor*strtod(s[m+1]);
-          order = order_FOURTH;
-        }
-        break;
-      case order_FOURTH:
-        if (strcomp2(s[m], " 50", "50") != -1) {
-          theta1 = strtod(s[m+1]);
-          theta1 *= (PI/180);
-          order = order_FIFTH;
-        }
-        break;
-      case order_FIFTH:
-        if (strcomp2(s[m], " 51", "51") != -1) {
-          theta3 = strtod(s[m+1]);
-          theta3 *= (PI/180);
-
-          x1 = r*cos(theta1)+x;   /* compute Eagle arc parameters from DXF arc params         */
-          y1 = r*sin(theta1)+y;
-          x2 = x1-2*r*cos(theta1);
-          y2 = y1-2*r*sin(theta1);
-          x3 = r*cos(theta3)+x;
-          y3 = r*sin(theta3)+y;
-
-          sprintf(temp,
-                  "Arc CCW (%0.2f %0.2f) (%0.2f %0.2f) (%0.2f %0.2f);\n",
-                  mx(x1+xorg),
-                  my(y1+yorg),
-                  mx(x2+xorg),
-                  my(y2+yorg),
-                  mx(x3+xorg),
-                  my(y3+yorg));
-          out += temp;
-          state = state_SEARCH;
-          order = order_FIRST;
-        }
-        break;
-      }
-      break;
-    case state_CIRCLE:            /* absorbing CIRCLE                                         */
-      switch(order) {             /* CIRCLE 10, 20, 30 (center), 40 (radius).                 */
-      case order_FIRST:
-        if (strcomp2(s[m], " 10", "10") != -1) {
-          x = S_factor*strtod(s[m+1]);
-          order = order_SECOND;
-        }
-        break;
-      case order_SECOND:
-        if (strcomp2(s[m], " 20", "20") != -1) {
-          y = S_factor*strtod(s[m+1]);
-          order = order_THIRD;
-        }
-        break;
-      case order_THIRD:
-        if (strcomp2(s[m], " 40", "40") != -1) {
-          y1 = S_factor*strtod(s[m+1]);
-          sprintf(temp,
-                  "Circle (%0.2f %0.2f) (%0.2f %0.2f);\n",
-                  mx(x+xorg),
-                  my(y+yorg),
-                  mx(x+xorg),
-                  my(y+y1+yorg));
-          out += temp;
-          state = state_SEARCH;
-          order = order_FIRST;
-        }
-        break;
-      }
-      break;
-    case state_POLYLINE:  /* absorbing POLYLINE                                       */
-      if (strstr(s[m], "VERTEX") != -1) {      /* VERTEX     */
-        state = state_VERTEX;
-      }
-      if (strcomp2(s[m], " 70", "70") != -1) { /* EDIT HM 20120425: Determine if Polyline is closed and... */
-        plclosed = strtod(s[m+1]);             /* ...take care of bulge values for line segments.           */
-      }
-      if (strstr(s[m], "SEQEND") != -1) {
-        int _polygon_mode = (polygon_mode && i>2 ? 1 : 0);
-        if (_polygon_mode)
-          out += "Polygon";
-        for (p=0; p<i-(_polygon_mode?0:1); p++) {
-          if (_polygon_mode) {
-            sprintf(temp,
-                    " (%0.2f %0.2f)",
-                    mx(xa[p]+xorg),
-                    my(ya[p]+yorg));
-            out += temp;
-          }
-          else {
-            if (bulgevalue[p] != 0.) {          /* ...the conditional                                       */
-              sprintf(temp,
-                      "Wire (%0.2f %0.2f) %+0.2f (%0.2f %0.2f);\n",
-                      mx(xa[p]+xorg),
-                      my(ya[p]+yorg),
-                      (atan(bulgevalue[p])*180/PI*4),
-                      mx(xa[p+1]+xorg),
-                      my(ya[p+1]+yorg));
-              out += temp;
+      case state_SECTION:                        // scan for SECTIONS in the DXF file
+        if (strstr(s[m],"SECTION") != -1) {
+            if (ent >= 1) {
+                state = state_SEARCH;
             }
             else {
-              sprintf(temp,
-                      "Wire (%0.2f %0.2f) (%0.2f %0.2f);\n",
-                      mx(xa[p]+xorg),
-                      my(ya[p]+yorg),
-                      mx(xa[p+1]+xorg),
-                      my(ya[p+1]+yorg));
-              out += temp;
+                state = state_ENTITIES;
             }
+        }
+      break;
+      case state_ENTITIES:                       // scan for ENTITIES in the DXF file
+        if (strstr(s[m],"ENDSEC") != -1) {
+          state = state_SECTION;
+        }
+        if (strstr(s[m],"ENTITIES") != -1) {
+          state = state_SEARCH;
+        }
+      break;
+      case state_SEARCH:                         // scanning for LINE, ARC, CIRCLE, POLYLINE, SPLINE
+        if (strstr(s[m],"ENDSEC") != -1) {
+          if (ent >= 1) {
+            state = state_SEARCH;
+          }
+          else {
+            state = state_SECTION;
           }
         }
-        if(plclosed && !_polygon_mode)
-        {
-          if(bulgevalue[p] != 0.) {
-            sprintf(temp,
-                    "Wire (%0.2f %0.2f) %+0.2f (%0.2f %0.2f);\n",
-                    mx(xa[p]+xorg),
-                    my(ya[p]+yorg),
-                    (atan(bulgevalue[p])*180/PI*4),
-                    mx(xa[0]+xorg),
-                    my(ya[0]+yorg));
+    if (strstr(s[m],"LINE") != -1 && strlen(s[m]) == 4) {
+      state = state_LINE;
+      lines++;
+    }
+    if (strstr(s[m],"ARC") != -1 && strlen(s[m]) == 3) {
+      state = state_ARC;
+      arcs++;
+    }
+    if (strstr(s[m],"CIRCLE") != -1 && strlen(s[m]) == 6) {
+      state = state_CIRCLE;
+      circles++;
+    }
+    if (strstr(s[m],"POLYLINE") != -1 && strlen(s[m]) == 8) {
+      i=0;
+      state = state_POLYLINE;
+      polylines++;
+    }
+    if (strstr(s[m],"LWPOLYLINE") != -1 && strlen(s[m]) == 10) {
+      i=0;                                     // JG Support for LWPOLYLINE added 07/09/2012
+      state = state_LWPOLYLINE;
+      polylines++;
+    }
+    break;
+    case state_LINE:                           // absorbing LINE
+      switch(order) {                          // LINE 10, 20, 30 (start point), 11, 21, 31 (end point).
+        case order_FIRST:
+          if (strcomp2(s[m], " 10", "10") != -1) {
+            x = S_factor*strtod(s[m+1]);
+            order = order_SECOND;
+          }
+        break;
+        case order_SECOND:
+          if (strcomp2(s[m], " 20", "20") != -1) {
+            y = S_factor*strtod(s[m+1]);
+            order = order_THIRD;
+          }
+        break;
+        case order_THIRD:
+          if (strcomp2(s[m], " 11", "11") != -1) {
+            x1 = S_factor*strtod(s[m+1]);
+            order = order_FOURTH;
+          }
+        break;
+        case order_FOURTH:
+          if (strcomp2(s[m], " 21", "21") != -1) {
+            y1 = S_factor*strtod(s[m+1]);
+            sprintf(temp, "Wire %d (%0.2f %0.2f) (%0.2f %0.2f);\n",
+                           linewidth,
+                           mx(x+xorg),
+                           my(y+yorg),
+                           mx(x1+xorg),
+                           my(y1+yorg)
+                   );
+            out += temp;                                    // Write to script
+            state = state_SEARCH;
+            order = order_FIRST;
+          }
+        break;
+      }
+      break;
+    case state_ARC:                                   // absorbing ARC
+      switch(order) {                                       // ARC 10, 20, 30 (center), 40 (radius), 50 (start angle), 51 (end)
+        case order_FIRST:
+          if (strcomp2(s[m], " 10", "10") != -1) {
+            x = S_factor*strtod(s[m+1]);
+            order = order_SECOND;
+          }
+        break;
+        case order_SECOND:
+          if (strcomp2(s[m], " 20", "20") != -1) {
+            y = S_factor*strtod(s[m+1]);
+            order = order_THIRD;
+          }
+        break;
+        case order_THIRD:
+          if (strcomp2(s[m], " 40", "40") != -1) {
+            r = S_factor*strtod(s[m+1]);
+            order = order_FOURTH;
+          }
+        break;
+        case order_FOURTH:
+          if (strcomp2(s[m], " 50", "50") != -1) {
+            theta1 = strtod(s[m+1]);
+            theta1 *= (PI/180);
+            order = order_FIFTH;
+          }
+        break;
+        case order_FIFTH:
+          if (strcomp2(s[m], " 51", "51") != -1) {
+            theta3 = strtod(s[m+1]);
+            theta3 *= (PI/180);
+
+            x1 = r*cos(theta1)+x;                            // compute Eagle arc parameters from DXF arc params
+            y1 = r*sin(theta1)+y;
+            x2 = x1-2*r*cos(theta1);
+            y2 = y1-2*r*sin(theta1);
+            x3 = r*cos(theta3)+x;
+            y3 = r*sin(theta3)+y;
+
+            sprintf(temp, "Arc CCW %d (%0.2f %0.2f) (%0.2f %0.2f) (%0.2f %0.2f);\n",
+                            linewidth,
+                            mx(x1+xorg),
+                            my(y1+yorg),
+                            mx(x2+xorg),
+                            my(y2+yorg),
+                            mx(x3+xorg),
+                            my(y3+yorg)
+                    );
+            out += temp;
+            state = state_SEARCH;
+            order = order_FIRST;
+          }
+        break;
+      }
+      break;
+    case state_CIRCLE:                                  // absorbing CIRCLE
+      switch(order) {                                         // CIRCLE 10, 20, 30 (center), 40 (radius).
+        case order_FIRST:
+          if (strcomp2(s[m], " 10", "10") != -1) {
+            x = S_factor*strtod(s[m+1]);
+            order = order_SECOND;
+          }
+          break;
+        case order_SECOND:
+          if (strcomp2(s[m], " 20", "20") != -1) {
+            y = S_factor*strtod(s[m+1]);
+            order = order_THIRD;
+          }
+          break;
+        case order_THIRD:
+          if (strcomp2(s[m], " 40", "40") != -1) {
+            y1 = S_factor*strtod(s[m+1]);
+            sprintf(temp, "Circle %d (%0.2f %0.2f) (%0.2f %0.2f);\n",
+                           linewidth,
+                           mx(x+xorg),
+                           my(y+yorg),
+                           mx(x+xorg),
+                           my(y+y1+yorg)
+                   );
+            out += temp;
+            state = state_SEARCH;
+            order = order_FIRST;
+          }
+          break;
+      }
+      break;
+    case state_POLYLINE:                                  // absorbing POLYLINE
+      if (strstr(s[m], "VERTEX") != -1) {               // VERTEX
+          state = state_VERTEX;
+      }
+      if (strcomp2(s[m], " 70", "70") != -1) {          // EDIT HM 20120425: Determine if Polyline is closed and...
+          plclosed = strtod(s[m+1]);                    // ...take care of bulge values for line segments.
+      }
+      if (strstr(s[m], "SEQEND") != -1) {
+        for (p=0; p < i-1;p++) {                      // n points give n-1 lines that's why there's an i-1 in...
+          if (bulgevalue[p] != 0) {                 // ...the conditional
+            sprintf(temp, "Wire %d (%0.2f %0.2f) %+0.2f (%0.2f %0.2f);\n",
+                         linewidth,
+                         mx(xa[p]+xorg),
+                         my(ya[p]+yorg),
+                         (atan(bulgevalue[p])*180/PI*4),
+                         mx(xa[p+1]+xorg),
+                         my(ya[p+1]+yorg)
+                   );
             out += temp;
           }
           else {
-            sprintf(temp,
-                    "Wire (%0.2f %0.2f) (%0.2f %0.2f);\n",
-                    mx(xa[p]+xorg),
-                    my(ya[p]+yorg),
-                    mx(xa[0]+xorg),
-                    my(ya[0]+yorg));
+            sprintf(temp, "Wire %d (%0.2f %0.2f) (%0.2f %0.2f);\n",
+                           linewidth,
+                           mx(xa[p]+xorg),
+                           my(ya[p]+yorg),
+                           mx(xa[p+1]+xorg),
+                           my(ya[p+1]+yorg)
+                   );
             out += temp;
           }
         }
-        if (_polygon_mode) {
-          out += ";\n";
+        if(plclosed) {
+          if(bulgevalue[p] != 0) {
+            sprintf(temp, "Wire %d (%0.2f %0.2f) %+0.2f (%0.2f %0.2f);\n",
+                           linewidth,
+                           mx(xa[p]+xorg),
+                           my(ya[p]+yorg),
+                           (atan(bulgevalue[p])*180/PI*4),
+                           mx(xa[0]+xorg),
+                           my(ya[0]+yorg)
+                   );
+            out += temp;
+          }
+          else {
+            sprintf(temp, "Wire %d (%0.2f %0.2f) (%0.2f %0.2f);\n",
+                           linewidth,
+                           mx(xa[p]+xorg),
+                           my(ya[p]+yorg),
+                           mx(xa[0]+xorg),
+                           my(ya[0]+yorg)
+                   );
+            out += temp;
+          }
         }
-
         state = state_SEARCH;
       }
       break;
-    case state_VERTEX:    /* absorbing VERTEX                                         */
+    case state_VERTEX:                                  // absorbing VERTEX
       switch(order) {
-      case order_FIRST:
-        if (strcomp2(s[m], " 10", "10") != -1) {                /* 10 (x-value) 20 (y-value)                                */
-          xa[i] = S_factor*strtod(s[m+1]);
-          order = order_SECOND;
-        }
+        case order_FIRST:
+            if (strcomp2(s[m], " 10", "10") != -1) {    // 10 (x-value) 20 (y-value)
+              xa[i] = S_factor*strtod(s[m+1]);
+              order = order_SECOND;
+            }
         break;
-      case order_SECOND:
-        if (strcomp2(s[m], " 20", "20") != -1) {
-          ya[i] = S_factor*strtod(s[m+1]);                    /* This avoids a misalignment of the bulge array should...  */
-          bulgevalue[i] = 0;                                /* ...one or more polylines not have bulges                 */
-          order = order_THIRD;
-        }
+        case order_SECOND:
+            if (strcomp2(s[m], " 20", "20") != -1) {
+              ya[i] = S_factor*strtod(s[m+1]);          // This avoids a misalignment of the bulge array should...
+              bulgevalue[i] = 0;                        // ...one or more polylines not have bulges
+              order = order_THIRD;
+            }
         break;
-      case order_THIRD:
-        if (strcomp2(s[m], " 42", "42") != -1) {
-          bulgevalue[i] = strtod(s[m+1]);                     /* Store bulge value for node                               */
-        }
-        if (strcomp2(s[m], "  0", "0") != -1) {
-          i++;
-          state = state_POLYLINE;                             /* Look for next vertex in polyline                         */
-          order = order_FIRST;
-        }
+        case order_THIRD:
+          if (strcomp2(s[m], " 42", "42") != -1) {
+             bulgevalue[i] = strtod(s[m+1]);           //* Store bulge value for node
+          }
+          if (strcomp2(s[m], "  0", "0") != -1) {
+            i++;
+            state = state_POLYLINE;                    // Look for next vertex in polyline
+            order = order_FIRST;
+          }
         break;
       }
-      break;
-    case state_LWPOLYLINE:/* absorbing LWPOLYLINE 07/09/2012                          */
-      if (strcomp2(s[m], " 70", "70") != -1) {                        /* Checks for closed polylines and imports them.            */
+    break;
+    case state_LWPOLYLINE:                            // absorbing LWPOLYLINE 07/09/2012
+      if (strcomp2(s[m], " 70", "70") != -1) {        // Checks for closed polylines and imports them.
         plclosed = strtod(s[m+1]);
       }
       if (strcomp2(s[m], " 42", "42") != -1) {
-        bulgevalue[i] = strtod(s[m+1]);                             /* Store bulge value for node                               */
+        bulgevalue[i] = strtod(s[m+1]);               // Store bulge value for node
       }
       if (strcomp2(s[m], " 10", "10") != -1) {
         xa[i] = S_factor*strtod(s[m+1]);
       }
       if (strcomp2(s[m], " 20", "20") != -1) {
-        LWPOLY_FLAG = 0;                                            /* On poorly formated files, this state may run into an ... */
-        /* ... improperly formatted zero and exit without ...       */
-        /* ... processing any points. This flag guarantees that ... */
-        /* ... the state will not be exited before points are ...   */
-        /* ... processed. See the if statement below.               */
+        LWPOLY_FLAG = 0;                              // On poorly formated files, this state may run into an
+                                                      // improperly formatted zero and exit without
+                                                      // processing any points. This flag guarantees that
+                                                      // the state will not be exited before points are
+                                                      // processed. See the if statement below.
         ya[i] = S_factor*strtod(s[m+1]);
         bulgevalue[i] = 0;
-        i++;          /* This avoids a misalignment of the bulge array should...  */
-        /* ...one or more polylines not have bulges.                */
+        i++;                                          // This avoids a misalignment of the bulge array should
+                                                      // one or more polylines not have bulges.
       }
       if (strcomp2(s[m], "  0", "0") != -1 & LWPOLY_FLAG == 0) {
-        int _polygon_mode = (polygon_mode && i>2 ? 1 : 0);
-        if (_polygon_mode)
-          out += "Polygon";
-        for (p=0; p<i-(_polygon_mode?0:1); p++) {                       /* n points give n-1 lines that's why there's an i-1 in...  */
-          if (_polygon_mode) {
-            sprintf(temp,
-                    " (%0.2f %0.2f)",
-                    mx(xa[p]+xorg),
-                    my(ya[p]+yorg));
+        for (p=0; p < i-1;p++) {                                    // n points give n-1 lines that's why there's an i-1 in
+          if (bulgevalue[p] != 0) {                                 // the conditional.
+            sprintf(temp, "Wire %d (%0.2f %0.2f) %+0.2f (%0.2f %0.2f);\n",
+                          linewidth,
+                          mx(xa[p]+xorg),
+                          my(ya[p]+yorg),
+                          (atan(bulgevalue[p])*180/PI*4),
+                          mx(xa[p+1]+xorg),
+                          my(ya[p+1]+yorg)
+                   );
             out += temp;
           }
           else {
-            if (bulgevalue[p] != 0.) {                               /* ...the conditional.                                      */
-              sprintf(temp,
-                      "Wire (%0.2f %0.2f) %+0.2f (%0.2f %0.2f);\n",
-                      mx(xa[p]+xorg),
-                      my(ya[p]+yorg),
-                      (atan(bulgevalue[p])*180/PI*4),
-                      mx(xa[p+1]+xorg),
-                      my(ya[p+1]+yorg));
-              out += temp;
-            }
-            else {
-              sprintf(temp,
-                      "Wire (%0.2f %0.2f) (%0.2f %0.2f);\n",
-                      mx(xa[p]+xorg),
-                      my(ya[p]+yorg),
-                      mx(xa[p+1]+xorg),
-                      my(ya[p+1]+yorg));
-              out += temp;
-            }
+            sprintf(temp, "Wire %d (%0.2f %0.2f) (%0.2f %0.2f);\n",
+                           linewidth,
+                           mx(xa[p]+xorg),
+                           my(ya[p]+yorg),
+                           mx(xa[p+1]+xorg),
+                           my(ya[p+1]+yorg)
+                   );
+            out += temp;
           }
         }
-        if(plclosed && !_polygon_mode) {
-          if(bulgevalue[p] != 0.) {
-            sprintf(temp,
-                    "Wire (%0.2f %0.2f) %+0.2f (%0.2f %0.2f);\n",
-                    mx(xa[p]+xorg),
-                    my(ya[p]+yorg),
-                    (atan(bulgevalue[p])*180/PI*4),
-                    mx(xa[0]+xorg),
-                    my(ya[0]+yorg));
+        if(plclosed) {
+          if(bulgevalue[p] != 0) {
+            sprintf(temp, "Wire %d (%0.2f %0.2f) %+0.2f (%0.2f %0.2f);\n",
+                           linewidth,
+                           mx(xa[p]+xorg),
+                           my(ya[p]+yorg),
+                           (atan(bulgevalue[p])*180/PI*4),
+                           mx(xa[0]+xorg),
+                           my(ya[0]+yorg)
+                   );
             out += temp;
           }
           else {
-            sprintf(temp,
-                    "Wire (%0.2f %0.2f) (%0.2f %0.2f);\n",
-                    mx(xa[p]+xorg),
-                    my(ya[p]+yorg),
-                    mx(xa[0]+xorg),
-                    my(ya[0]+yorg));
+            sprintf(temp, "Wire %d (%0.2f %0.2f) (%0.2f %0.2f);\n",
+                           linewidth,
+                           mx(xa[p]+xorg),
+                           my(ya[p]+yorg),
+                           mx(xa[0]+xorg),
+                           my(ya[0]+yorg)
+                   );
             out += temp;
           }
-        }
-        if (_polygon_mode) {
-          out += ";\n";
         }
         state = state_SEARCH;
         LWPOLY_FLAG = 1;
@@ -734,16 +688,16 @@ string dxf(string dxffile, int units, real xorigin, real yorigin,
     }
   }
 
-  sprintf(temp,
-          "# lines=%d, arcs=%d, circles=%d, polylines=%d\n\n",
-          lines,
-          arcs,
-          circles,
-          polylines);
-  out = temp + out;
-
-  out += "\nWindow Fit;\n";
-  out += "Grid last;\n";
+  sprintf(temp, "Window Fit;\n");
+  out += temp;
+  sprintf(temp, "# lines=%d, arcs=%d, circles=%d, polylines=%d\n",
+                 lines,
+                 arcs,
+                 circles,
+                 polylines
+         );
+  out += temp;
+  out += "Grid last;";
   return out;
 }
 
@@ -798,28 +752,23 @@ string get_project_path() {
 */
 
 void LoadConfigSettings() {
-  string a[];
+  string lines[];
   string rf[];
 
-  int nrf = fileglob(rf, filedir(argv[0])+ConfigFileName);
+  int nrf = fileglob(rf, ConfigFileName);
 
   if (nrf) {
-    nrf = fileread(a, rf[0]);
+      nrf = fileread(lines, rf[0]);
   }
-
-  if (nrf == 11) {
+  if (nrf == 7) {
     int i = 0;
-    GUI_fileName      = a[i++];
-    GUI_Xorg          = strtod(a[i++]);
-    GUI_Yorg          = strtod(a[i++]);
-    GUI_scale         = strtod(a[i++]);
-    GUI_lwidth        = strtod(a[i++]);
-    GUI_in_unit       = strtol(a[i++]);
-    GUI_scaled_Xorg   = strtol(a[i++]);
-    GUI_scaled_Yorg   = strtol(a[i++]);
-    GUI_scaled_lwidth = strtol(a[i++]);
-    GUI_layer_sel     = strtol(a[i++]);
-    GUI_polygon_mode  = strtol(a[i++]);
+    GUI_fileName  = lines[i++];
+    GUI_Xorg      = strtod(lines[i++]);
+    GUI_Yorg      = strtod(lines[i++]);
+    GUI_scale     = strtod(lines[i++]);
+    GUI_lwidth    = strtod(lines[i++]);
+    GUI_in_unit   = strtol(lines[i++]);
+    SavedTargetLayer   = strtol(lines[i++]);
   }
 }
 
@@ -839,18 +788,14 @@ void LoadConfigSettings() {
 */
 
 void SaveConfigSettings() {
-  output(filedir(argv[0])+ConfigFileName, "wt") {
+  output(ConfigFileName, "wt") {
     printf("%s\n", GUI_fileName);
     printf("%f\n", GUI_Xorg);
     printf("%f\n", GUI_Yorg);
     printf("%f\n", GUI_scale);
     printf("%f\n", GUI_lwidth);
     printf("%d\n", GUI_in_unit);
-    printf("%d\n", GUI_scaled_Xorg);
-    printf("%d\n", GUI_scaled_Yorg);
-    printf("%d\n", GUI_scaled_lwidth);
-    printf("%d\n", GUI_layer_sel);
-    printf("%d\n", GUI_polygon_mode);
+    printf("%d\n", GUI_TargetLayer);
   }
 }
 
@@ -872,8 +817,7 @@ void SaveConfigSettings() {
 */
 
 void runscript(string scr) {
-  string filepath = get_project_path() + "import-dxf.scr";
-
+  string filepath = get_project_path() + "dxfimp.scr";
   SaveConfigSettings();
 
   output(filepath,"wt") {
@@ -901,97 +845,71 @@ void runscript(string scr) {
 *******************************************************************************
 */
 
-void checkscript(void) {    /* This allows the user to inspect the script and make changes */
-  real sc_xo = GUI_Xorg;    /* These allow the scale factor to be applied independently */
+void checkscript(void) {             // This allows the user to inspect the script and make changes
+  real sc_xo = GUI_Xorg;             // These allow the scale factor to be applied independently
   real sc_yo = GUI_Yorg;
   real sc_lw = GUI_lwidth;
-
-  if (GUI_scaled_Xorg) {
-    sc_xo *= GUI_scale;
-  }
-  if (GUI_scaled_Yorg) {
-    sc_yo *= GUI_scale;
-  }
-  if (GUI_scaled_lwidth) {
-    sc_lw *= GUI_scale;
-  }
-
-  if (filesize(GUI_fileName)<1) {
-    dlgMessageBox("Unable to open or empty file " + GUI_fileName);
+  string error;
+  if (!GUI_TargetLayer) {
+    dlgMessageBox("First select a layer!", "OK");
     return;
   }
-
-  GUI_script = dxf(GUI_fileName, GUI_in_unit, sc_xo, sc_yo, sc_lw, 0, GUI_scale, GUI_layer_sel, GUI_polygon_mode);
-  string dummy[];               /* Dummy array to check of dxf function returned valid data */
-  if (strsplit(dummy, GUI_script, '\n') == 11) {
-    GUI_script = dxf(GUI_fileName,
-                     GUI_in_unit,
-                     sc_xo,
-                     sc_yo,
-                     sc_lw,
-                     1,
-                     GUI_scale,
-                     GUI_layer_sel,
-                     GUI_polygon_mode);   /* Run again without searching for sections                 */
+  if (GUI_scaled_Xorg == 1) {
+      sc_xo *= GUI_scale;
   }
-  real Xdim = XMax - XMin;    /* Max dimensions of DXF file,must be defined after dxf runs*/
+  if (GUI_scaled_Yorg == 1) {
+      sc_yo *= GUI_scale;
+  }
+  if (GUI_scaled_lwidth ==1) {
+      sc_lw *= GUI_scale;
+  }
+  GUI_script =
+  GUI_script = dxf(GUI_fileName, GUI_in_unit, sc_xo, sc_yo, sc_lw, 0, GUI_scale);
+  string dummy[];                     // Dummy array to check of dxf function returned valid data
+  if (strsplit(dummy, GUI_script, '\n') == 8) {
+      GUI_script = dxf(GUI_fileName,
+                       GUI_in_unit,
+                       sc_xo,
+                       sc_yo,
+                       sc_lw,
+                       1,
+                       GUI_scale);       // Run again without searching for sections
+  }
+  real Xdim = XMax - XMin;               // Max dimensions of DXF file,must be defined after dxf runs
   real Ydim = YMax - YMin;
-  real EXdim = Exmax - Exmin;   /* Max dimensions of EAGLE                                  */
+  real EXdim = Exmax - Exmin;            // Max dimensions of EAGLE
   real EYdim = Eymax - Eymin;
-  string error;
-
-  real epsilon = .0000001;
 
   /* done = Debug(GUI_script); */
 
-  if ((Xdim > EXdim) || (Ydim > EYdim)) {  /* Checks if DXF file is larger than EAGLE's drawing area   */
-    real maxdim = (Xdim>Ydim ? Xdim : Ydim);
-    real Emaxdim = (EXdim>EYdim ? EXdim : EYdim);
-
-   real GUI_scale_new = (GUI_scale * (Emaxdim / maxdim)) - epsilon;
-
-    sprintf(error,":DXF file of dimensions (%.1f,%.1f) is larger than EAGLE's "+
-            "drawing area, would you like to apply a scale of %.2f?", Xdim, Ydim, GUI_scale_new);
-    if (dlgMessageBox(error, "Set scale", "CANCEL") == 0) {
-      GUI_scale = GUI_scale_new;
-    }
-    return;
+  if ((Xdim > EXdim) || (Ydim > EYdim)) {   // Checks if DXF file is larger than EAGLE's drawing area
+  dlgMessageBox(":DXF file is larger than EAGLE's drawing area please scale the file in your MCAD software and try again");
+  exit(-1);
   }
+  if ((Xdim < Exmax) && (Ydim < Eymax)) {   // Checks if DXF file is small enough to fit in the
+                                            // first quadrant (+X +Y)
 
-  if ((XMax > Exmax) || (YMax > Eymax) ||
-      (XMin < Exmin) || (YMin < Eymin)) {
-
-    real GUI_Xorg_new = GUI_Xorg;
-    real GUI_Yorg_new = GUI_Yorg;
-
-    if (XMax > Exmax) {
-      GUI_Xorg_new = -epsilon + (sc_xo*S_factor + Exmax - XMax) / S_factor / (GUI_scaled_Xorg ? GUI_scale : 1.0);
+    if ((XMax > Exmax) || (YMax > Eymax) ||
+            (XMin < Exmin) || (YMin < Eymin)) {  // Check if any of the points are outside of EAGLE's drawing area
+      GUI_Xorg = -1.0*(XMin/S_factor);           // Lower left corner of DXF file will now be at 0 0
+      GUI_Yorg = -1.0*(YMin/S_factor);           // Make sure we return the offset in original units
+      sprintf(error,":DXF file is outside of EAGLE's drawing area would you like to apply an offset in X of %.1f and %.1f in y?",
+           GUI_Xorg, GUI_Yorg);
+      if (dlgMessageBox(error, "Set offset", "CANCEL") != 0) exit(-1);
+      return;
     }
-    if (YMax > Eymax) {
-      GUI_Yorg_new = -epsilon + (sc_yo*S_factor + Eymax - YMax) / S_factor / (GUI_scaled_Yorg ? GUI_scale : 1.0);
-    }
-    if (XMin < Exmin) {
-      GUI_Xorg_new = epsilon + (sc_xo*S_factor + Exmin - XMin) / S_factor / (GUI_scaled_Xorg ? GUI_scale : 1.0);
-    }
-    if (YMin < Eymin) {
-      GUI_Yorg_new = epsilon + (sc_yo*S_factor + Eymin - YMin) / S_factor / (GUI_scaled_Yorg ? GUI_scale : 1.0);
-    }
-
-    sprintf(error,":DXF file of range X[%.1f,%.1f], Y[%.1f,%.1f] is outside of EAGLE's "+
-            "drawing area, would you like to apply an offset in X of %.2f and Y of %.2f?",
-            XMin, XMax, YMin, YMax, GUI_Xorg_new, GUI_Yorg_new);
-    if (dlgMessageBox(error, "Set offset", "CANCEL") == 0) {
-      GUI_Xorg = GUI_Xorg_new;
-      GUI_Yorg = GUI_Yorg_new;
-    };
-    return;
   }
-
-  string temp;
-  sprintf(temp,
-          "# X[%.4f, %.4f]\n# Y[%.4f, %.4f]\n# size[%.4f, %.4f]\n",
-          XMin, XMax, YMin, YMax, Ydim, Xdim);
-  GUI_script = temp + GUI_script;
+  else {                                           // DXF file is too large to fit in first quadrant
+    if ((XMax > Exmax) || (YMax > Eymax) ||
+            (XMin < Exmin) || (YMin < Eymin)) {    // Check if any of the points are outside of EAGLE's drawing area
+      GUI_Xorg = -1.0*(((XMin+XMax)/2)/S_factor);  // Center of DXF file will now be at 0 0
+      GUI_Yorg = -1.0*(((YMin+YMax)/2)/S_factor);
+      sprintf(error,":DXF file is outside of EAGLE's drawing area would you like to apply an offset in X of %.1f and %.1f in y?",
+           GUI_Xorg, GUI_Yorg);
+      if (dlgMessageBox(error, "Set offset", "CANCEL") != 0) exit(-1);
+      return;
+    }
+  }
 
   int Result = dlgDialog("Run Script") {
     dlgTextEdit(GUI_script);
@@ -1002,48 +920,8 @@ void checkscript(void) {    /* This allows the user to inspect the script and ma
   };
 }
 
-void find_layers()
-{
-  int layer_cnt=0;
-  if (library) {
-    library(L) {
-      L.layers(LA) {
-        if (LA.visible)
-        {
-          if ((LA.number < 17 || LA.number > 19) && (LA.number < 23 || LA.number > 25) && LA.number != 28)
-          {
-            if (LA.number == 94) GUI_layer_sel = layer_cnt;
-            sprintf(GUI_layer_list[layer_cnt++], "%3d - %s", LA.number, LA.name);
-          }
-        }
-      }
-    }
-  }
-  if (board) {
-    board(B) {
-      B.layers(LA) {
-        if (LA.visible)
-        {
-          if ((LA.number < 17 || LA.number > 19) && (LA.number < 23 || LA.number > 25) && LA.number != 28)
-            sprintf(GUI_layer_list[layer_cnt++], "%3d - %s", LA.number, LA.name);
-        }
-      }
-    }
-  }
-  if (schematic) {
-    schematic(S) {
-      S.layers(LA) {
-        if (LA.visible)
-        {
-          if (LA.number < 95 || LA.number > 96)
-          {
-            if (LA.number == 94) GUI_layer_sel = layer_cnt;
-            sprintf(GUI_layer_list[layer_cnt++], "%3d - %s", LA.number, LA.name);
-          }
-        }
-      }
-    }
-  }
+int gettargetlayer(int select) {
+  return strtol(GUI_layers[select]);
 }
 
 /*
@@ -1051,68 +929,109 @@ void find_layers()
 *                               MAIN()                                         *
 ********************************************************************************
 */
-int main() {
-  int Result = dlgDialog("IMPORT-DXF") {
+LoadConfigSettings();    // load the last filename and config settings
+GUI_TargetLayer = 0;
 
-    // load the last filename config settings
-    LoadConfigSettings();
-    find_layers();
-
-    dlgHBoxLayout
-    {
-      dlgLabel(usage+"<hr>");
+if (board) {
+  board(B) {
+    B.layers(L) {
+      if (L.name) {
+        sprintf(GUI_layers[Lcnt], "%d %s",L.number, L.name);
+        if (L.number == SavedTargetLayer) {
+          GUI_TargetLayer = L.number;
+          GUI_layerselect = Lcnt;
+        }
+        Lcnt++;
+      }
     }
-    dlgHBoxLayout
-    {
+  }
+}
+else if (schematic) {
+  schematic(SCH) {
+    SCH.layers(L) {
+      if (L.name) {
+        sprintf(GUI_layers[Lcnt], "%d %s",L.number, L.name);
+        if (L.number == SavedTargetLayer) {
+          GUI_TargetLayer = L.number;
+          GUI_layerselect = Lcnt;
+        }
+        Lcnt++;
+      }
+    }
+  }
+}
+else if (package || symbol) {
+  library(LIB) {
+    LIB.layers(L) {
+      if (L.name) {
+        sprintf(GUI_layers[Lcnt], "%d %s",L.number, L.name);
+        if (L.number == SavedTargetLayer) {
+          GUI_TargetLayer = L.number;
+          GUI_layerselect = Lcnt;
+        }
+        Lcnt++;
+      }
+    }
+  }
+}
+else {
+  dlgMessageBox("Start this ULP in a Schematic- or Board- or Package- or Symbol- Editor!", "OK");
+  exit(-1);
+}
+
+int main() {
+  string stateline = " ";
+  int Result = dlgDialog("DXFIMPORT - "+Version) {
+
+    dlgHBoxLayout {
+      dlgLabel(Help);
+    }
+    dlgHBoxLayout {
       dlgLabel("File &name:");
       dlgStringEdit(GUI_fileName);
-      dlgPushButton("Bro&wse")
-      {
+      dlgPushButton("Bro&wse") {
         GUI_fileName = dlgFileOpen("Select a file", GUI_fileName, "*.dxf");
       }
     }
 
-    dlgHBoxLayout
-    {
-      dlgGridLayout
-      {
-        dlgCell(0, 0) dlgGridLayout
-        {
-          dlgCell(0, 0) dlgLabel("<p align=right>X Origin</p>");
-          dlgCell(0, 1) dlgRealEdit(GUI_Xorg);
-          dlgCell(1, 0) dlgLabel("<p align=right>Y Origin</p>");
-          dlgCell(1, 1) dlgRealEdit(GUI_Yorg);
-          dlgCell(2, 0) dlgLabel("<p align=right>Line Width</p>");
-          dlgCell(2, 1) dlgRealEdit(GUI_lwidth);
-          dlgCell(3, 0) dlgLabel("<p align=right>Scale</p>");
-          dlgCell(3, 1) dlgRealEdit(GUI_scale);
+    dlgHBoxLayout {
+      dlgLabel("Target layer ");
+      dlgComboBox(GUI_layers, GUI_layerselect) GUI_TargetLayer = gettargetlayer(GUI_layerselect);
+      dlgStretch(1);
+    }
 
-          dlgCell(4, 0) dlgLabel("<p align=right>Import to layer</p>");
-          dlgCell(4, 1, 4, 2) dlgComboBox(GUI_layer_list, GUI_layer_sel);
-
-          dlgCell(5, 1) dlgCheckBox("Prefer polygon output", GUI_polygon_mode);
-        }
-        dlgCell(0, 1) dlgGridLayout
-        {
-          dlgCell(0, 0) dlgGroup("Input Units")
-          {
-            dlgRadioButton("Imperial (in)", GUI_in_unit); //in_unit = 0
-            dlgRadioButton("Metric (mm)", GUI_in_unit); //in_unit = 1
-          }
-          dlgCell(1, 0) dlgGroup("Scale")
-          {
-            dlgCheckBox("X Origin", GUI_scaled_Xorg);
-            dlgCheckBox("Y Origin", GUI_scaled_Yorg);
-            dlgCheckBox("Line Width", GUI_scaled_lwidth);
+    dlgHBoxLayout {
+      dlgGroup("Input Units") {
+        dlgRadioButton("Imperial(in)", GUI_in_unit);    // GUI_in_unit = 0
+        dlgRadioButton("Metric(mm)", GUI_in_unit);      // GUI_in_unit = 1
+      }
+      dlgGridLayout {
+        dlgCell(0, 0) dlgLabel("Xorg");
+        dlgCell(1, 0) dlgLabel("Yorg");
+        dlgCell(0, 1) dlgRealEdit(GUI_Xorg);
+        dlgCell(1, 1) dlgRealEdit(GUI_Yorg);
+        dlgCell(2, 0) dlgLabel("Width");
+        dlgCell(2, 1) dlgRealEdit(GUI_lwidth);
+        dlgCell(3, 0) dlgLabel("Scale");
+        dlgCell(3, 1) dlgRealEdit(GUI_scale);
+        dlgCell(0, 2, 3, 2) {
+          dlgGroup("Scaled") {
+            dlgCheckBox("Xorg", GUI_scaled_Xorg);    // If checked int contains 1, if unchecked 0
+            dlgCheckBox("Yorg", GUI_scaled_Yorg);
+            dlgCheckBox("Width", GUI_scaled_lwidth);
           }
         }
+        dlgCell(1, 3) dlgPushButton("OK") {
+          stateline = "converting file... please wait.";
+          dlgRedisplay();
+          checkscript();
+          stateline = " ";
+          dlgRedisplay();
+        }
+        dlgCell(2, 3) dlgPushButton("-Cancel") dlgReject();
       }
     }
-    dlgGridLayout
-    {
-      dlgCell(0, 0) dlgPushButton("OK") checkscript();
-      dlgCell(0, 1) dlgPushButton("-Cancel") dlgReject();
-    }
+    dlgLabel(stateline, 1);
   };
-  return 0;
+  return Result;
 }
