@@ -146,9 +146,6 @@ void CreateGerberReadMe(UL_BOARD B)
         printf("%s.gpi\t\tGerber photoplotter info file\n\n", name);
 
         printf("NOTE: ALL LAYERS GENERATED WITH MIRRORING OFF!\n\n");
-        printf("Layout Contact:\n");
-        printf("---------------\n");
-        printf("Bob Starr\nAtlanta, GA USA\nEmail: rtzaudio@comcast.net\nWeb: http://www.bobstarr.net\nTel: (770) 663-0076\n");
     }
 }
 

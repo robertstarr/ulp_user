@@ -19,7 +19,8 @@
 
 #require 4.1106;
 
-// 6.12.2004 Text with Spin-Flag support@cadsoft.de
+//  6.12.2004 Text with Spin-Flag support@cadsoft.de
+// 28.06.2006 accept Sigle-Quote on end of name of element  support@cadsoft.de
 
 int  offset = 100;
 string tcolor = "yellow";
@@ -30,6 +31,12 @@ string used_name_[];
 string cmd_header;
 string cmd = "\nSET UNDO_LOG OFF;\nGRID MIL;\n"; // advisable for speed reasons
 string h;
+
+string check_single_quote(string s) {  // 2006.06.28
+  int l = strlen(s);
+  if (s[l-1] == '\'') s+="'";
+  return s;
+}
 
 void test(void) {
   string txt = "Used Layers for >NAME\n";
@@ -67,7 +74,7 @@ void Text(string Ename, int Tlayer, int Tx, int Ty, int Tsize, real Tangle, int 
   else mirr = "";
   if (Tspin) spin = "S";
   else spin = "";
-  sprintf(h, "Text '%s' %s%sR%.1f (%5.3f %5.3f);\n", Ename, spin, mirr, Tangle, u2mil(Tx), u2mil(Ty));
+  sprintf(h, "Text '%s' %s%sR%.1f (%5.3f %5.3f);\n", check_single_quote(Ename), spin, mirr, Tangle, u2mil(Tx), u2mil(Ty));
   cmd += h;
   return;
 }
@@ -75,6 +82,7 @@ void Text(string Ename, int Tlayer, int Tx, int Ty, int Tsize, real Tangle, int 
 
 
 if (board) {
+  UL_TEXT txt;
   board(B) {
     B.layers(L) {
       used_name_[L.number] = L.name;
@@ -91,6 +99,15 @@ if (board) {
         if (T.value == E.name) {
           used_name_layers[T.layer]++;
           Text(E.name, T.layer, T.x, T.y, T.size, T.angle, T.ratio, T.mirror, T.spin);
+        }
+      }
+      E.attributes(A) {
+        if (A.display == ATTRIBUTE_DISPLAY_FLAG_VALUE) {
+          if (A.name == "LABEL") {
+            txt = A.text;
+            used_name_layers[txt.layer]++;
+            Text(A.value, txt.layer, txt.x, txt.y, txt.size, txt.angle, txt.ratio, txt.mirror, txt.spin);
+          }            
         }
       }
     }
