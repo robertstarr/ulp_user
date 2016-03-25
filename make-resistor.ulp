@@ -199,7 +199,9 @@ if (library)
         scrText += tmp;                                
         sprintf(tmp, "Text '>VALUE' R0 (-%.4f -%.4f);\n", x, y+1.2);
         scrText += tmp;
-        
+        sprintf(tmp, "Description '<b>RESISTOR</b> - body %.1f x %.1f mm';\n", dDimL1, dDim0D);
+        scrText += tmp;
+                
         sprintf(tmp, "GRID LAST;\n");
         scrText += tmp;
         
