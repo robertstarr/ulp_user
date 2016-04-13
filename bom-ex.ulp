@@ -207,6 +207,8 @@
 //
 // 1.67 RES  12/10/15 Updated DigiKey export column headings record.
 //
+// 1.68 RES  12/10/15 Added reload database button.
+//
 //////////////////////////////////////////////////////////////////////////////
 //
 // THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
@@ -216,7 +218,7 @@
 
 #require 6.5100
 
-#usage "en: <b>Export a Bill Of Material</b> - v1.67\n"
+#usage "en: <b>Export a Bill Of Material</b> - v1.68\n"
            "<p>"
            "Generates a project's <i>Bill Of Material</i>."
            "<p>"
@@ -343,7 +345,7 @@ string HelpTextEN =
 //////////////////////////////////////////////////////////////////////////////
 //
 
-string strVersion = "1.67";
+string strVersion = "1.68";
 
 int nPartCount;
 int nBOMCount;
@@ -1189,6 +1191,19 @@ void LoadDatabase(string fname)
 
             GenerateList();
         }
+    }
+}
+
+void ReloadDatabase()
+{
+    if (!strlen(DatabaseFilename))
+    {
+        dlgMessageBox("No database loaded!");
+    }
+    else
+    {
+        ReadDatabase(DatabaseFilename);
+        GenerateList();     
     }
 }
 
@@ -3754,6 +3769,7 @@ int AppDialog()
 
             dlgStretch(1);
             dlgPushButton("&Load DB") if (OkToClose()) LoadDatabase("");
+            dlgPushButton("&Reload DB") if (OkToClose()) ReloadDatabase();
             dlgPushButton("H&elp") DisplayHelp();
         }
 
