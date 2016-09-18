@@ -391,6 +391,7 @@ if (schematic)
 
                         if ((P.device.library == "rcl") ||
                             (P.device.library == "cap-pan40") ||
+                            (P.device.library == "AceK9") ||
                             (P.device.library == "resistor") ||
                             (P.device.library == "R") ||
                             (P.device.library == "r"))
