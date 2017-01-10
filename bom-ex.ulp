@@ -378,6 +378,7 @@ int ListType            = ltParts;
 int OutputFormat        = ofText;
 int ApplyAllAttrs       = 0;
 int ShowExcludedParts   = 0;
+int HideDNPParts        = 0;
 
 string DefaultFileName;
 
@@ -603,8 +604,12 @@ void AddPartData(UL_PART P, UL_INSTANCE I)
             else if (aname == "DNP")
             {
                 // Exclude part from BOM?
-                if (avalue == "T")
+                if (avalue == "T") {
                     dnp = 1;
+                    if (HideDNPParts && !ShowExcludedParts) {
+                        exclude = 1;
+                    }
+                }
             }
             else if (aname == "QTY")
             {
@@ -3820,6 +3825,7 @@ int AppDialog()
                     {
                         dlgCheckBox("Apply part number attributes globally", ApplyAllAttrs);
                         dlgCheckBox("Show Excluded Parts", ShowExcludedParts) OnVariantComboChange();                        
+                        dlgCheckBox("Hide DNP Parts", HideDNPParts) OnVariantComboChange();
                     }
                 }                
             }
