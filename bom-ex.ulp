@@ -1906,7 +1906,7 @@ void ValueCheck()
     if (Database[0])
     {
         string temp;
-        sprintf(temp, "Part\tValue\tDescription");
+        sprintf(temp, "PartID\tPartNum\tDevice\tValue\tDescription");
         ValueView[count++] = temp;
         
         for (int i=0; i < nPartCount; i++)
@@ -1914,20 +1914,22 @@ void ValueCheck()
             string key  = GetKey(i);
             string val  = strupr(PartVal[i]);
             string desc = strupr(BOMDatabaseLookup(key, "Description"));
+            string dev  = PartDev[i];
             
             // skip if no package specified in database
             if (desc == "" || val == "" || val == nullKey)
                 continue;
-
+            
             // If the part value and part number match, we can
             // safely assume it's not a part with a real "value"
             // like a resistor, cap, diode, etc. Note we also
             // compare partnum as a substring of the value.
-            if (val == PartNum[i])
+            if ((strstr(val, PartNum[i]) >= 0) || (strstr(PartNum[i], val) >= 0))            
+            {
+                ++good;
                 continue;
-            if (strstr(PartNum[i], val) >= 0)
-                continue;
-            
+            }
+                            
             // If the part value substring is found in the part description,
             // then assume the value match is good.        
             if (strstr(desc, val) >= 0)
@@ -1935,7 +1937,7 @@ void ValueCheck()
                 ++good;
                 continue;
             }
-
+                
             // Check part "Values" that are space delimited (eg "1k 1%"), break these
             // int tokens and search for each token separately.
             string a[];
@@ -1943,8 +1945,8 @@ void ValueCheck()
             int n = strsplit(a, val, ' ');
             if (n > 0)
             {
-                int i;
-                for (i=0; i < n; i++)
+                //int i;
+                //for (i=0; i < n; i++)
                 {
                     if (strstr(desc, a[i]) >= 0)
                         ++token;
@@ -1955,9 +1957,18 @@ void ValueCheck()
                     continue;
                 }
             }
-
+            
+            // Scan for match of the dev name in the part number
+            if (strstr(PartNum[i], dev) < 0)
+            {
+                // Otherwise, log a warning if substring of value is found in database part description
+                sprintf(temp, "%s\t%s\t%s\t%s\tWRONG DEVICE '%s'?", PartName[i], PartNum[i], dev, val, dev);
+                ValueView[count++] = temp;
+                continue;
+            }
+            
             // Otherwise, log a warning if substring of value is found in database part description
-            sprintf(temp, "%s\t%s\t%s", PartName[i], val, desc);
+            sprintf(temp, "%s\t%s\t%s\t%s\t%s", PartName[i], PartNum[i], dev, val, desc);
             ValueView[count++] = temp;
         }
 
