@@ -209,6 +209,8 @@
 //
 // 1.68 RES  12/10/15 Added reload database button.
 //
+// 1.69 RES  01/24/17 Corrected bugs in part value checker tool
+//
 //////////////////////////////////////////////////////////////////////////////
 //
 // THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
@@ -218,7 +220,7 @@
 
 #require 6.5100
 
-#usage "en: <b>Export a Bill Of Material</b> - v1.68\n"
+#usage "en: <b>Export a Bill Of Material</b> - v1.69\n"
            "<p>"
            "Generates a project's <i>Bill Of Material</i>."
            "<p>"
@@ -345,7 +347,7 @@ string HelpTextEN =
 //////////////////////////////////////////////////////////////////////////////
 //
 
-string strVersion = "1.68";
+string strVersion = "1.69";
 
 int nPartCount;
 int nBOMCount;
@@ -1954,8 +1956,8 @@ void ValueCheck()
             int n = strsplit(a, val, ' ');
             if (n > 0)
             {
-                //int i;
-                //for (i=0; i < n; i++)
+                int i;
+                for (i=0; i < n; i++)
                 {
                     if (strstr(desc, a[i]) >= 0)
                         ++token;
@@ -1968,13 +1970,13 @@ void ValueCheck()
             }
             
             // Scan for match of the dev name in the part number
-            if (strstr(PartNum[i], dev) < 0)
-            {
-                // Otherwise, log a warning if substring of value is found in database part description
-                sprintf(temp, "%s\t%s\t%s\t%s\tWRONG DEVICE '%s'?", PartName[i], PartNum[i], dev, val, dev);
-                ValueView[count++] = temp;
-                continue;
-            }
+            //if (strstr(PartNum[i], dev) < 0)
+           //{
+           //     // Otherwise, log a warning if substring of value is found in database part description
+           //     sprintf(temp, "%s\t%s\t%s\t%s\tWRONG DEVICE '%s'?", PartName[i], PartNum[i], dev, val, dev);
+           //     ValueView[count++] = temp;
+           //     continue;
+           // }
             
             // Otherwise, log a warning if substring of value is found in database part description
             sprintf(temp, "%s\t%s\t%s\t%s\t%s", PartName[i], PartNum[i], dev, val, desc);
