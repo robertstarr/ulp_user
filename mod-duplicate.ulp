@@ -3,15 +3,20 @@
        "This program duplicates the board placement and routing of a module "
        "from a source hierarchical module. The ULP displays and allows the "
        "user to select the source module placement to duplicate from and "
-       "desitination module is duplicated with X/Y offsets currently set.<p>"
+       "desitination module is duplicated with X/Y offsets currently set."
+       "<p>"
+       "This revision has minimal modifications to support nested hierarchies.<p>"
        "<author>http://www.bobstarr.net</author>"
 
 //////////////////////////////////////////////////////////////////////////////
 //
 // Copyright (C) 2015, Robert E. Starr (http://www.bobstarr.net)
+//
+//  minor modifications by Armin Schoisswohl (http://www.myotis.at)
 // 
 // REVISION HISTORY:
 //
+// v1.01a - 12/04/2015 (AS) - minor modifications to support nested hierarchies
 // v1.00 - 02/25/2015 (RES) - Initial Release
 //
 //////////////////////////////////////////////////////////////////////////////
@@ -21,7 +26,7 @@
 //
 //////////////////////////////////////////////////////////////////////////////
 
-string Version = "1.00";
+string Version = "1.01a";
 
 string fileName;
 
@@ -188,13 +193,11 @@ int DuplicateRoute(UL_BOARD B)
              
     B.signals(S) 
     {   
-        printf("# DEBUG '%s' '%s'\n", S.name, strSrc);
-        
         if (strstr(S.name, strSrc + ':') == 0)
         {
             string net = strsub(S.name,strlen(strSrc) + 1);
 
-            /* sprintf(name, "%s:%s", strDest, net); */
+            sprintf(name, "%s:%s", strDest, net);
 
             /*** DUPLICATE WIRES ***/  
                            
@@ -415,7 +418,7 @@ if (board) board(B)
         cnt = DuplicatePlacement(B);    
         
         if (cnt)
-            DuplicateRoute(B); 
+            cnt = DuplicateRoute(B); 
         
         printf("RATSNEST;\n");
         printf("GRID LAST;\n");
