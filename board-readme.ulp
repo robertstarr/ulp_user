@@ -23,7 +23,7 @@ void CreateAssemblyReadMe(UL_BOARD B)
         name = strsub(name, 0, ndx);
     }
 
-    output(fname+"README-ASSY.TXT", "wtD")
+    output(fname+"README-ASSY.TXT", "wt")
     {
         printf("These files were generated in RS274-X format using\nCadSoft Eagle %s\n\n", EAGLE_SIGNATURE);
 
@@ -69,7 +69,7 @@ void CreateGerberReadMe(UL_BOARD B)
         name = strsub(name, 0, ndx);
     }
 
-    output(fname+"README.TXT", "wtD")
+    output(fname+"README.TXT", "wt")
     {
         
         printf("These files were generated in RS274-X format using\nCadSoft Eagle %s\n\n", EAGLE_SIGNATURE);
