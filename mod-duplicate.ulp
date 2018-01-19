@@ -39,6 +39,7 @@ real offsetY = 0.0;
 
 string powerSig[];
 int nPowerSigCnt;
+int nGridUnits;
 
 int fScriptExec = 1;    // execute script automatically after generating
 
@@ -141,7 +142,29 @@ int IsPowerSignal(string name)
     
     return found;
 }
-       
+
+real GetUnit(UL_BOARD B, int n)
+{
+    real u;
+    switch (B.grid.unit)
+    {
+    case GRID_UNIT_MIC:
+        u = u2mic(n);
+        break;
+    case GRID_UNIT_MIL:
+        u = u2mil(n);
+        break;
+    case GRID_UNIT_MM:
+        u = u2mm(n);
+        break;
+    case GRID_UNIT_INCH:
+        u = u2inch(n);
+        break;
+    }
+    return u; 
+}
+
+                      
 int DuplicatePlacement(UL_BOARD B)
 {
     int i;
@@ -150,7 +173,7 @@ int DuplicatePlacement(UL_BOARD B)
     string name;
                         
     printf("#\n# Duplicate module '%s' PLACEMENT from '%s'\n#\n", strDest, strSrc);
-    printf("GRID MIL\n");
+    //printf("GRID MIL\n");
                     
     B.elements(E)
     {
@@ -159,7 +182,7 @@ int DuplicatePlacement(UL_BOARD B)
             string component = strsub(E.name,strlen(strSrc) + 1);
 
             sprintf(name, "%s:%s", strDest, component);
-            printf("MOVE %s (%5.4f %5.4f);\n", name, u2mil(E.x) + offsetX, u2mil(E.y) + offsetY);
+            printf("MOVE %s (%5.4f %5.4f);\n", name, GetUnit(B, E.x) + offsetX, GetUnit(B, E.y) + offsetY);
             printf("ROTATE =R%f %s;\n", E.angle, name);
         
             if (E.mirror)
@@ -185,7 +208,7 @@ int DuplicateRoute(UL_BOARD B)
     real xc, yc;
                 
     printf("#\n# Duplicate module '%s' ROUTING from '%s'\n#\n", strDest, strSrc);
-    printf("GRID MIL\n");
+    //printf("GRID MIL\n");
     printf("SET WIRE_BEND 2\n");
                
     dx = offsetX;
@@ -211,23 +234,23 @@ int DuplicateRoute(UL_BOARD B)
                         printf("CHANGE LAYER %d\n", W.layer);
                         printf("CHANGE STYLE %s;\n", GetStyle(W.style));
                         printf("WIRE '%s' %f (%f %f) (%f %f)\n", 
-                            name, u2mil(W.width), 
-                            u2mil(W.x1)+dx, u2mil(W.y1)+dy, 
-                            u2mil(W.x2)+dx, u2mil(W.y2)+dy);
+                            name, GetUnit(B, W.width), 
+                            GetUnit(B, W.x1)+dx, GetUnit(B, W.y1)+dy, 
+                            GetUnit(B, W.x2)+dx, GetUnit(B, W.y2)+dy);
                     }
                     else
                     {
                         /* Handle ARC case */
-                        x1 = u2mil(W.arc.x1)+dx;
-                        y1 = u2mil(W.arc.y1)+dy;
-                        xc = u2mil(W.arc.xc)+dx;
-                        yc = u2mil(W.arc.yc)+dy;
-                        x2 = u2mil(2*W.arc.xc - W.arc.x1)+dx;
-                        y2 = u2mil(2*W.arc.yc - W.arc.y1)+dy;
-                        x3 = u2mil(W.arc.x2)+dx;
-                        y3 = u2mil(W.arc.y2)+dy;
+                        x1 = GetUnit(B, W.arc.x1)+dx;
+                        y1 = GetUnit(B, W.arc.y1)+dy;
+                        xc = GetUnit(B, W.arc.xc)+dx;
+                        yc = GetUnit(B, W.arc.yc)+dy;
+                        x2 = GetUnit(B, 2*W.arc.xc - W.arc.x1)+dx;
+                        y2 = GetUnit(B, 2*W.arc.yc - W.arc.y1)+dy;
+                        x3 = GetUnit(B, W.arc.x2)+dx;
+                        y3 = GetUnit(B, W.arc.y2)+dy;
                         printf("CHANGE LAYER %d\n", W.arc.layer);
-                        printf("CHANGE WIDTH %f\n", u2mil(W.arc.width));
+                        printf("CHANGE WIDTH %f\n", GetUnit(B, W.arc.width));
                         printf("CHANGE STYLE %s;\n", GetStyle(W.style));
                         printf("ARC '%s' CCW (%f %f) (%f %f) (%f %f)\n",
                             name, x1, y1, x2, y2, x3, y3);
@@ -239,10 +262,10 @@ int DuplicateRoute(UL_BOARD B)
             
             S.vias(V)
             {
-                printf("CHANGE DRILL %f\n", u2mil(V.drill));
+                printf("CHANGE DRILL %f\n", GetUnit(B, V.drill));
                 printf("VIA '%s' %f %s (%f %f)\n",
-                    name, u2mil(V.diameter[1]), GetViaShape(V.shape[1]),
-                    u2mil(V.x)+dx, u2mil(V.y)+dy);
+                    name, GetUnit(B, V.diameter[1]), GetViaShape(V.shape[1]),
+                    GetUnit(B, V.x)+dx, GetUnit(B, V.y)+dy);
             }
             
             /*** DUPLICATE POLYGONS ***/
@@ -250,21 +273,21 @@ int DuplicateRoute(UL_BOARD B)
             S.polygons(P)
             {
                 printf("CHANGE LAYER %d;\n", P.layer);
-                printf("CHANGE ISOLATE %f;\n",u2mil(P.isolate));
+                printf("CHANGE ISOLATE %f;\n",GetUnit(B, P.isolate));
                 printf("CHANGE RANK %d;\n", P.rank);
                 printf("CHANGE ORPHANS %s;\n", P.orphans ? "ON" : "OFF");                   
                 printf("CHANGE POUR %s;\n", GetPour(P.pour));  
                 printf("CHANGE RANK %d;\n", P.rank);                        
-                printf("CHANGE SPACING %f;\n", u2mil(P.spacing));                       
+                printf("CHANGE SPACING %f;\n", GetUnit(B, P.spacing));                       
                 printf("CHANGE THERMALS %s;\n", P.thermals ? "ON" : "OFF");
                     
-                printf("POLYGON %s %f", name, u2mil(P.width));
+                printf("POLYGON %s %f", name, GetUnit(B, P.width));
                 P.wires(W)
                 {
-                   x1 = u2mil(W.x1)+dx;
-                   y1 = u2mil(W.y1)+dy;
-                   x2 = u2mil(W.x2)+dx;
-                   y2 = u2mil(W.y2)+dy;
+                   x1 = GetUnit(B, W.x1)+dx;
+                   y1 = GetUnit(B, W.y1)+dy;
+                   x2 = GetUnit(B, W.x2)+dx;
+                   y2 = GetUnit(B, W.y2)+dy;
                    printf(" (%f %f)",x1,y1);
                 }
                 printf(" (%f %f);\n",x2,y2);
@@ -387,11 +410,11 @@ if (board) board(B)
         }
     }
 
-    if (nDestCnt < 2)
+    /*if (nDestCnt < 2)
     {
         dlgMessageBox("\n   Must have at least two module instances    \n");        
         exit(0);
-    }
+    }*/
 
     nSelSrc = 0;
     strSrc = strSrcMod[nSelSrc];
@@ -406,6 +429,8 @@ if (board) board(B)
     }
                 
     fileName = filesetext(B.name, "_ModDupPlace.scr");
+ 
+    nGridUnits = B.grid.unit;
         
     output(fileName)
     {
@@ -421,7 +446,7 @@ if (board) board(B)
             cnt = DuplicateRoute(B); 
         
         printf("RATSNEST;\n");
-        printf("GRID LAST;\n");
+        //printf("GRID LAST;\n");
         
         SaveConfigSettings();
 
