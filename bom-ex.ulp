@@ -209,6 +209,9 @@
 //
 // 1.68 RES  12/10/15 Added reload database button.
 //
+// 1.69 RES  02/08/18 Removed automatically added XREF column field.
+//                    Added sorted output for BOM save files
+//
 //////////////////////////////////////////////////////////////////////////////
 //
 // THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND,
@@ -218,7 +221,7 @@
 
 #require 6.5100
 
-#usage "en: <b>Export a Bill Of Material</b> - v1.68\n"
+#usage "en: <b>Export a Bill Of Material</b> - v1.69\n"
            "<p>"
            "Generates a project's <i>Bill Of Material</i>."
            "<p>"
@@ -271,9 +274,9 @@ string HelpTextEN =
   "<p>\n"
   "An example for a valid database file would be:\n"
   "<pre>\n"
-  "  Mfg Part Num	Mfg Name	VID	Vendor Part Num	Description\n"
-  "  MKS2C031001A00KSSD	WIMA	ME	505-MKS2.1/63/10	Polyester Film Capacitor 63V .1uF 10%\n"
-  "  C315C220K2G5TA	Kemet	ME	80-C315C220K2G	Multilayer Ceramic Capacitor (MLCC) - 200volts 22pF 10% C0G\n"  
+  "  Mfg Part Num Mfg Name  VID Vendor Part Num Description\n"
+  "  MKS2C031001A00KSSD WIMA  ME  505-MKS2.1/63/10  Polyester Film Capacitor 63V .1uF 10%\n"
+  "  C315C220K2G5TA Kemet ME  80-C315C220K2G  Multilayer Ceramic Capacitor (MLCC) - 200volts 22pF 10% C0G\n"  
   "</pre>\n"
   "Note that the columns are separated by a <b>tab</b> character (you may also\n"
   "use a semicolon (';') to separate the columns, but then you will have to make sure\n"
@@ -345,7 +348,7 @@ string HelpTextEN =
 //////////////////////////////////////////////////////////////////////////////
 //
 
-string strVersion = "1.68";
+string strVersion = "1.69";
 
 int nPartCount;
 int nBOMCount;
@@ -750,11 +753,45 @@ string DatabaseLookup(string key, int f)
     return s;
 }
 
+// Functions to implement bubble sort
+
+void SwapLines(int x, int y)
+{
+    string temp = Lines[x];
+    Lines[x] = Lines[y];
+    Lines[y] = temp;
+}
+
+void SortLines(int sortcol, int numlines)
+{
+   int i, j;
+   int cnt = numlines;
+   int col = sortcol - 1;
+   
+   for (i=0; i < cnt-1; i++)      
+   {
+        // Last i elements are already in place   
+        for (j=1; j < cnt-i-1; j++)
+        {
+            numeric string a1[];
+            numeric string a2[];
+           
+            strsplit(a1, Lines[j], '\t');
+            strsplit(a2, Lines[j+1], '\t');           
+                          
+            if (a1[col] > a2[col])
+              SwapLines(j, j+1);
+        }
+    }
+}
+
 //////////////////////////////////////////////////////////////////////////////
 // Generate parts list in part name order
 
-void GeneratePartList(void)
+void GeneratePartList(int nSortCol)
 {
+    numeric string line;
+    
     int NumLines = 0;
     //XXX column sequence?
     Lines[NumLines++] = "Part\tValue\tAttributes\tPackage\tDescription\tPart Num" + DatabaseHeader();
@@ -779,16 +816,19 @@ void GeneratePartList(void)
 
             Lines[NumLines] += "\t" + key; // hidden field!
         }
+        
         NumLines++;
     }
 
     Lines[NumLines] = "";
+    
+    SortLines(nSortCol, NumLines);
 }
 
 //////////////////////////////////////////////////////////////////////////////
 // Generate parts list in part value order
 
-void GenerateValueList(void)
+void GenerateValueList(int nSortCol)
 {
     int NumLines = 0;
     int Index[];
@@ -878,6 +918,8 @@ void GenerateValueList(void)
         NumLines++;
     }
     Lines[NumLines] = "";
+    
+    SortLines(nSortCol, NumLines);    
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -888,11 +930,11 @@ void GenerateList(void)
     switch (ListType)
     {
     case ltParts:
-        GeneratePartList();
+        GeneratePartList(1);
         //SortCol = 1;
         break;
     case ltValues:
-        GenerateValueList();
+        GenerateValueList(5);
         //SortCol = 5;
         break;
     }
@@ -1119,50 +1161,7 @@ int ReadDatabase(string fname)
     {
         DatabaseRecCount  = strsplit(Database, data, '\n');
         DatabaseSeparator = (strchr(Database[0], '\t') > -1) ? '\t' : ';';
-        
-        if (DatabaseRecCount)
-        {
-            // Here we're adding an extra column to the database that adds
-            // a line item cross reference number to the database. This 
-            // cross refererence appears in the BOM reports and order files
-            // as a cross reference between the part-id and line items.
 
-            int fieldcount;
-            string fields[];
-            string rec;
-            string s;
-
-            // Process the header record and add XREF column
-            
-            rec = "";
-                            
-            fieldcount = strsplit(fields, Database[0], DatabaseSeparator);
-
-            for (int x=0; x < fieldcount; x++)
-            {
-                sprintf(s, "%s%c", TrimQuotes(fields[x]), DatabaseSeparator);
-                rec += s;
-            }
-
-            sprintf(Database[0], "%sXREF", rec);
-
-            // Now add the xref column data to the end of each record.
-
-            for (int i=1; i < DatabaseRecCount; i++)
-            {
-                rec = "";
-                
-                fieldcount = strsplit(fields, Database[i], DatabaseSeparator);
-                
-                for (int x=0; x < fieldcount; x++)
-                {
-                    sprintf(s, "%s%c", TrimQuotes(fields[x]), DatabaseSeparator);
-                    rec += s;
-                }
-
-                sprintf(Database[i], "%sREF%d", rec, i);
-            }
-        }
         return 1;
     }
     return 0;
@@ -2229,8 +2228,7 @@ string strDKFields[] = {
     "Digi-Key Part Number",       // field 0
     "Manufacturer Name",          // field 1
     "Manufacturer Part Number",   // field 2
-    "Customer Reference",         // field 3
-    "Quantity 1",                 // field 4
+    "Quantity 1",                 // field 3
     ""                            // null
 };
 
@@ -2380,7 +2378,6 @@ int ExportDigiKey()
 
             string part_num = PartNum[i1];
             string partno_dk;
-            string cust_ref;
             string vendor_id;
             string mfg_name;
             numeric string quantity1;
@@ -2396,12 +2393,6 @@ int ExportDigiKey()
 
                 if (partno_dk == nullKey)
                     errflag = 1;
-
-                // Lookup the customer reference number for this part
-                cust_ref  = BOMDatabaseLookup(part_num, "XREF");
-
-                if (cust_ref == nullKey)
-                    cust_ref = partnames;
 
                 // Lookup the vendor ID based on the mfg part number - must be "DK"
                 vendor_id = BOMDatabaseLookup(part_num, "VID");
@@ -2424,7 +2415,6 @@ int ExportDigiKey()
                 printf("%s%s", partno_dk, delimit);
                 printf("%s%s", mfg_name, delimit);
                 printf("%s%s", part_num, delimit);
-                printf("%s%s", cust_ref, delimit);
                 printf("%s%s", quantity1, delimit);
 
                 if (errflag)
@@ -2455,8 +2445,7 @@ string strAEFields[] = {
     "Allied Part Number",         // field 0
     "Manufacturer Name",          // field 1
     "Mfr Part No.",               // field 2
-    "Customer Reference",         // field 3
-    "Qty1",                       // field 4
+    "Qty1",                       // field 3
     ""                            // null
 };
 
@@ -2603,7 +2592,6 @@ int ExportAllied()
 
             string part_num = PartNum[i1];
             string partno_dk;
-            string cust_ref;
             string vendor_id;
             string mfg_name;
             numeric string quantity1;
@@ -2619,9 +2607,6 @@ int ExportAllied()
 
                 if (partno_dk == nullKey)
                     errflag = 1;
-
-                // Lookup the customer reference number for this part
-                cust_ref  = BOMDatabaseLookup(part_num, "XREF");
 
                 // Lookup the vendor ID based on the mfg part number - must be "DK"
                 vendor_id = BOMDatabaseLookup(part_num, "VID");
@@ -2644,7 +2629,6 @@ int ExportAllied()
                 printf("%s%s", partno_dk, delimit);
                 printf("%s%s", mfg_name, delimit);
                 printf("%s%s", part_num, delimit);
-                printf("%s%s", cust_ref, delimit);
                 printf("%s%s", quantity1, delimit);
 
                 if (errflag)
@@ -2886,7 +2870,6 @@ string strMEFields[] = {
     "Mfr Part Number",            // field 1
     "Mfr Name",                   // field 2
     "Mouser Part Number",         // field 3
-    "Ref-ID",                     // field 4
     ""                            // null
 };
 
@@ -3029,7 +3012,6 @@ int ExportMouserCSV()
 
             string partno_mfg = PartNum[i1];
             string partno_vendor;
-            string cust_ref;
             string vendor_id;
             string mfg_name;
             numeric string quantity1;
@@ -3045,12 +3027,6 @@ int ExportMouserCSV()
 
                 if (partno_vendor == nullKey)
                     errflag = 1;
-
-                // Lookup the customer reference number for this part
-                cust_ref  = BOMDatabaseLookup(partno_mfg, "XREF");
-
-                if (cust_ref == nullKey)
-                    cust_ref = partnames;
 
                 // Lookup the vendor ID based on the mfg part number - must be "ME"
                 vendor_id = BOMDatabaseLookup(partno_mfg, "VID");
@@ -3074,7 +3050,7 @@ int ExportMouserCSV()
                 printf("%s%s", partno_mfg, delimit);
                 printf("%s%s", mfg_name, delimit);
                 printf("%s%s", partno_vendor, delimit);
-                printf("%s%s", cust_ref, delimit);
+                //printf("%s%s", cust_ref, delimit);
 
                 if (errflag)
                     printf("*** PART# '%s' NOT FOUND : %s", partno_mfg, partnames);
@@ -3725,10 +3701,10 @@ int ToolsDialog()
 void OnListTypeChange()
 {
     if (ListType == ltParts) {
-        GeneratePartList();
+        GeneratePartList(1);
         SortCol = 1;
     } else {
-        GenerateValueList();
+        GenerateValueList(5);
         SortCol = 5;
     }
     Selected = 0;

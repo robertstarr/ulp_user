@@ -1,0 +1,1575 @@
+#require 6.0300
+
+#usage "en: <b>Export DXF data</b>\n"
+           "<p>"
+           "Converts a board or schematic into a DXF file."
+           "<p>"
+           "Usage: RUN dxf [ -s <i>suffix</i> ] [ -u mm|inch ] [ -a ] [ -w ] [ -f ]"
+           "<p>"
+           "Options:<br>"
+           "<table>"
+           "<tr><td>-s <i>suffix</i></td><td>define a suffix that will be appended to the file name</td></tr>"
+           "<tr><td>-u mm|inch</td>      <td>select the unit for coordinates and dimensions</td></tr>"
+           "<tr><td>-a</td>              <td>set the 'Always vector font' option</td></tr>"
+           "<tr><td>-w</td>              <td>set the 'Use wire width' option</td></tr>"
+           "<tr><td>-f</td>              <td>set the 'Fill areas' option</td></tr>"
+           "</table>"
+           "<b>Example:</b>"
+           "<p>"
+           "RUN dxf -s _s1 -u mm -w"
+           "<p>"
+           "This will create a DXF file named <i>filename</i>_s1.dxf, with units in millimeters and "
+           "wires drawn with their real widths."
+           "<p>"
+           "DXF syntax generated according to the specifications given in the book<br>"
+           "<table><tr><td>"
+           "<i>Der DXF-Standard</i><br>"
+           "By Dietmar Rudolph<br>"
+           "Publisher: Dr. L. Rossipaul Verlagsgesellschaft m.b.H.<br>"
+           "M&uuml;nchen, 1993<br>"
+           "ISBN 3-87686-246-9"
+           "</td></tr></table>"
+           "<author>Author: support@cadsoft.de</author>",
+       "de: <b>DXF Daten exportieren</b>\n"
+           "<p>"
+           "Konvertiert ein Board oder einen Schaltplan in eine DXF-Datei."
+           "<p>"
+           "Aufruf: RUN dxf [ -s <i>suffix</i> ] [ -u mm|inch ] [ -a ] [ -w ] [ -f ]"
+           "<p>"
+           "Optionen:<br>"
+           "<table>"
+           "<tr><td>-s <i>suffix</i></td><td>definiert einen Suffix, der an den Dateinamen angehängt wird</td></tr>"
+           "<tr><td>-u mm|inch</td>      <td>bestimmt die Einheit für Koordinaten und Abmessungen</td></tr>"
+           "<tr><td>-a</td>              <td>schaltet die Option 'Immer Vektor-Font' ein</td></tr>"
+           "<tr><td>-w</td>              <td>schaltet die Option 'Linienbreite benutzen' ein</td></tr>"
+           "<tr><td>-f</td>              <td>schaltet die Option 'Flächen füllen' ein</td></tr>"
+           "</table>"
+           "<b>Beispiel:</b>"
+           "<p>"
+           "RUN dxf -s _s1 -u mm -w"
+           "<p>"
+           "Erzeugt eine DXF-Datei namens <i>dateiname</i>_s1.dxf, mit der Einheit Millimeter und "
+           "Linien die in ihrer wirklichen Breite dargestellt werden."
+           "<p>"
+           "Die generierte DXF-Syntax folgt der Spezification im Buch<br>"
+           "<table><tr><td>"
+           "<i>Der DXF-Standard</i><br>"
+           "Von Dietmar Rudolph<br>"
+           "Herausgeber: Dr. L. Rossipaul Verlagsgesellschaft m.b.H.<br>"
+           "München, 1993<br>"
+           "ISBN 3-87686-246-9"
+           "</td></tr></table>"
+           "<author>Autor: support@cadsoft.de</author>"
+
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND, EXPRESSED OR IMPLIED
+
+string I18N[] = {
+  "en\v"
+  "de\v"
+  ,
+  "Can't fill polygon with Width = 0\v"
+  "Polygon mit Width = 0 kann nicht gefüllt werden\v"
+  ,
+  "+OK\v"
+  "+OK\v"
+  ,
+  "-Cancel\v"
+  "-Abbrechen\v"
+  ,
+  "<hr><b>ERROR: unknown unit: \v"
+  "<hr><b>FEHLER: unbekannte Einheit: \v"
+  ,
+  "<hr><b>ERROR: missing <i>unit</i></b>\v"
+  "<hr><b>FEHLER: fehlende <i>Einheit</i></b>\v"
+  ,
+  "<hr><b>ERROR: unknown option: \v"
+  "<hr><b>FEHLER: unbekannte Option: \v"
+  ,
+  "<hr><b>ERROR: No board or schematic!</b><p>\nThis program can only work in the board or schematic editor.\v"
+  "<hr><b>FEHLER: Kein Board oder Schaltplan!</b><p>\nDieses Programm kann nur im Board- oder Schaltplan-Editor verwendet werden.\v"
+  ,
+  "DXF Converter\v"
+  "DXF-Konverter\v"
+  ,
+  "&Output file\v"
+  "&Ausgabedatei\v"
+  ,
+  "&Browse\v"
+  "&Durchsuchen\v"
+  ,
+  "Save DXF file\v"
+  "DXF-Datei speichern\v"
+  ,
+  "DXF files (*.dxf)\v"
+  "DXF-Dateien (*.dxf)\v"
+  ,
+  "&Always vector font\v"
+  "Immer &Vektor-Font\v"
+  ,
+  "<small>If checked, texts will always be drawn with the builtin vector font.</small>\v"
+  "<small>Falls ausgewählt, werden Texte immer mit dem eingebauten Vektor-Font dargestellt.</small>\v"
+  ,
+  "&Use wire widths\v"
+  "&Linienbreite verwenden\v"
+  ,
+  "<small>If checked, wires, arcs and circles will be generated as polygons showing their real widths. This, however, can cause the DXF file to become very large! Uncheck this if you do not need the real widths.</small>\v"
+  "<small>Falls ausgewählt, werden Linien, Kreisbögen und Kreise als Polygone mit ihrer tatsächlichen Breite dargestellt. Dies kann jedoch dazu führen, daß die DXF-Datei sehr groß wird! Deselektieren Sie diese Option wenn Sie die wahren Breiten nicht benötigen.</small>\v"
+  ,
+  "&Fill areas\v"
+  "&Flächen füllen\v"
+  ,
+  "<small>If checked, wires, arcs etc. will be filled (implies 'Use wire widths'!).</small>\v"
+  "<small>Falls ausgewählt, werden Linien, Kreisbögen usw. gefüllt (impliziert 'Linienbreite verwenden'!).</small>\v"
+  ,
+  "Thermal Emulation\v"
+  "Thermal Emulation\v"
+  ,
+  "Relative inner diameter\v"
+  "Relativer Innendurchmesser\v"
+  ,
+  "Relative gap size\v"
+  "Relative Spaltgröße\v"
+  ,
+  "<small>Only the outer diameter of Thermals is available. The inner diameter and gap size are calculated based on the outer diameters according to these factors.</small>\v"
+  "<small>Für Thermals steht nur der Außendurchmesser zur Verfügung. Der Innendurchmesser und die Spaltgröße werden mittels dieser Faktoren aus dem Außendurchmesser errechnet.</small>\v"
+  ,
+  "Unit\v"
+  "Einheit\v"
+  ,
+  "<small>Defines the unit used for coordinates and values in the DXF file</small>\v"
+  "<small>Legt die Einheit fest mit der Koordinaten und Werte in der DXF-Datei angegeben werden</small>\v"
+  ,
+  "File exists: \v"
+  "Datei existiert: \v"
+  ,
+  "\n\nOverwrite?\v"
+  "\n\nÜberschreiben?\v"
+  ,
+  "+&Yes\v"
+  "+&Ja\v"
+  ,
+  "-&No\v"
+  "-&Nein\v"
+  ,
+  "About\v"
+  "Info\v"
+  ,
+  "Multiline texts can be exported only in vector font:\n\n\v"
+  "Mehrzeilige Texte können nur mit Vektor-Font ausgegeben werden:\n\n\v"
+  };
+
+int Language = strstr(I18N[0], language()) / 3;
+
+string tr(string s)
+{
+  string t = lookup(I18N, s, Language, '\v');
+  return t ? t : s;
+}
+
+//
+// The following switches allow us to customize the generated DXF file:
+//
+
+enum { NO, YES };
+
+int AlwaysVectorFont= YES;  // YES always draws texts in vector font, no
+                            // matter what the actual font settings are
+int UseWireWidths   = YES;  // YES will generate wires, arcs and circles
+                            // as polygons showing their real widths.
+                            // This, however, can cause the DXF file to
+                            // become very large!
+                            // Set this to NO if you do not need the real
+                            // widths.
+int FillAreas       = YES;  // YES will fill wires, arcs etc. You must also
+                            // set UseWireWidths to YES for this to work
+
+real AnnulusRelInnerDiameter = 0.8;
+real AnnulusRelGap           = 0.2;
+int  VisibleSupplyLayer      = NO;
+int  IsSupplyLayer[];
+
+enum { MM, INCH };
+
+int Unit            = MM;
+
+int SafetyOverlap   = 1.0 / u2mil(1); // 1.0 mil overlap
+
+int PadColor = 0, ViaColor = 0;
+
+//
+// Some tools we need later:
+//
+
+real DxfUnit(int n)
+{
+  return (Unit == MM) ? u2mm(n) : u2inch(n);
+}
+
+real DxfAngle(real a)
+{
+  return a >= 360 ? a - 360 : a; // 0 <= DXF-Angle < 360
+}
+
+int LayerActive[] = {1};
+
+int DxfColors[] = { // AutoCAD Color Index (ACI)
+  0x00000000, //   0  0.00000 0.00000 0.00000
+  0x00FF0000, //   1  1.00000 0.00000 0.00000
+  0x00FFFF00, //   2  1.00000 1.00000 0.00000
+  0x0000FF00, //   3  0.00000 1.00000 0.00000
+  0x0000FFFF, //   4  0.00000 1.00000 1.00000
+  0x000000FF, //   5  0.00000 0.00000 1.00000
+  0x00FF00FF, //   6  1.00000 0.00000 1.00000
+  0x00FFFFFF, //   7  1.00000 1.00000 1.00000
+  0x00FFFFFF, //   8  1.00000 1.00000 1.00000
+  0x00FFFFFF, //   9  1.00000 1.00000 1.00000
+  0x00FF0000, //  10  1.00000 0.00000 0.00000
+  0x00FF7F7F, //  11  1.00000 0.50000 0.50000
+  0x00A50000, //  12  0.65000 0.00000 0.00000
+  0x00A55252, //  13  0.65000 0.32500 0.32500
+  0x007F0000, //  14  0.50000 0.00000 0.00000
+  0x007F3F3F, //  15  0.50000 0.25000 0.25000
+  0x004C0000, //  16  0.30000 0.00000 0.00000
+  0x004C2626, //  17  0.30000 0.15000 0.15000
+  0x00260000, //  18  0.15000 0.00000 0.00000
+  0x00261313, //  19  0.15000 0.07500 0.07500
+  0x00FF3F00, //  20  1.00000 0.25000 0.00000
+  0x00FF9F7F, //  21  1.00000 0.62500 0.50000
+  0x00A52900, //  22  0.65000 0.16250 0.00000
+  0x00A56752, //  23  0.65000 0.40625 0.32500
+  0x007F1F00, //  24  0.50000 0.12500 0.00000
+  0x007F4F3F, //  25  0.50000 0.31250 0.25000
+  0x004C1300, //  26  0.30000 0.07500 0.00000
+  0x004C2F26, //  27  0.30000 0.18750 0.15000
+  0x00260900, //  28  0.15000 0.03750 0.00000
+  0x00261713, //  29  0.15000 0.09375 0.07500
+  0x00FF7F00, //  30  1.00000 0.50000 0.00000
+  0x00FFBF7F, //  31  1.00000 0.75000 0.50000
+  0x00A55200, //  32  0.65000 0.32500 0.00000
+  0x00A57C52, //  33  0.65000 0.48750 0.32500
+  0x007F3F00, //  34  0.50000 0.25000 0.00000
+  0x007F5F3F, //  35  0.50000 0.37500 0.25000
+  0x004C2600, //  36  0.30000 0.15000 0.00000
+  0x004C3926, //  37  0.30000 0.22500 0.15000
+  0x00261300, //  38  0.15000 0.07500 0.00000
+  0x00261C13, //  39  0.15000 0.11250 0.07500
+  0x00FFBF00, //  40  1.00000 0.75000 0.00000
+  0x00FFDF7F, //  41  1.00000 0.87500 0.50000
+  0x00A57C00, //  42  0.65000 0.48750 0.00000
+  0x00A59152, //  43  0.65000 0.56875 0.32500
+  0x007F5F00, //  44  0.50000 0.37500 0.00000
+  0x007F6F3F, //  45  0.50000 0.43750 0.25000
+  0x004C3900, //  46  0.30000 0.22500 0.00000
+  0x004C4226, //  47  0.30000 0.26250 0.15000
+  0x00261C00, //  48  0.15000 0.11250 0.00000
+  0x00262113, //  49  0.15000 0.13125 0.07500
+  0x00FFFF00, //  50  1.00000 1.00000 0.00000
+  0x00FFFF7F, //  51  1.00000 1.00000 0.50000
+  0x00A5A500, //  52  0.65000 0.65000 0.00000
+  0x00A5A552, //  53  0.65000 0.65000 0.32500
+  0x007F7F00, //  54  0.50000 0.50000 0.00000
+  0x007F7F3F, //  55  0.50000 0.50000 0.25000
+  0x004C4C00, //  56  0.30000 0.30000 0.00000
+  0x004C4C26, //  57  0.30000 0.30000 0.15000
+  0x00262600, //  58  0.15000 0.15000 0.00000
+  0x00262613, //  59  0.15000 0.15000 0.07500
+  0x00BFFF00, //  60  0.75000 1.00000 0.00000
+  0x00DFFF7F, //  61  0.87500 1.00000 0.50000
+  0x007CA500, //  62  0.48750 0.65000 0.00000
+  0x0091A552, //  63  0.56875 0.65000 0.32500
+  0x005F7F00, //  64  0.37500 0.50000 0.00000
+  0x006F7F3F, //  65  0.43750 0.50000 0.25000
+  0x00394C00, //  66  0.22500 0.30000 0.00000
+  0x00424C26, //  67  0.26250 0.30000 0.15000
+  0x001C2600, //  68  0.11250 0.15000 0.00000
+  0x00212613, //  69  0.13125 0.15000 0.07500
+  0x007FFF00, //  70  0.50000 1.00000 0.00000
+  0x00BFFF7F, //  71  0.75000 1.00000 0.50000
+  0x0052A500, //  72  0.32500 0.65000 0.00000
+  0x007CA552, //  73  0.48750 0.65000 0.32500
+  0x003F7F00, //  74  0.25000 0.50000 0.00000
+  0x005F7F3F, //  75  0.37500 0.50000 0.25000
+  0x00264C00, //  76  0.15000 0.30000 0.00000
+  0x00394C26, //  77  0.22500 0.30000 0.15000
+  0x00132600, //  78  0.07500 0.15000 0.00000
+  0x001C2613, //  79  0.11250 0.15000 0.07500
+  0x003FFF00, //  80  0.25000 1.00000 0.00000
+  0x009FFF7F, //  81  0.62500 1.00000 0.50000
+  0x0029A500, //  82  0.16250 0.65000 0.00000
+  0x0067A552, //  83  0.40625 0.65000 0.32500
+  0x001F7F00, //  84  0.12500 0.50000 0.00000
+  0x004F7F3F, //  85  0.31250 0.50000 0.25000
+  0x00134C00, //  86  0.07500 0.30000 0.00000
+  0x002F4C26, //  87  0.18750 0.30000 0.15000
+  0x00092600, //  88  0.03750 0.15000 0.00000
+  0x00172613, //  89  0.09375 0.15000 0.07500
+  0x0000FF00, //  90  0.00000 1.00000 0.00000
+  0x007FFF7F, //  91  0.50000 1.00000 0.50000
+  0x0000A500, //  92  0.00000 0.65000 0.00000
+  0x0052A552, //  93  0.32500 0.65000 0.32500
+  0x00007F00, //  94  0.00000 0.50000 0.00000
+  0x003F7F3F, //  95  0.25000 0.50000 0.25000
+  0x00004C00, //  96  0.00000 0.30000 0.00000
+  0x00264C26, //  97  0.15000 0.30000 0.15000
+  0x00002600, //  98  0.00000 0.15000 0.00000
+  0x00132613, //  99  0.07500 0.15000 0.07500
+  0x0000FF3F, // 100  0.00000 1.00000 0.25000
+  0x007FFF9F, // 101  0.50000 1.00000 0.62500
+  0x0000A529, // 102  0.00000 0.65000 0.16250
+  0x0052A567, // 103  0.32500 0.65000 0.40625
+  0x00007F1F, // 104  0.00000 0.50000 0.12500
+  0x003F7F4F, // 105  0.25000 0.50000 0.31250
+  0x00004C13, // 106  0.00000 0.30000 0.07500
+  0x00264C2F, // 107  0.15000 0.30000 0.18750
+  0x00002609, // 108  0.00000 0.15000 0.03750
+  0x00132617, // 109  0.07500 0.15000 0.09375
+  0x0000FF7F, // 110  0.00000 1.00000 0.50000
+  0x007FFFBF, // 111  0.50000 1.00000 0.75000
+  0x0000A552, // 112  0.00000 0.65000 0.32500
+  0x0052A57C, // 113  0.32500 0.65000 0.48750
+  0x00007F3F, // 114  0.00000 0.50000 0.25000
+  0x003F7F5F, // 115  0.25000 0.50000 0.37500
+  0x00004C26, // 116  0.00000 0.30000 0.15000
+  0x00264C39, // 117  0.15000 0.30000 0.22500
+  0x00002613, // 118  0.00000 0.15000 0.07500
+  0x0013261C, // 119  0.07500 0.15000 0.11250
+  0x0000FFBF, // 120  0.00000 1.00000 0.75000
+  0x007FFFDF, // 121  0.50000 1.00000 0.87500
+  0x0000A57C, // 122  0.00000 0.65000 0.48750
+  0x0052A591, // 123  0.32500 0.65000 0.56875
+  0x00007F5F, // 124  0.00000 0.50000 0.37500
+  0x003F7F6F, // 125  0.25000 0.50000 0.43750
+  0x00004C39, // 126  0.00000 0.30000 0.22500
+  0x00264C42, // 127  0.15000 0.30000 0.26250
+  0x0000261C, // 128  0.00000 0.15000 0.11250
+  0x00132621, // 129  0.07500 0.15000 0.13125
+  0x0000FFFF, // 130  0.00000 1.00000 1.00000
+  0x007FFFFF, // 131  0.50000 1.00000 1.00000
+  0x0000A5A5, // 132  0.00000 0.65000 0.65000
+  0x0052A5A5, // 133  0.32500 0.65000 0.65000
+  0x00007F7F, // 134  0.00000 0.50000 0.50000
+  0x003F7F7F, // 135  0.25000 0.50000 0.50000
+  0x00004C4C, // 136  0.00000 0.30000 0.30000
+  0x00264C4C, // 137  0.15000 0.30000 0.30000
+  0x00002626, // 138  0.00000 0.15000 0.15000
+  0x00132626, // 139  0.07500 0.15000 0.15000
+  0x0000BFFF, // 140  0.00000 0.75000 1.00000
+  0x007FDFFF, // 141  0.50000 0.87500 1.00000
+  0x00007CA5, // 142  0.00000 0.48750 0.65000
+  0x005291A5, // 143  0.32500 0.56875 0.65000
+  0x00005F7F, // 144  0.00000 0.37500 0.50000
+  0x003F6F7F, // 145  0.25000 0.43750 0.50000
+  0x0000394C, // 146  0.00000 0.22500 0.30000
+  0x0026424C, // 147  0.15000 0.26250 0.30000
+  0x00001C26, // 148  0.00000 0.11250 0.15000
+  0x00132126, // 149  0.07500 0.13125 0.15000
+  0x00007FFF, // 150  0.00000 0.50000 1.00000
+  0x007FBFFF, // 151  0.50000 0.75000 1.00000
+  0x000052A5, // 152  0.00000 0.32500 0.65000
+  0x00527CA5, // 153  0.32500 0.48750 0.65000
+  0x00003F7F, // 154  0.00000 0.25000 0.50000
+  0x003F5F7F, // 155  0.25000 0.37500 0.50000
+  0x0000264C, // 156  0.00000 0.15000 0.30000
+  0x0026394C, // 157  0.15000 0.22500 0.30000
+  0x00001326, // 158  0.00000 0.07500 0.15000
+  0x00131C26, // 159  0.07500 0.11250 0.15000
+  0x00003FFF, // 160  0.00000 0.25000 1.00000
+  0x007F9FFF, // 161  0.50000 0.62500 1.00000
+  0x000029A5, // 162  0.00000 0.16250 0.65000
+  0x005267A5, // 163  0.32500 0.40625 0.65000
+  0x00001F7F, // 164  0.00000 0.12500 0.50000
+  0x003F4F7F, // 165  0.25000 0.31250 0.50000
+  0x0000134C, // 166  0.00000 0.07500 0.30000
+  0x00262F4C, // 167  0.15000 0.18750 0.30000
+  0x00000926, // 168  0.00000 0.03750 0.15000
+  0x00131726, // 169  0.07500 0.09375 0.15000
+  0x000000FF, // 170  0.00000 0.00000 1.00000
+  0x007F7FFF, // 171  0.50000 0.50000 1.00000
+  0x000000A5, // 172  0.00000 0.00000 0.65000
+  0x005252A5, // 173  0.32500 0.32500 0.65000
+  0x0000007F, // 174  0.00000 0.00000 0.50000
+  0x003F3F7F, // 175  0.25000 0.25000 0.50000
+  0x0000004C, // 176  0.00000 0.00000 0.30000
+  0x0026264C, // 177  0.15000 0.15000 0.30000
+  0x00000026, // 178  0.00000 0.00000 0.15000
+  0x00131326, // 179  0.07500 0.07500 0.15000
+  0x003F00FF, // 180  0.25000 0.00000 1.00000
+  0x009F7FFF, // 181  0.62500 0.50000 1.00000
+  0x002900A5, // 182  0.16250 0.00000 0.65000
+  0x006752A5, // 183  0.40625 0.32500 0.65000
+  0x001F007F, // 184  0.12500 0.00000 0.50000
+  0x004F3F7F, // 185  0.31250 0.25000 0.50000
+  0x0013004C, // 186  0.07500 0.00000 0.30000
+  0x002F264C, // 187  0.18750 0.15000 0.30000
+  0x00090026, // 188  0.03750 0.00000 0.15000
+  0x00171326, // 189  0.09375 0.07500 0.15000
+  0x007F00FF, // 190  0.50000 0.00000 1.00000
+  0x00BF7FFF, // 191  0.75000 0.50000 1.00000
+  0x005200A5, // 192  0.32500 0.00000 0.65000
+  0x007C52A5, // 193  0.48750 0.32500 0.65000
+  0x003F007F, // 194  0.25000 0.00000 0.50000
+  0x005F3F7F, // 195  0.37500 0.25000 0.50000
+  0x0026004C, // 196  0.15000 0.00000 0.30000
+  0x0039264C, // 197  0.22500 0.15000 0.30000
+  0x00130026, // 198  0.07500 0.00000 0.15000
+  0x001C1326, // 199  0.11250 0.07500 0.15000
+  0x00BF00FF, // 200  0.75000 0.00000 1.00000
+  0x00DF7FFF, // 201  0.87500 0.50000 1.00000
+  0x007C00A5, // 202  0.48750 0.00000 0.65000
+  0x009152A5, // 203  0.56875 0.32500 0.65000
+  0x005F007F, // 204  0.37500 0.00000 0.50000
+  0x006F3F7F, // 205  0.43750 0.25000 0.50000
+  0x0039004C, // 206  0.22500 0.00000 0.30000
+  0x0042264C, // 207  0.26250 0.15000 0.30000
+  0x001C0026, // 208  0.11250 0.00000 0.15000
+  0x00211326, // 209  0.13125 0.07500 0.15000
+  0x00FF00FF, // 210  1.00000 0.00000 1.00000
+  0x00FF7FFF, // 211  1.00000 0.50000 1.00000
+  0x00A500A5, // 212  0.65000 0.00000 0.65000
+  0x00A552A5, // 213  0.65000 0.32500 0.65000
+  0x007F007F, // 214  0.50000 0.00000 0.50000
+  0x007F3F7F, // 215  0.50000 0.25000 0.50000
+  0x004C004C, // 216  0.30000 0.00000 0.30000
+  0x004C264C, // 217  0.30000 0.15000 0.30000
+  0x00260026, // 218  0.15000 0.00000 0.15000
+  0x00261326, // 219  0.15000 0.07500 0.15000
+  0x00FF00BF, // 220  1.00000 0.00000 0.75000
+  0x00FF7FDF, // 221  1.00000 0.50000 0.87500
+  0x00A5007C, // 222  0.65000 0.00000 0.48750
+  0x00A55291, // 223  0.65000 0.32500 0.56875
+  0x007F005F, // 224  0.50000 0.00000 0.37500
+  0x007F3F6F, // 225  0.50000 0.25000 0.43750
+  0x004C0039, // 226  0.30000 0.00000 0.22500
+  0x004C2642, // 227  0.30000 0.15000 0.26250
+  0x0026001C, // 228  0.15000 0.00000 0.11250
+  0x00261321, // 229  0.15000 0.07500 0.13125
+  0x00FF007F, // 230  1.00000 0.00000 0.50000
+  0x00FF7FBF, // 231  1.00000 0.50000 0.75000
+  0x00A50052, // 232  0.65000 0.00000 0.32500
+  0x00A5527C, // 233  0.65000 0.32500 0.48750
+  0x007F003F, // 234  0.50000 0.00000 0.25000
+  0x007F3F5F, // 235  0.50000 0.25000 0.37500
+  0x004C0026, // 236  0.30000 0.00000 0.15000
+  0x004C2639, // 237  0.30000 0.15000 0.22500
+  0x00260013, // 238  0.15000 0.00000 0.07500
+  0x0026131C, // 239  0.15000 0.07500 0.11250
+  0x00FF003F, // 240  1.00000 0.00000 0.25000
+  0x00FF7F9F, // 241  1.00000 0.50000 0.62500
+  0x00A50029, // 242  0.65000 0.00000 0.16250
+  0x00A55267, // 243  0.65000 0.32500 0.40625
+  0x007F001F, // 244  0.50000 0.00000 0.12500
+  0x007F3F4F, // 245  0.50000 0.25000 0.31250
+  0x004C0013, // 246  0.30000 0.00000 0.07500
+  0x004C262F, // 247  0.30000 0.15000 0.18750
+  0x00260009, // 248  0.15000 0.00000 0.03750
+  0x00261317, // 249  0.15000 0.07500 0.09375
+  0x00545454, // 250  0.33000 0.33000 0.33000
+  0x00767676, // 251  0.46400 0.46400 0.46400
+  0x00989898, // 252  0.59800 0.59800 0.59800
+  0x00BABABA, // 253  0.73200 0.73200 0.73200
+  0x00DCDCDC, // 254  0.86600 0.86600 0.86600
+  0x00FFFFFF  // 255  1.00000 1.00000 1.00000
+  };
+
+int DxfColor(int Rgb)
+{
+  int r = (Rgb & 0x00FF0000) >> 16;
+  int g = (Rgb & 0x0000FF00) >> 8;
+  int b = (Rgb & 0x000000FF);
+  int n = 1;  // = 0; if the DXF tool is able to handle color 0
+  int Min = INT_MAX;
+  for (int i = n; i < 256; i++) {
+      int c = DxfColors[i];
+      int dr = r - ((c & 0x00FF0000) >> 16);
+      int dg = g - ((c & 0x0000FF00) >> 8);
+      int db = b - (c & 0x000000FF);
+      int d = dr * dr * 77 + dg * dg * 150 + db * db * 29;
+      if (d < Min) {
+         n = i;
+         Min = d;
+         }
+      }
+  return n;
+}
+
+//
+// Level 0: DXF code generating functions:
+//
+
+void DxfString(int code, string value)
+{
+  printf("%3d\n%s\n", code, value);
+}
+
+void DxfInt(int code, int value)
+{
+  printf("%3d\n%d\n", code, value);
+}
+
+void DxfReal(int code, real value)
+{
+  printf("%3d\n%1.*f\n", code, (Unit == MM) ? 4 : 6, value);
+}
+
+//
+// Level 1: DXF group functions:
+//
+
+void DxfCoordinate(int n, real x, real y)
+{
+  DxfReal(10 + n, x);
+  DxfReal(20 + n, y);
+  DxfReal(30 + n, 0.0);
+}
+
+void DxfSection(string name)
+{
+  DxfString(0, "SECTION");
+  DxfString(2, name);
+}
+
+void DxfEndSection(void)
+{
+  DxfString(0, "ENDSEC");
+}
+
+void DxfTable(string name, int number)
+{
+  DxfString(0, "TABLE");
+  DxfString(2, name);
+  DxfInt(70, number);
+}
+
+void DxfEndTable(void)
+{
+  DxfString(0, "ENDTAB");
+}
+
+void DxfBlock(string name)
+{
+  DxfString(0, "BLOCK");
+  DxfInt(8, 0);
+  DxfString(2, name);
+  DxfInt(70, 64);
+  DxfCoordinate(0, 0.0, 0.0);
+  DxfString(3, name);
+}
+
+void DxfEndBlock(void)
+{
+  DxfString(0, "ENDBLK");
+  DxfInt(8, 0);
+}
+
+void DxfVariable(string name)
+{
+  DxfString(9, "$" + name);
+}
+
+void DxfTrailer(void)
+{
+  DxfString(0, "EOF");
+}
+
+void DxfPolyline(int layer, real width)
+{
+  int Mode = width > 0 ? 0  // polyline is NOT closed
+                       : 1; // polyline is closed
+  if (width < 0)
+     width = -width;
+  DxfString(0, "POLYLINE");
+  DxfInt(8, layer);
+  DxfInt(66, 1);
+  DxfCoordinate(0, 0.0, 0.0);
+  DxfReal(40, width);
+  DxfReal(41, width);
+  DxfInt(70, Mode);
+}
+
+void DxfVertex(int layer, real x, real y)
+{
+  DxfString(0, "VERTEX");
+  DxfInt(8, layer);
+  DxfCoordinate(0, x, y);
+}
+
+void DxfVertexRound(int layer, real x, real y, real r)
+{
+  DxfString(0, "VERTEX");
+  DxfInt(8, layer);
+  DxfCoordinate(0, x, y);
+  DxfReal(42, r);
+}
+
+void DxfSeqEnd(void)
+{
+  DxfString(0, "SEQEND");
+  DxfInt(8, 0);
+}
+
+void DxfInsert(int layer, string name, real x, real y, real dx, real dy, real a)
+{
+  if (LayerActive[layer]) {
+     DxfString(0, "INSERT");
+     DxfInt(8, layer);
+     DxfString(2, name);
+     DxfCoordinate(0, x, y);
+     DxfReal(41, dx);
+     DxfReal(42, dy);
+     DxfReal(43, 1.0);
+     DxfReal(50, a);
+     }
+}
+
+void DxfPoint(int layer, real x, real y)
+{
+  if (LayerActive[layer]) {
+     DxfString(0, "POINT");
+     DxfInt(8, layer);
+     DxfCoordinate(0, x, y);
+     }
+}
+
+void DxfLine(int layer, real x1, real y1, real x2, real y2)
+{
+  if (LayerActive[layer]) {
+     DxfString(0, "LINE");
+     DxfInt(8, layer);
+     DxfCoordinate(0, x1, y1);
+     DxfCoordinate(1, x2, y2);
+     }
+}
+
+void DxfCircle(int layer, real x, real y, real r)
+{
+  if (layer == 0 || LayerActive[layer]) {
+     DxfString(0, "CIRCLE");
+     DxfInt(8, layer);
+     DxfCoordinate(0, x, y);
+     DxfReal(40, r);
+     }
+}
+
+void DxfArc(int layer, real x, real y, real r, real a1, real a2)
+{
+  if (LayerActive[layer]) {
+     DxfString(0, "ARC");
+     DxfInt(8, layer);
+     DxfCoordinate(0, x, y);
+     DxfReal(40, r);
+     DxfReal(50, a1);
+     DxfReal(51, a2);
+     }
+}
+
+void DxfSolid(int layer, real x1, real y1, real x2, real y2, real x3, real y3, real x4, real y4)
+{
+  if (layer == 0 || LayerActive[layer]) {
+     DxfString(0, "SOLID");
+     DxfInt(8, layer);
+     DxfCoordinate(0, x1, y1);
+     DxfCoordinate(1, x2, y2);
+     DxfCoordinate(2, x3, y3);
+     DxfCoordinate(3, x4, y4);
+     }
+}
+
+void DxfText(int layer, int font, real x, real y, real size, string value, real angle, int mirror, int spin)
+{
+  if (LayerActive[layer]) {
+     int Adjust = !spin;
+     int Reference = 0;  //  3    2
+                         //   Text
+                         //  0    1
+     if (!board)
+        Adjust = 1;
+     if (!board && mirror) {
+        mirror = 0;
+        Adjust = 0;
+        if      (angle ==   0) { Reference = 1; }
+        else if (angle ==  90) { Reference = 3; }
+        else if (angle == 180) { Reference = 3; angle =  0; }
+        else if (angle == 270) { Reference = 1; angle = 90; }
+        }
+     DxfString(0, "TEXT");
+     DxfString(7, font == FONT_PROPORTIONAL ? "ISOCP" : "ISOCT");
+     DxfInt(8, layer);
+     DxfCoordinate(0, x, y);
+     Adjust = Adjust && 90 < angle && angle <= 270;
+     if (mirror) {
+        angle = -angle;
+        if (angle < 0)
+           angle += 360;
+        }
+     if (Adjust) {
+        angle -= 180;
+        if (angle < 0)
+           angle += 360;
+        Reference = 2;
+        }
+     DxfReal(40, size);
+     DxfString(1, value);
+     if (angle)
+        DxfReal(50, angle);
+     if (mirror)
+        DxfInt(71, 2);
+     if (Reference) {
+        DxfInt(72, Reference == 1 || Reference == 2 ? 2 : 0);
+        DxfInt(73, Reference >= 2                   ? 3 : 0);
+        DxfCoordinate(1, x, y);
+        }
+     }
+}
+
+void DxfLayer(int number, int color)
+{
+  DxfString(0, "LAYER");
+  DxfInt(2, number);
+  DxfInt(70, 64);
+  DxfInt(62, DxfColor(palette(color)));
+  DxfString(6, "CONTINUOUS");
+}
+
+void DxfLineTypes(void)
+{
+  DxfString(0, "LTYPE");
+  DxfString(2, "CONTINUOUS");
+  DxfInt(70, 64);
+  DxfString(3, "Solid line");
+  DxfInt(72, 65);
+  DxfInt(73, 0);
+  DxfInt(40, 0);
+}
+
+void DxfVersion(void)
+{
+  DxfVariable("ACADVER");
+  DxfString(1, "AC1009");
+  DxfVariable("FILLMODE");
+  DxfInt(70, FillAreas ? 1 : 0);
+}
+
+void DxfWireRaw(int layer, real x1, real y1, real x2, real y2, real width)
+{
+  real dx = x2 - x1;
+  real dy = y2 - y1;
+  real l  = sqrt(dx * dx + dy * dy);
+
+  if (l > 0) {
+     if (FillAreas)
+        l *= 2;
+
+     real w2 = width / 2;
+     real dxl = dx / l * w2;
+     real dyl = dy / l * w2;
+
+     if (FillAreas) {
+        DxfPolyline(layer, width);
+          DxfVertex(layer, x1, y1);
+          DxfVertex(layer, x2, y2);
+          DxfSeqEnd();
+        DxfPolyline(layer, w2);
+          DxfVertexRound(layer, x2 + dyl, y2 - dxl, 1);
+          DxfVertex     (layer, x2 - dyl, y2 + dxl);
+          DxfSeqEnd();
+        DxfPolyline(layer, w2);
+          DxfVertexRound(layer, x1 - dyl, y1 + dxl, 1);
+          DxfVertex     (layer, x1 + dyl, y1 - dxl);
+          DxfSeqEnd();
+        }
+     else {
+        DxfPolyline(layer, 0);
+          DxfVertex(layer, x1 + dyl, y1 - dxl);
+          DxfVertexRound(layer, x2 + dyl, y2 - dxl, 1);
+          DxfVertex     (layer, x2 - dyl, y2 + dxl);
+          DxfVertexRound(layer, x1 - dyl, y1 + dxl, 1);
+          DxfSeqEnd();
+        }
+     }
+}
+
+void DxfWire(int layer, real x1, real y1, real x2, real y2, real width)
+{
+  if (UseWireWidths && width > 0)
+     DxfWireRaw(layer, x1, y1, x2, y2, width);
+  else
+     DxfLine(layer, x1, y1, x2, y2);
+}
+
+void DxfPie(int layer, real x, real y, real radius)
+{
+  if (FillAreas) {
+     DxfPolyline(layer, radius);
+       DxfVertexRound(layer, x, y - 0.5 * radius, 1);
+       DxfVertexRound(layer, x, y + 0.5 * radius, 1);
+       DxfVertex     (layer, x, y - 0.5 * radius);
+       DxfSeqEnd();
+     }
+  else
+     DxfCircle(layer, x, y, radius);
+}
+
+//
+// Level 1: Block definitions for EAGLE primitives:
+//
+
+void DxfOctagonBlock(string name, real e1, real e2)
+{
+  int layer = 0;
+  real r   = 0.5;
+  real w   = 0;
+
+  if (e1 || e2) {
+     e1 *= r;
+     e2 *= r;
+     DxfBlock(name);
+       DxfWireRaw(layer, -e1, 0, e2, 0, 1);
+       DxfEndBlock();
+     }
+  else {
+     real a_2 = r * (sqrt(2) - 1);  // a = 2 * r * tan(22.5)
+
+     if (FillAreas) {
+        w    = 0.5;
+        r   *= 0.5;
+        a_2 *= 0.5;
+        }
+     DxfBlock(name);
+       DxfPolyline(layer, w);
+         DxfVertex(layer, -r  , -a_2);
+         DxfVertex(layer, -r  ,  a_2);
+         DxfVertex(layer, -a_2,  r);
+         DxfVertex(layer,  a_2,  r);
+         DxfVertex(layer,  r  ,  a_2);
+         DxfVertex(layer,  r  , -a_2);
+         DxfVertex(layer,  a_2, -r);
+         DxfVertex(layer, -a_2, -r);
+         if (FillAreas) {
+            DxfVertex(layer, -r, -a_2);
+            DxfVertex(layer, -r,  a_2);
+            }
+         DxfSeqEnd();
+       DxfEndBlock();
+     }
+}
+
+void DxfPadAndSmdBlocks(void)  // LONG/OFFSET pad and any smd shapes
+{
+  string CollectedPads,
+         CollectedSmds;
+  string s;
+
+  if (board) board(B) {
+     B.elements(E)
+       E.package.contacts(C) {
+         if (C.pad) {
+            int Elongation = C.pad.elongation;
+
+            if (Elongation) {
+               int sc = C.pad.shape[LAYER_PADS];
+
+               sprintf(s, "%sP%d", sc == PAD_SHAPE_OFFSET ? "OFFSET" : "LONG", Elongation);
+               if (strstr(CollectedPads, s + '#') < 0) {
+                  CollectedPads += s + '#';
+
+                  real e = Elongation / 100.0;
+
+                  if (sc == PAD_SHAPE_OFFSET)
+                     DxfOctagonBlock(s, 0, 2 * e);
+                  else
+                     DxfOctagonBlock(s, e, e);
+                  }
+               }
+            }
+         else if (C.smd) {
+            int Roundness = C.smd.roundness;
+            if (Roundness) {
+               for (int l = C.smd.layer; l; ) {
+                   if (LayerActive[l]) {
+                      int dx2 = C.smd.dx[l] / 2,
+                          dy2 = C.smd.dy[l] / 2;
+
+                      sprintf(s, "RECT%dX%dR%d", dx2, dy2, Roundness);
+                      if (strstr(CollectedSmds, s + '#') < 0) {
+                         CollectedSmds += s + '#';
+
+                         real rr = sqrt(2) - 1;
+                         int  rf = min(dx2, dy2) * Roundness / 100;
+
+                         if (FillAreas) {
+                            rf /= 2;
+                            dx2 -= rf;
+                            dy2 -= rf;
+                            }
+
+                         real r  = DxfUnit(rf);
+                         real x1 = DxfUnit(-dx2),
+                              y1 = DxfUnit(-dy2),
+                              x2 = DxfUnit(dx2),
+                              y2 = DxfUnit(dy2);
+
+                         DxfBlock(s);
+                           DxfPolyline(0, FillAreas ? -2 * r : 0);
+                             DxfVertex     (0, x2    , y1 + r);
+                             DxfVertexRound(0, x2    , y2 - r, rr);
+                             DxfVertex     (0, x2 - r, y2    );
+                             DxfVertexRound(0, x1 + r, y2    , rr);
+                             DxfVertex     (0, x1    , y2 - r);
+                             DxfVertexRound(0, x1    , y1 + r, rr);
+                             DxfVertex     (0, x1 + r, y1    );
+                             DxfVertexRound(0, x2 - r, y1    , rr);
+                             DxfSeqEnd();
+
+                           if (FillAreas) {
+                              int o = min(SafetyOverlap, rf / 2);
+                              dx2 -= rf - o;
+                              dy2 -= rf - o;
+                              x2 = DxfUnit(dx2);
+                              y2 = DxfUnit(dy2);
+                              DxfSolid(0, -x2, -y2, x2, -y2, -x2, y2, x2, y2);
+                              }
+                           DxfEndBlock();
+                         }
+                      }
+                   switch (l) {
+                     case LAYER_TOP:    l = LAYER_TSTOP;  break;
+                     case LAYER_TSTOP:  l = LAYER_TCREAM; break;
+                     case LAYER_BOTTOM: l = LAYER_BSTOP;  break;
+                     case LAYER_BSTOP:  l = LAYER_BCREAM; break;
+                     default:           l = 0;
+                     }
+                   }
+               }
+            }
+         }
+     }
+}
+
+void DxfBlocks(void)
+{
+   DxfBlock("RECT");
+     DxfSolid(0, -0.5, -0.5, 0.5, -0.5, -0.5, 0.5, 0.5, 0.5);
+     DxfEndBlock();
+
+   DxfBlock("PIE");
+     DxfPie(0, 0, 0, 0.5);
+     DxfEndBlock();
+
+  if (board) {
+     string pv[] = { "P", "V" };
+
+     for (int i = 0; i < 2; ++i) {
+         DxfOctagonBlock("OCTAGON" + pv[i], 0, 0);
+
+         DxfBlock("SQUARE" + pv[i]);
+           DxfSolid(0, -0.5, -0.5, 0.5, -0.5, -0.5, 0.5, 0.5, 0.5);
+           DxfEndBlock();
+
+         DxfBlock("ROUND" + pv[i]);
+           DxfPie(0, 0, 0, 0.5);
+           DxfEndBlock();
+
+         DxfBlock("ANNULUS" + pv[i]);
+           DxfPie(0, 0, 0, 0.5);
+           DxfEndBlock();
+
+         DxfBlock("THERMAL" + pv[i]);
+           real dr = (1.0 + AnnulusRelInnerDiameter) / 4,
+                dw = (1.0 - AnnulusRelInnerDiameter) / 2,
+                ds = dr - (AnnulusRelGap + dw) / sqrt(2.0);
+
+           if (ds < 0.01)
+              ds = 0.01;
+           DxfWire(0, -ds, +dr, +ds, +dr, dw);
+           DxfWire(0, +dr, +ds, +dr, -ds, dw);
+           DxfWire(0, +ds, -dr, -ds, -dr, dw);
+           DxfWire(0, -dr, -ds, -dr, +ds, dw);
+           DxfEndBlock();
+         }
+     DxfPadAndSmdBlocks();
+     }
+}
+
+//
+// Level 2: Low level EAGLE to DXF conversion functions:
+//
+
+void Layer(UL_LAYER L)
+{
+  if (L.visible)
+     DxfLayer(L.number, L.color);
+  LayerActive[L.number] = L.visible;
+  switch (L.number) {
+    case LAYER_PADS: PadColor = L.color; break;
+    case LAYER_VIAS: ViaColor = L.color; break;
+    }
+}
+
+void Area(UL_AREA A)
+{
+  DxfVariable("EXTMIN");
+  DxfCoordinate(0, DxfUnit(A.x1), DxfUnit(A.y1));
+  DxfVariable("EXTMAX");
+  DxfCoordinate(0, DxfUnit(A.x2), DxfUnit(A.y2));
+}
+
+void Arc(UL_ARC A)
+{
+  if (LayerActive[A.layer]) {
+     if (UseWireWidths && A.width > 0) {
+
+        real a1 = A.angle1 / 180 * PI;
+        real a2 = A.angle2 / 180 * PI;
+        real vr = tan((a2 - a1) / 4);  // vertex roundness: vr = tan(delta_phi/4) = 2*H/R (H: segment height, R: segment radius)
+
+        real x1 = DxfUnit(A.x1), y1 = DxfUnit(A.y1),
+             x2 = DxfUnit(A.x2), y2 = DxfUnit(A.y2);
+        real w2 = DxfUnit(A.width / 2);
+        real x1r = w2 * cos(a1), y1r = w2 * sin(a1), // a vector with angle1 and a length of width/2
+             x2r = w2 * cos(a2), y2r = w2 * sin(a2);
+
+        if (FillAreas) {
+           DxfPolyline(A.layer, DxfUnit(A.width));
+             DxfVertexRound(A.layer, x1, y1, vr);
+             DxfVertex(A.layer, x2, y2);
+             DxfSeqEnd();
+           if (A.cap == CAP_ROUND) {
+              DxfPolyline(A.layer, w2);
+                DxfVertexRound(A.layer, x1 - x1r/2, y1 - y1r/2, 1);
+                DxfVertex     (A.layer, x1 + x1r/2, y1 + y1r/2);
+                DxfSeqEnd();
+              DxfPolyline(A.layer, w2);
+                DxfVertexRound(A.layer, x2 + x2r/2, y2 + y2r/2, 1);
+                DxfVertex     (A.layer, x2 - x2r/2, y2 - y2r/2);
+                DxfSeqEnd();
+              }
+           }
+        else {
+           DxfPolyline(A.layer, 0);
+             if (A.cap == CAP_ROUND)
+                DxfVertexRound(A.layer, x1 - x1r, y1 - y1r, 1);
+             else
+                DxfVertex     (A.layer, x1 - x1r, y1 - y1r);
+             DxfVertexRound   (A.layer, x1 + x1r, y1 + y1r, vr);
+             if (A.cap == CAP_ROUND)
+                DxfVertexRound(A.layer, x2 + x2r, y2 + y2r, 1);
+             else
+                DxfVertex     (A.layer, x2 + x2r, y2 + y2r);
+             DxfVertexRound   (A.layer, x2 - x2r, y2 - y2r, -vr);
+             DxfSeqEnd();
+           }
+        }
+     else
+        DxfArc(A.layer,
+               DxfUnit(A.xc), DxfUnit(A.yc),
+               DxfUnit(A.radius),
+               DxfAngle(A.angle1), DxfAngle(A.angle2));
+     }
+}
+
+void WireSegment(UL_WIRE W)
+{
+  if (W.arc)
+     Arc(W.arc);
+  else
+     DxfWire(W.layer, DxfUnit(W.x1), DxfUnit(W.y1), DxfUnit(W.x2), DxfUnit(W.y2), DxfUnit(W.width));
+}
+
+void Wire(UL_WIRE W)
+{
+  if (LayerActive[W.layer]) {
+     if (W.style != WIRE_STYLE_CONTINUOUS)
+        W.pieces(P) WireSegment(P);
+     else
+        WireSegment(W);
+     }
+}
+
+void Circle(UL_CIRCLE C)
+{
+  if (LayerActive[C.layer]) {
+     if (UseWireWidths) {
+        if (C.width > 0) {
+           if (FillAreas) {
+              DxfPolyline(C.layer, DxfUnit(C.width));
+                DxfVertexRound(C.layer, DxfUnit(C.x), DxfUnit(C.y - C.radius), 1);
+                DxfVertexRound(C.layer, DxfUnit(C.x), DxfUnit(C.y + C.radius), 1);
+                DxfVertex(C.layer, DxfUnit(C.x), DxfUnit(C.y - C.radius));
+                DxfSeqEnd();
+              }
+           else {
+              int r1 = C.radius - C.width / 2,
+                  r2 = C.radius + C.width / 2;
+
+              if (r1 > 0)
+                 DxfCircle(C.layer, DxfUnit(C.x), DxfUnit(C.y), DxfUnit(r1));
+              DxfCircle(C.layer, DxfUnit(C.x), DxfUnit(C.y), DxfUnit(r2));
+              }
+           return;
+           }
+        else if (FillAreas) {
+           DxfPolyline(C.layer, DxfUnit(C.radius));
+             DxfVertexRound(C.layer, DxfUnit(C.x), DxfUnit(C.y - C.radius / 2), 1);
+             DxfVertexRound(C.layer, DxfUnit(C.x), DxfUnit(C.y + C.radius / 2), 1);
+             DxfVertex(C.layer, DxfUnit(C.x), DxfUnit(C.y - C.radius / 2));
+             DxfSeqEnd();
+           return;
+           }
+        }
+     DxfCircle(C.layer, DxfUnit(C.x), DxfUnit(C.y), DxfUnit(C.radius));
+     }
+}
+
+void Rectangle(UL_RECTANGLE R)
+{
+  DxfInsert(R.layer, "RECT", DxfUnit((R.x1 + R.x2) / 2), DxfUnit((R.y1 + R.y2) / 2), DxfUnit(R.x2 - R.x1), DxfUnit(R.y2 - R.y1), R.angle);
+}
+
+void Hole(UL_HOLE H)
+{
+  DxfCircle(LAYER_DIMENSION, DxfUnit(H.x), DxfUnit(H.y), DxfUnit(H.drill / 2));
+  if (LayerActive[LAYER_TSTOP]) DxfPie(LAYER_TSTOP, DxfUnit(H.x), DxfUnit(H.y), DxfUnit(H.diameter[LAYER_TSTOP] / 2));
+  if (LayerActive[LAYER_BSTOP]) DxfPie(LAYER_BSTOP, DxfUnit(H.x), DxfUnit(H.y), DxfUnit(H.diameter[LAYER_BSTOP] / 2));
+}
+
+
+void Via(UL_VIA V)
+{
+  string Shape[] = { "SQUAREV", "ROUNDV", "OCTAGONV", "XLONGOCT", "YLONGOCT", "ANNULUSV", "THERMALV" };
+  int Count = 0;
+  int Extended = 0;
+
+  for (int l = LAYER_TOP; l; ) {
+  
+      real d = DxfUnit(V.diameter[l]);
+      
+      // [RES] Only draw the via if it starts or ends on a via that is visible 
+             
+      if (d && ((l == V.start) || (l == V.end) || (l == Extended))) {
+         Count++;
+         DxfInsert(ViaColor && !IsSupplyLayer[l] && l <= LAYER_BOTTOM ? LAYER_VIAS : l, Shape[V.shape[l]], DxfUnit(V.x), DxfUnit(V.y), d, d, 0);
+         }
+      if (l < LAYER_BOTTOM) {
+         if (Extended)
+            l = Extended = LAYER_BOTTOM;
+         else
+            ++l;
+         }
+      else
+         switch (l) {
+           case LAYER_BOTTOM: if (!Extended && !Count && ViaColor && LayerActive[LAYER_VIAS])
+                                 l = Extended = LAYER_BOTTOM;
+                              else
+                                 l = LAYER_TSTOP;
+                              break;
+           case LAYER_TSTOP:  l = LAYER_BSTOP; break;
+           default:           l = 0;
+           }
+      }
+  if (Count)
+     DxfCircle(LAYER_DRILLS, DxfUnit(V.x), DxfUnit(V.y), DxfUnit(V.drill / 2));
+}
+
+void Pad(UL_PAD P)
+{
+  string Shape[] = { "SQUAREP", "ROUNDP", "OCTAGONP", "LONGP", "OFFSETP", "ANNULUSP", "THERMALP" };
+  int Count = 0;
+  int Extended = 0;
+
+  for (int l = LAYER_TOP; l; ) {
+      real d = DxfUnit(P.diameter[l]);
+      if (d && (LayerActive[l] || l == Extended)) {
+         int sc = P.shape[l];
+         string s;
+
+         switch (sc) {
+           case PAD_SHAPE_LONG:
+           case PAD_SHAPE_OFFSET: {
+                                    int e = P.elongation;
+                                    if (e)
+                                       sprintf(s, "%d", e);
+                                    else
+                                       sc = PAD_SHAPE_OCTAGON;
+                                  }
+           }
+         Count++;
+         DxfInsert(PadColor && !IsSupplyLayer[l] && l <= LAYER_BOTTOM ? LAYER_PADS : l, Shape[sc] + s, DxfUnit(P.x), DxfUnit(P.y), d, d, P.angle);
+         }
+      if (l < LAYER_BOTTOM) {
+         if (Extended)
+            l = Extended = LAYER_BOTTOM;
+         else
+            ++l;
+         }
+      else
+         switch (l) {
+           case LAYER_BOTTOM: if (!Extended && !Count && PadColor && LayerActive[LAYER_PADS])
+                                 l = Extended = LAYER_TOP;
+                              else
+                                 l = LAYER_TSTOP;
+                              break;
+           case LAYER_TSTOP:  l = LAYER_BSTOP; break;
+           default:           l = 0;
+           }
+      }
+  if (Count)
+     DxfCircle(LAYER_DRILLS, DxfUnit(P.x), DxfUnit(P.y), DxfUnit(P.drill / 2));
+}
+
+void Smd(UL_SMD S)
+{
+  for (int l = S.layer; ; ) {
+      if (LayerActive[l]) {
+         int dx2 = S.dx[l] / 2, dy2 = S.dy[l] / 2;
+
+         if (dx2 == 0 || dy2 == 0)
+            ; // nothing to do
+         else if (S.roundness == 100 && dx2 == dy2)
+            DxfInsert(l, "PIE", DxfUnit(S.x), DxfUnit(S.y), DxfUnit(2 * dx2), DxfUnit(2 * dy2), 0);
+         else if (S.roundness) {
+            string Name;
+
+            sprintf(Name, "RECT%dX%dR%d", dx2, dy2, S.roundness);
+            DxfInsert(l, Name, DxfUnit(S.x), DxfUnit(S.y), 1.0, 1.0, S.angle);
+            }
+         else
+            DxfInsert(l, "RECT", DxfUnit(S.x), DxfUnit(S.y), DxfUnit(2 * dx2), DxfUnit(2 * dy2), S.angle);
+         }
+      switch (l) {
+        case LAYER_TOP:    l = LAYER_TSTOP;  break;
+        case LAYER_TSTOP:  l = LAYER_TCREAM; break;
+        case LAYER_BOTTOM: l = LAYER_BSTOP;  break;
+        case LAYER_BSTOP:  l = LAYER_BCREAM; break;
+        default:           return;
+        }
+      }
+}
+
+void Junction(UL_JUNCTION J)
+{
+  DxfPie(LAYER_NETS, DxfUnit(J.x), DxfUnit(J.y), DxfUnit(J.diameter / 2));
+}
+
+void Polygon(UL_POLYGON P)
+{
+  P.contours(W) Wire(W);
+  if (P.width > 0)
+     P.fillings(W) Wire(W);
+  else if (dlgMessageBox(tr("Can't fill polygon with Width = 0"), tr("+OK"), tr("-Cancel")) != 0)
+     exit(1);
+}
+
+int CheckMultiline(string t)
+{
+  return (strchr(t, '\n') >= 0);
+}
+
+void Text(UL_TEXT T)
+{
+  if (LayerActive[T.layer]) {
+     if (T.font == FONT_VECTOR || AlwaysVectorFont) {
+        T.wires(W) WireSegment(W);
+        }
+     else {
+        if (CheckMultiline(T.value)) {
+           dlgMessageBox(tr("Multiline texts can be exported only in vector font:\n\n") + T.value, tr("-Cancel"));
+           string er;
+           sprintf(er, "WIN (%.3fmil %.3fmil);\nSHOW (%.3fmil %.3fmil)",
+                       u2mil(T.x), u2mil(T.y), u2mil(T.x), u2mil(T.y));
+           exit(er);
+           }
+        DxfText(T.layer, T.font,
+                DxfUnit(T.x), DxfUnit(T.y), DxfUnit(T.size),
+                T.value, T.angle, T.mirror, T.spin);
+        }
+     }
+}
+
+void Label(UL_LABEL L)
+{
+  if (LayerActive[L.layer]) {
+     L.wires(W) Wire(W);
+     Text(L.text);
+     }
+}
+
+void Dimension(UL_DIMENSION D)
+{
+  D.wires(W) Wire(W);
+  D.texts(T) Text(T);
+}
+
+void Frame(UL_FRAME F)
+{
+  F.wires(W) Wire(W);
+  F.texts(T) Text(T);
+}
+
+//
+// Level 3: High level EAGLE decomposing functions:
+//
+
+void Package(UL_PACKAGE P)
+{
+  P.polygons(P) Polygon(P);
+  P.wires(W) Wire(W);
+  P.texts(T) Text(T);
+  P.dimensions(D) Dimension(D);
+  P.circles(C) Circle(C);
+  P.rectangles(R) Rectangle(R);
+  P.frames(F) Frame(F);
+  P.holes(H) Hole(H);
+  P.contacts(C) {
+    if (C.pad) Pad(C.pad);
+    else       Smd(C.smd);
+    // arbitrary pad shapes
+    C.wires(W) Wire(W);
+    C.polygons(P) Polygon(P);
+    }
+}
+
+void Element(UL_ELEMENT E)
+{
+  int layer;
+
+  switch (E.mirror) {
+    case 0: layer = LAYER_TORIGINS; break; // not mirrored
+    case 1: layer = LAYER_BORIGINS; break; // mirrored
+    }
+  DxfPoint(layer, DxfUnit(E.x), DxfUnit(E.y));
+  Package(E.package);
+  E.texts(T) Text(T);
+}
+
+void Signal(UL_SIGNAL S)
+{
+  S.polygons(P) Polygon(P);
+  S.wires(W) Wire(W);
+  S.vias(V) Via(V);
+}
+
+void Board(UL_BOARD B)
+{
+  B.polygons(P) Polygon(P);
+  B.wires(W) Wire(W);
+  B.texts(T) Text(T);
+  B.dimensions(D) Dimension(D);
+  B.circles(C) Circle(C);
+  B.rectangles(R) Rectangle(R);
+  B.frames(F) Frame(F);
+  B.holes(H) Hole(H);
+  B.elements(E) Element(E);
+  B.signals(S) Signal(S);
+}
+
+void Pin(UL_PIN P)
+{
+  P.wires(W) Wire(W);
+  P.circles(C) Circle(C);
+  P.texts(T) Text(T);
+}
+
+void Symbol(UL_SYMBOL S)
+{
+  S.polygons(P) Polygon(P);
+  S.wires(W) Wire(W);
+  S.texts(T) Text(T);
+  S.dimensions(D) Dimension(D);
+  S.pins(P) Pin(P);
+  S.circles(C) Circle(C);
+  S.rectangles(R) Rectangle(R);
+  S.frames(F) Frame(F);
+}
+
+void Instance(UL_INSTANCE I)
+{
+  Symbol(I.gate.symbol);
+  I.texts(T) Text(T);
+  I.xrefs(X) Symbol(X.symbol);
+}
+
+void Port(UL_PORT P)
+{
+  P.wires(W) Wire(W);
+  P.texts(T) Text(T);
+}
+
+void ModuleInstance(UL_MODULEINST MI)
+{
+  MI.texts(T) Text(T);
+  MI.wires(W) Wire(W);
+  MI.module.ports(P) Port(P);
+}
+
+void Part(UL_PART P)
+{
+  P.instances(I) Instance(I);
+}
+
+void Segment(UL_SEGMENT S)
+{
+  S.wires(W) Wire(W);
+  S.junctions(J) Junction(J);
+  S.labels(L) Label(L);
+}
+
+void Bus(UL_BUS B)
+{
+  B.segments(S) Segment(S);
+}
+
+void Net(UL_NET N)
+{
+  N.segments(S) Segment(S);
+}
+
+void Sheet(UL_SHEET S)
+{
+  S.polygons(P) Polygon(P);
+  S.wires(W) Wire(W);
+  S.texts(T) Text(T);
+  S.dimensions(D) Dimension(D);
+  S.circles(C) Circle(C);
+  S.rectangles(R) Rectangle(R);
+  S.frames(F) Frame(F);
+  S.parts(P) Part(P);
+  S.busses(B) Bus(B);
+  S.nets(N) Net(N);
+  S.moduleinsts(MI) ModuleInstance(MI);
+}
+
+//
+// Main program:
+//
+
+string OutputFileName;
+int DoDialog = argc == 1;
+string FileNameSuffix;
+
+for (int i = 1; i < argc; i++) {
+    if      (argv[i] == "-s") FileNameSuffix = argv[++i];
+    else if (argv[i] == "-u") {
+                                string u = strupr(argv[++i]);
+                                if (u) {
+                                   if (u == "MM")
+                                      Unit = MM;
+                                   else if (u == "INCH")
+                                      Unit = INCH;
+                                   else {
+                                      dlgMessageBox(usage + tr("<hr><b>ERROR: unknown unit: ") + argv[i] + "</b>");
+                                      exit(1);
+                                      }
+                                   }
+                                else {
+                                   dlgMessageBox(usage + tr("<hr><b>ERROR: missing <i>unit</i></b>"));
+                                   exit(1);
+                                   }
+                              }
+    else if (argv[i] == "-a") AlwaysVectorFont = YES;
+    else if (argv[i] == "-w") UseWireWidths = YES;
+    else if (argv[i] == "-f") FillAreas = YES;
+    else {
+       dlgMessageBox(usage + tr("<hr><b>ERROR: unknown option: ") + argv[i] + "</b>");
+       exit(1);
+       }
+    }
+
+if (board)
+   board(B) {
+     OutputFileName = B.name;
+     B.layers(L) {
+       string s = L.name;
+       if (L.visible && s[0] == '$') {
+          VisibleSupplyLayer = YES;
+          IsSupplyLayer[L.number] = YES;
+          }
+       }
+     }
+else if (schematic)
+   schematic(SCH) OutputFileName = SCH.name;
+else {
+   dlgMessageBox(usage + tr("<hr><b>ERROR: No board or schematic!</b><p>\nThis program can only work in the board or schematic editor."));
+   exit(1);
+   }
+
+OutputFileName = filesetext(OutputFileName, FileNameSuffix + ".dxf");
+
+if (DoDialog) {
+  dlgDialog(tr("DXF Converter")) {
+    dlgHBoxLayout dlgSpacing(400); // let's have some space for the file name
+    dlgHBoxLayout {
+      dlgLabel(tr("&Output file"));
+      dlgStringEdit(OutputFileName);
+      dlgPushButton(tr("&Browse")) {
+        string FileName = dlgFileSave(tr("Save DXF file"), OutputFileName, tr("DXF files (*.dxf)"));
+        if (FileName)
+           OutputFileName = FileName;
+        }
+      }
+    dlgCheckBox(tr("&Always vector font"), AlwaysVectorFont);
+    dlgLabel(tr("<small>If checked, texts will always be drawn with the builtin vector font.</small>"));
+    dlgCheckBox(tr("&Use wire widths"), UseWireWidths) { UseWireWidths |= FillAreas; };
+    dlgLabel(tr("<small>If checked, wires, arcs and circles will be generated as polygons showing their real widths. This, however, can cause the DXF file to become very large! Uncheck this if you do not need the real widths.</small>"));
+    dlgCheckBox(tr("&Fill areas"), FillAreas) { UseWireWidths |= FillAreas; }
+    dlgLabel(tr("<small>If checked, wires, arcs etc. will be filled (implies 'Use wire widths'!).</small>"));
+    if (VisibleSupplyLayer) {
+       dlgGroup(tr("Thermal Emulation")) {
+         dlgHBoxLayout {
+           dlgLabel(tr("Relative inner diameter"));
+           dlgRealEdit(AnnulusRelInnerDiameter, 0.5, 0.99);
+           }
+         dlgHBoxLayout {
+           dlgLabel(tr("Relative gap size"));
+           dlgRealEdit(AnnulusRelGap, 0.1, 0.5);
+           }
+         dlgLabel(tr("<small>Only the outer diameter of Thermals is available. The inner diameter and gap size are calculated based on the outer diameters according to these factors.</small>"));
+         }
+       }
+    dlgGroup(tr("Unit")) {
+      dlgHBoxLayout {
+        dlgVBoxLayout {
+          dlgRadioButton("&mm", Unit);
+          dlgRadioButton("&inch", Unit);
+          }
+        dlgLabel(tr("<small>Defines the unit used for coordinates and values in the DXF file</small>"));
+        }
+      }
+    dlgStretch(1);
+    dlgHBoxLayout {
+      dlgStretch(1);
+      dlgPushButton(tr("+OK")) {
+        string a[];
+        if (!fileglob(a, OutputFileName) || dlgMessageBox(tr("File exists: ") + OutputFileName + tr("\n\nOverwrite?"), tr("+&Yes"), tr("-&No")) == 0)
+        dlgAccept();
+        }
+      dlgPushButton(tr("-Cancel")) { dlgReject(); exit(1); }
+      dlgPushButton(tr("About")) dlgMessageBox(usage);
+      }
+    };
+  }
+
+output(OutputFileName) {
+
+  DxfSection("HEADER");
+    DxfVersion();
+    if (board) board(B) Area(B.area);
+    else sheet(S) Area(S.area);
+    DxfEndSection();
+  DxfSection("TABLES");
+    DxfTable("LTYPE", 1);
+      DxfLineTypes();
+      DxfEndTable();
+    DxfTable("LAYER", 255);
+      if (board) board(B) B.layers(L) Layer(L);
+      else schematic(SCH) SCH.layers(L) Layer(L);
+      DxfEndTable();
+    DxfEndSection();
+  DxfSection("BLOCKS");
+    DxfBlocks();
+    DxfEndSection();
+  DxfSection("ENTITIES");
+    if (board) board(B) Board(B);
+    else sheet(S) Sheet(S);
+    DxfEndSection();
+  DxfTrailer();
+  }
