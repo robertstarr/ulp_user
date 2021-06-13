@@ -1,29 +1,12 @@
-#usage "<b>DXFimport</b> V2.1<p>"
+#usage "<b>DXFimport</b> V1.7<p>"
        "This ULP can import DXF files that include polylines.<br>"
        "Browse to the DXF file, setup your origins, input units, scale factor and linewidth then click convert. "
        "The ULP will then show you the script in case you want to change the layer the input will be written to.<br>"
-       "Tested in version 5, 6, 7, and Autodesk EAGLE.<br><br>"
-       "Command line syntax:<br> run import-dxf.ulp filename TargetLayer Units [options]<br><br>"
-       "TargetLayer is number from 1-255 that corresponds to the layer that you want the imported features to be drawn on."
-       "If TargetLayer is set to  '0 MultiLayer', StartLayer is a number from 1-255 that corresponds to the first layer to be drawn on. Each different layer in the DXF will be drawn on subsequent EAGLE layers"
-       "Units is a number where 0 means imperial units and 1 means metric units."
-       "[options] contains 5 additional arguments that are optional and not required by default."
-       "Xorg is the origin X coordinate of the new location you want the drawing to import to."
-       "Yorg is the origin Y coordinate of the new location you want the drawing to import to."
-       "lwidth is the width of the lines used to draw the dxf objects."
-       "scale allows you increase or decrease the dimensions of the dxf by a user defined factor."
-       "The second to last argument is a three digit number indicating if the Xorg, Yorg, and width should be scaled. The value for each is"
-       "either zero or 1 where zero means don't scale and 1 means scale."
-       "The last argument is the StartLayer, which is used only if TargetLayer is 0 (defaults to 200).<br><br>"
-       "A complete example would be:<br>"
-       "run import-dxf.ulp C:\\myfile.dxf 20 0 1.2 3.1 0.001 1.5 001<br><br>"
-       "myfile.dxf is being imported to layer 20 with imperial units, the new origin is at (1.2 3.1) the linewidth is 0.001 inches."
-       "The dxf file is being scaled by a factor of 1.5 with the Xorg and Yorg not being scaled but the linewidth being scaled by 1.5 also."
-       "When running the ULP through the command line the previous settings are not loaded."
-       "<author>Written by Jorge Garcia of Cadsoft Computer, heavily based off of Hank Wallace's DXF2SCR program.</author><br>"
-       "With special thanks to Robert Starr, Alfred Zaffran, Billy Coleman, Holger Moessinger."
+       "Tested in version 5, 6, 7.<br>"
+       "<author>author Written by Jorge Garcia of Cadsoft Computer, heavily based off of Hank Wallace's DXF2SCR program.</author><br>"
+       "With special thanks to Robert Starr, Alfred Zaffran, Billy Coleman and Holger Moessinger."
 
-string Version = "2.1";
+string Version = "1.7";
 
 string Help = "<b>DXFimport "+Version+ "</b>\n <p>This ULP will import a DXF \
 file into EAGLE (Board, Schematic, Package or Symbol-Editor). \
@@ -31,22 +14,7 @@ Use the browse button to find the DXF file, make sure to set \
 the units to whatever units are used by the DXF file. Set the width, Xorg, and \
 Yorg in whatever units you selected. Then set an appropriate scale factor and \
 click the OK button, the generated script will be shown for editing. Once \
-it's adjusted to your liking click Run.</p>\n run import-dxf.ulp filename TargetLayer Units [options]\n \
-<p>TargetLayer is number from 1-255 that corresponds to the layer that you want the imported features to be drawn on. \
-If TargetLayer is set to  '0 MultiLayer', StartLayer is a number from 1-255 that corresponds to the first layer to be drawn on. Each different layer in the DXF will be drawn on subsequent EAGLE layers. \
-Units is a number 0 means imperial units and 1 means metric units. \
-[options] contains 5 additional arguments that are optional and not required by default. \
-Xorg is the X coordinate of the new location you want the drawing to import to. \
-Yorg is the Y coordinate of the new location you want the drawing to import to. Linewidth allows you to \
-pick the width of the lines used to draw the dxf objects. Scale allows you increase or decrease the dimensions of the dxf by a user defined factor. \
-The second to last argument is a three digit number indicating if the Xorg, Yorg, and width should be scaled. The value for each is \
-either zero or 1 where zero means don't scale and 1 means scale. \
-The last argument is the StartLayer, which is used only if TargetLayer is 0 (defaults to 200).</p>\n \
-A complete example would be:\n \
-run import-dxf.ulp C:\\myfile.dxf 20 0 1.2 3.1 0.001 1.5 001\n \
-myfile.dxf is being imported to layer 20 with imperial units, the new origin is at (1.2 3.1) the linewidth is 0.001 inches. \
-The dxf file is being scaled by a factor of 1.5 with the Xorg and Yorg not being scaled but the linewidth being scaled by 1.5 also. \
-When running from the command line settings are not stored.";
+it's adjusted to your liking click Run.</p>";
 
 /* *******************************************************************
   REVISION HISTORY
@@ -85,15 +53,6 @@ When running from the command line settings are not stored.";
             state of DXF.
 
 2015-02-10  make target layer selectable  alf@cadsoft.de
-
-2017-04-06  fixed critical LWPOLYLINE bug JG
-
-2017-06-05  fixed subtle LWPOLYLINE bug where a value of 0 causes
-            the LWPOLYLINE object to be exited early. JG
-
-2017-08-18  Added command line support. JG
-
-2019-03-07  Added MultiLayer support. Aram Akhavan
 
 ********************************************************************* */
 
@@ -167,7 +126,7 @@ This program compiles under Microsoft's command line compiler, version 12.00.
 /* ************************************************************************
 *                           GLOBAL VARIABLES
 ************************************************************************** */
-//include "debug.ulp"
+// #include "/home/cadsoft/eagle/debug.ulp"
 
 string ConfigFileName = filesetext(argv[0], ".cfg");
 
@@ -191,11 +150,8 @@ real   GUI_Xorg = 0.0;
 real   GUI_Yorg = 0.0;
 real   GUI_lwidth = 0.001;
 string GUI_layers[];
-       GUI_layers[0] = "0 MultiLayer";
-int    GUI_layerselect = 0;
-int    GUI_layerstart = 200;
-string LayerMap[];
-int    LayerMapLength = 0;
+       GUI_layers[0] = "select a layer";
+int    GUI_layerselect = -1;
 int    Lcnt = 1;
 int    GUI_TargetLayer = 0;
 int    SavedTargetLayer = 0;
@@ -283,160 +239,6 @@ real my(real y) {
   return y;
 }
 
-/*2019-03-07
-*******************************************************************************
-*                                   searchlayermap()
-*
-* Description:  This function searches the layer map created by createlayermap()
-*
-* Arguments:    layer       The layer name to search
-*
-* Return:       -1          If the layer name is not found
-*               int         Index of the layer name if it is found
-*
-* Caller:       dxf
-*
-*******************************************************************************
-*/
-
-int searchlayermap(string layer) {
-  int idx;
-  if (LayerMapLength > 0) {
-    for (idx = 0; idx < LayerMapLength; idx++) {
-      if (strstr(LayerMap[idx], layer) != -1 && strlen(LayerMap[idx]) == strlen(layer)) {
-        return idx;
-      }
-    }
-  }
-  return -1;
-}
-
-/*2019-03-07
-*******************************************************************************
-*                                   createlayermap()
-*
-* Description:  This function takes a DXF file path and processes it to produce
-*               an array of DXF layer names whose indices correspond to EAGLE layers
-*               Unfortunately its necessary to load into a global variable since ULP's
-*               can't pass arrays or return them
-*
-* Arguments:    dxffile     Path to the DXF file to be processed
-*               ent         Skips the search for sections and entities,
-*                           useful for files that don't strictly follow
-*                           the DXF format.
-*
-* Return:       string      Returns a script command that adds user layers if necessary
-*
-* Caller:       dxf
-*
-*******************************************************************************
-*/
-string createlayermap(string dxffile, int ent) {
-  string s[];                 // This string array will store the DXF file
-  string out;                 // Out is the script generated by this function
-  string temp;                // Place holder
-  string stemp[];             // Place holder for string manipulation
-  string LayerName;           // Output layer name
-  enum { state_SECTION,
-       state_ENTITIES,
-       state_SEARCH,
-       state_LINE,
-       state_ARC,
-       state_CIRCLE,
-       state_POLYLINE,
-       state_VERTEX,
-       state_LWPOLYLINE};  // Defines states for the main state machine
-  int state;
-  int nlines;
-
-  LayerMapLength = 0;
-
-  out = "# Creating layer map\n";
-
-  if (ent >= 1) {                  // Allows the section search to be disabled
-    state = state_SEARCH;
-    out += "# Skipped Section Search\n";
-  }
-  else {
-    state = state_SECTION;
-  }
-
-  nlines = fileread(s, dxffile);
-
-  for (int m = 0; m < nlines;m++) {
-    switch (state) {
-      case state_SECTION:                        // scan for SECTIONS in the DXF file
-        if (strstr(s[m],"SECTION") != -1) {
-            if (ent >= 1) {
-                state = state_SEARCH;
-            }
-            else {
-                state = state_ENTITIES;
-            }
-        }
-      break;
-      case state_ENTITIES:                       // scan for ENTITIES in the DXF file
-        if (strstr(s[m],"ENDSEC") != -1) {
-          state = state_SECTION;
-        }
-        if (strstr(s[m],"ENTITIES") != -1) {
-          state = state_SEARCH;
-        }
-      break;
-      case state_SEARCH:                         // scanning for LINE, ARC, CIRCLE, POLYLINE, SPLINE
-        if (strstr(s[m],"ENDSEC") != -1) {
-          if (ent >= 1) {
-            state = state_SEARCH;
-          }
-          else {
-            state = state_SECTION;
-          }
-        }
-        if (strstr(s[m],"LINE") != -1 && strlen(s[m]) == 4) {
-          state = state_LINE;
-        }
-        if (strstr(s[m],"ARC") != -1 && strlen(s[m]) == 3) {
-          state = state_ARC;
-        }
-        if (strstr(s[m],"CIRCLE") != -1 && strlen(s[m]) == 6) {
-          state = state_CIRCLE;
-        }
-        if (strstr(s[m],"POLYLINE") != -1 && strlen(s[m]) == 8) {
-          state = state_POLYLINE;
-        }
-        if (strstr(s[m],"LWPOLYLINE") != -1 && strlen(s[m]) == 10) {                                   // JG Support for LWPOLYLINE added 07/09/2012
-          state = state_LWPOLYLINE;
-        }
-      break;
-      case state_LINE:
-      case state_ARC:
-      case state_CIRCLE:
-      case state_POLYLINE:
-      case state_LWPOLYLINE:
-        if (strcomp2(s[m], " 8", "8") != -1 || (strstr(s[m], "  8") != -1 && strlen(s[m]) == 3)) {
-          if (searchlayermap(s[m+1]) == -1) {
-            LayerMap[LayerMapLength++] = s[m+1];
-            if (GUI_layerstart + LayerMapLength > 99) {
-              int LayerNum = GUI_layerstart + LayerMapLength - 1;
-              // Remove spaces from layer name; not sure if necessary
-              strsplit(stemp, s[m+1], ' ');
-              LayerName = strjoin(stemp, '_');
-              sprintf(temp, "#%s\nLAYER %d %ddxf-%s;\n", s[m+1], LayerNum, LayerNum, LayerName);
-              sprintf(temp, "%sSET FILL_LAYER %d 10;\n", temp, LayerNum);
-              sprintf(temp, "%sSET COLOR_LAYER %d %d;\n", temp, LayerNum, LayerMapLength);
-              out += temp;
-            }
-          }
-          state = state_SEARCH;
-        }
-      break;
-    } //case state
-  } //for lines
-
-  return out;
-} //createlayermap()
-
-
 /*
 *******************************************************************************
 *                                   dxf()
@@ -476,8 +278,7 @@ string dxf(string dxffile, int units, real xorigin, real yorigin, real liwidth, 
          state_POLYLINE,
          state_VERTEX,
          state_LWPOLYLINE};  // Defines states for the main state machine
-  enum { order_LAYER,
-         order_FIRST,
+  enum { order_FIRST,
          order_SECOND,
          order_THIRD,
          order_FOURTH,
@@ -494,7 +295,6 @@ string dxf(string dxffile, int units, real xorigin, real yorigin, real liwidth, 
   int    polylines;
   int    linewidth=1;
   int    LWPOLY_FLAG=1;      // See comment in LWPOLYLINE state
-  int    layernum;
   real   x;
   real   y;
   real   x1;
@@ -538,15 +338,8 @@ string dxf(string dxffile, int units, real xorigin, real yorigin, real liwidth, 
   out += "# dxfimport generated script file.\n";
   out += "Grid mic 1 off;\n";
   out += "Set Wire_Bend 2;\n";
-
-  if (GUI_TargetLayer == 0) {
-    out += createlayermap(dxffile, ent);
-  }
-  else {
-    sprintf(temp, "CHANGE LAYER %d;\n", GUI_TargetLayer); // 2015-02-10
-    out += temp;
-  }
-
+  sprintf(temp, "CHANGE LAYER %d;\n", GUI_TargetLayer); // 2015-02-10
+  out += temp;
   out += "Change Font Vector;\n";
 
   if (ent >= 1) {                  // Allows the section search to be disabled
@@ -557,7 +350,7 @@ string dxf(string dxffile, int units, real xorigin, real yorigin, real liwidth, 
     state = state_SECTION;
   }
 
-  order = order_LAYER;
+  order = order_FIRST;
   lines = arcs = circles = polylines = 0;
   nlines = fileread(s, dxffile);
 
@@ -590,46 +383,31 @@ string dxf(string dxffile, int units, real xorigin, real yorigin, real liwidth, 
             state = state_SECTION;
           }
         }
-        if (strstr(s[m],"LINE") != -1 && strlen(s[m]) == 4) {
-          state = state_LINE;
-          lines++;
-        }
-        if (strstr(s[m],"ARC") != -1 && strlen(s[m]) == 3) {
-          state = state_ARC;
-          arcs++;
-        }
-        if (strstr(s[m],"CIRCLE") != -1 && strlen(s[m]) == 6) {
-          state = state_CIRCLE;
-          circles++;
-        }
-        if (strstr(s[m],"POLYLINE") != -1 && strlen(s[m]) == 8) {
-          i=0;
-          state = state_POLYLINE;
-          polylines++;
-        }
-        if (strstr(s[m],"LWPOLYLINE") != -1 && strlen(s[m]) == 10) {
-          i=0;                                     // JG Support for LWPOLYLINE added 07/09/2012
-          state = state_LWPOLYLINE;
-          polylines++;
-        }
+    if (strstr(s[m],"LINE") != -1 && strlen(s[m]) == 4) {
+      state = state_LINE;
+      lines++;
+    }
+    if (strstr(s[m],"ARC") != -1 && strlen(s[m]) == 3) {
+      state = state_ARC;
+      arcs++;
+    }
+    if (strstr(s[m],"CIRCLE") != -1 && strlen(s[m]) == 6) {
+      state = state_CIRCLE;
+      circles++;
+    }
+    if (strstr(s[m],"POLYLINE") != -1 && strlen(s[m]) == 8) {
+      i=0;
+      state = state_POLYLINE;
+      polylines++;
+    }
+    if (strstr(s[m],"LWPOLYLINE") != -1 && strlen(s[m]) == 10) {
+      i=0;                                     // JG Support for LWPOLYLINE added 07/09/2012
+      state = state_LWPOLYLINE;
+      polylines++;
+    }
     break;
     case state_LINE:                           // absorbing LINE
-      switch(order) {                          // LINE 8, 10, 20, 30 (start point), 11, 21, 31 (end point).
-        case order_LAYER:
-          if (GUI_TargetLayer == 0) {
-            if (strcomp2(s[m], " 8", "8") != -1 || (strstr(s[m], "  8") != -1 && strlen(s[m]) == 3)) {
-              layernum = searchlayermap(s[m+1]);
-              if (layernum != -1) {
-                sprintf(temp, "LAYER %d\n", GUI_layerstart + layernum);
-                out += temp;
-              }
-              else {
-                out += "# Could not determine layer from map\n";
-              }
-              order = order_FIRST;
-            }
-            break;
-          }
+      switch(order) {                          // LINE 10, 20, 30 (start point), 11, 21, 31 (end point).
         case order_FIRST:
           if (strcomp2(s[m], " 10", "10") != -1) {
             x = S_factor*strtod(s[m+1]);
@@ -660,28 +438,13 @@ string dxf(string dxffile, int units, real xorigin, real yorigin, real liwidth, 
                    );
             out += temp;                                    // Write to script
             state = state_SEARCH;
-            order = order_LAYER;
+            order = order_FIRST;
           }
         break;
       }
       break;
     case state_ARC:                                   // absorbing ARC
-      switch(order) {                                       // ARC 8, 10, 20, 30 (center), 40 (radius), 50 (start angle), 51 (end)
-        case order_LAYER:
-          if (GUI_TargetLayer == 0) {
-            if (strcomp2(s[m], " 8", "8") != -1 || (strstr(s[m], "  8") != -1 && strlen(s[m]) == 3)) {
-              layernum = searchlayermap(s[m+1]);
-              if (layernum != -1) {
-                sprintf(temp, "LAYER %d\n", GUI_layerstart + layernum);
-                out += temp;
-              }
-              else {
-                out += "# Could not determine layer from map\n";
-              }
-              order = order_LAYER;
-            }
-            break;
-          }
+      switch(order) {                                       // ARC 10, 20, 30 (center), 40 (radius), 50 (start angle), 51 (end)
         case order_FIRST:
           if (strcomp2(s[m], " 10", "10") != -1) {
             x = S_factor*strtod(s[m+1]);
@@ -730,28 +493,13 @@ string dxf(string dxffile, int units, real xorigin, real yorigin, real liwidth, 
                     );
             out += temp;
             state = state_SEARCH;
-            order = order_LAYER;
+            order = order_FIRST;
           }
         break;
       }
       break;
     case state_CIRCLE:                                  // absorbing CIRCLE
-      switch(order) {                                         // CIRCLE 8, 10, 20, 30 (center), 40 (radius).
-        case order_LAYER:
-          if (GUI_TargetLayer == 0) {
-            if (strcomp2(s[m], " 8", "8") != -1 || (strstr(s[m], "  8") != -1 && strlen(s[m]) == 3)) {
-              layernum = searchlayermap(s[m+1]);
-              if (layernum != -1) {
-                sprintf(temp, "LAYER %d\n", GUI_layerstart + layernum);
-                out += temp;
-              }
-              else {
-                out += "# Could not determine layer from map\n";
-              }
-              order = order_FIRST;
-            }
-            break;
-          }
+      switch(order) {                                         // CIRCLE 10, 20, 30 (center), 40 (radius).
         case order_FIRST:
           if (strcomp2(s[m], " 10", "10") != -1) {
             x = S_factor*strtod(s[m+1]);
@@ -776,24 +524,12 @@ string dxf(string dxffile, int units, real xorigin, real yorigin, real liwidth, 
                    );
             out += temp;
             state = state_SEARCH;
-            order = order_LAYER;
+            order = order_FIRST;
           }
           break;
       }
       break;
     case state_POLYLINE:                                  // absorbing POLYLINE
-      if (GUI_TargetLayer == 0) {
-        if (strcomp2(s[m], " 8", "8") != -1 || (strstr(s[m], "  8") != -1 && strlen(s[m]) == 3)) {
-          layernum = searchlayermap(s[m+1]);
-          if (layernum != -1) {
-            sprintf(temp, "LAYER %d\n", GUI_layerstart + layernum);
-            out += temp;
-          }
-          else {
-            out += "# Could not determine layer from map\n";
-          }
-        }
-      }
       if (strstr(s[m], "VERTEX") != -1) {               // VERTEX
           state = state_VERTEX;
       }
@@ -852,7 +588,6 @@ string dxf(string dxffile, int units, real xorigin, real yorigin, real liwidth, 
       break;
     case state_VERTEX:                                  // absorbing VERTEX
       switch(order) {
-        case order_LAYER:                               // layer should show up in polyline state
         case order_FIRST:
             if (strcomp2(s[m], " 10", "10") != -1) {    // 10 (x-value) 20 (y-value)
               xa[i] = S_factor*strtod(s[m+1]);
@@ -873,35 +608,20 @@ string dxf(string dxffile, int units, real xorigin, real yorigin, real liwidth, 
           if (strcomp2(s[m], "  0", "0") != -1) {
             i++;
             state = state_POLYLINE;                    // Look for next vertex in polyline
-            order = order_LAYER;
+            order = order_FIRST;
           }
         break;
       }
     break;
     case state_LWPOLYLINE:                            // absorbing LWPOLYLINE 07/09/2012
-    if (GUI_TargetLayer == 0) {
-        if (strcomp2(s[m], " 8", "8") != -1 || (strstr(s[m], "  8") != -1 && strlen(s[m]) == 3)) {
-          layernum = searchlayermap(s[m+1]);
-          if (layernum != -1) {
-            sprintf(temp, "LAYER %d\n", GUI_layerstart + layernum);
-            out += temp;
-          }
-          else {
-            out += "# Could not determine layer from map\n";
-          }
-        }
-      }
       if (strcomp2(s[m], " 70", "70") != -1) {        // Checks for closed polylines and imports them.
         plclosed = strtod(s[m+1]);
       }
+      if (strcomp2(s[m], " 42", "42") != -1) {
+        bulgevalue[i] = strtod(s[m+1]);               // Store bulge value for node
+      }
       if (strcomp2(s[m], " 10", "10") != -1) {
         xa[i] = S_factor*strtod(s[m+1]);
-        m = m+1;                                      //By doing this I'm having the for loop move to the next untouched
-                                                      //line. This avoids a bug where a value of 0 for any of the
-                                                      //LWPOLY attributes will cause it to exit prematurely JG 06/05/2017
-                                                      //the next few states have similar lines. I set the value to the
-                                                      //line of the currently processed data that way when the for loop
-                                                      //comes around it will increment to the next line automatically.
       }
       if (strcomp2(s[m], " 20", "20") != -1) {
         LWPOLY_FLAG = 0;                              // On poorly formated files, this state may run into an
@@ -910,16 +630,9 @@ string dxf(string dxffile, int units, real xorigin, real yorigin, real liwidth, 
                                                       // the state will not be exited before points are
                                                       // processed. See the if statement below.
         ya[i] = S_factor*strtod(s[m+1]);
-        if (strcomp2(s[m+2], " 42", "42") == -1) {    // No bulge value
-          bulgevalue[i] = 0;
-          m = m+1;                                    // See comments on line 624
-          i++;                                        // This avoids a misalignment of the bulge array should
-        }                                             // one or more polylines not have bulges.
-        if (strcomp2(s[m+2], " 42", "42") != -1) {
-          bulgevalue[i] = strtod(s[m+3]);             // Store bulge value for node
-          i++;
-          m = m+3;                                    // See comments on line 624
-        } 
+        bulgevalue[i] = 0;
+        i++;                                          // This avoids a misalignment of the bulge array should
+                                                      // one or more polylines not have bulges.
       }
       if (strcomp2(s[m], "  0", "0") != -1 & LWPOLY_FLAG == 0) {
         for (p=0; p < i-1;p++) {                                    // n points give n-1 lines that's why there's an i-1 in
@@ -928,7 +641,7 @@ string dxf(string dxffile, int units, real xorigin, real yorigin, real liwidth, 
                           linewidth,
                           mx(xa[p]+xorg),
                           my(ya[p]+yorg),
-                          (atan(bulgevalue[p])*(180/PI)*4),
+                          (atan(bulgevalue[p])*180/PI*4),
                           mx(xa[p+1]+xorg),
                           my(ya[p+1]+yorg)
                    );
@@ -1105,11 +818,8 @@ void SaveConfigSettings() {
 
 void runscript(string scr) {
   string filepath = get_project_path() + "dxfimp.scr";
-  
-  if (argc <= 1) {
-    SaveConfigSettings(); //When run from command line don't store settings
-  }
-  
+  SaveConfigSettings();
+
   output(filepath,"wt") {
     printf(scr);
   }
@@ -1140,6 +850,10 @@ void checkscript(void) {             // This allows the user to inspect the scri
   real sc_yo = GUI_Yorg;
   real sc_lw = GUI_lwidth;
   string error;
+  if (!GUI_TargetLayer) {
+    dlgMessageBox("First select a layer!", "OK");
+    return;
+  }
   if (GUI_scaled_Xorg == 1) {
       sc_xo *= GUI_scale;
   }
@@ -1149,6 +863,7 @@ void checkscript(void) {             // This allows the user to inspect the scri
   if (GUI_scaled_lwidth ==1) {
       sc_lw *= GUI_scale;
   }
+  GUI_script =
   GUI_script = dxf(GUI_fileName, GUI_in_unit, sc_xo, sc_yo, sc_lw, 0, GUI_scale);
   string dummy[];                     // Dummy array to check of dxf function returned valid data
   if (strsplit(dummy, GUI_script, '\n') == 8) {
@@ -1165,6 +880,7 @@ void checkscript(void) {             // This allows the user to inspect the scri
   real EXdim = Exmax - Exmin;            // Max dimensions of EAGLE
   real EYdim = Eymax - Eymin;
 
+  /* done = Debug(GUI_script); */
 
   if ((Xdim > EXdim) || (Ydim > EYdim)) {   // Checks if DXF file is larger than EAGLE's drawing area
   dlgMessageBox(":DXF file is larger than EAGLE's drawing area please scale the file in your MCAD software and try again");
@@ -1195,18 +911,13 @@ void checkscript(void) {             // This allows the user to inspect the scri
     }
   }
 
-  if (argc > 1) {
-    runscript(GUI_script); //Just run the import script no further confirmation needed. Helps Automation JG
-  }
-  else {
-    int Result = dlgDialog("Run Script") {
-      dlgTextEdit(GUI_script);
-      dlgHBoxLayout {
-        dlgPushButton("Run") runscript(GUI_script);
-        dlgPushButton("Cancel") dlgReject();
-      }
-    };
-  }
+  int Result = dlgDialog("Run Script") {
+    dlgTextEdit(GUI_script);
+    dlgHBoxLayout {
+      dlgPushButton("Run") runscript(GUI_script);
+      dlgPushButton("Cancel") dlgReject();
+    }
+  };
 }
 
 int gettargetlayer(int select) {
@@ -1218,11 +929,7 @@ int gettargetlayer(int select) {
 *                               MAIN()                                         *
 ********************************************************************************
 */
-
-if (argc <= 1) {  //When running from command line use defaults only
-  LoadConfigSettings();    // load the last filename and config settings
-}
-
+LoadConfigSettings();    // load the last filename and config settings
 GUI_TargetLayer = 0;
 
 if (board) {
@@ -1273,108 +980,58 @@ else {
 }
 
 int main() {
-  if (argc > 1) {
-    //Run from the command line
-    if (argc < 4) {
-      dlgMessageBox("Not enough arguments. Please enter the filename, target layer, and units", "OK");
-    }
-    GUI_fileName = argv[1];
-    GUI_TargetLayer = strtol(argv[2]);
-    GUI_in_unit = strtol(argv[3]);  // 0 means imperial, 1 means metric
-    if (argv[4]) {
-      GUI_Xorg = strtod(argv[4]);
-    }
-    if (argv[5]) {
-      GUI_Yorg = strtod(argv[5]);
-    }
-    if (argv[6]) {
-      GUI_lwidth = strtod(argv[6]);
-    }
-    if (argv[7]) {
-      GUI_scale = strtod(argv[7]);
-    }
-    if (argv[8]) {
-      string setup_value = argv[8];
-      char param1 = setup_value[0];
-      char param2 = setup_value[1];
-      char param3 = setup_value[2];
-      
-      if (param1 == '1') {
-        GUI_scaled_Xorg = 1;    
-      }
-      if (param2 == '1') {
-        GUI_scaled_Yorg = 1;
-      }
-      if (param3 == '1') {
-        GUI_scaled_lwidth = 1;
-      }
-    }
-    if (argv[9]) {
-      GUI_layerstart = strtol(argv[9]);
-    }
-    checkscript();
-  }
-  else {
-    string stateline = " ";
-    int Result = dlgDialog("DXFIMPORT - "+Version) {
+  string stateline = " ";
+  int Result = dlgDialog("DXFIMPORT - "+Version) {
 
-      dlgHBoxLayout {
-        dlgLabel(Help);
+    dlgHBoxLayout {
+      dlgLabel(Help);
+    }
+    dlgHBoxLayout {
+      dlgLabel("File &name:");
+      dlgStringEdit(GUI_fileName);
+      dlgPushButton("Bro&wse") {
+        GUI_fileName = dlgFileOpen("Select a file", GUI_fileName, "*.dxf");
       }
-      dlgHBoxLayout {
-        dlgLabel("File &name:");
-        dlgStringEdit(GUI_fileName);
-        dlgPushButton("Bro&wse") {
-          GUI_fileName = dlgFileOpen("Select a file", GUI_fileName, "*.dxf");
-        }
-      }
+    }
 
-      dlgHBoxLayout {
-        dlgLabel("Target layer ");
-        dlgComboBox(GUI_layers, GUI_layerselect) GUI_TargetLayer = gettargetlayer(GUI_layerselect);
-        dlgStretch(1);
-      }
+    dlgHBoxLayout {
+      dlgLabel("Target layer ");
+      dlgComboBox(GUI_layers, GUI_layerselect) GUI_TargetLayer = gettargetlayer(GUI_layerselect);
+      dlgStretch(1);
+    }
 
-      dlgHBoxLayout {
-        dlgLabel("MultiLayer StartLayer");
-        dlgSpinBox(GUI_layerstart, 1, 255);
-        dlgSpacing(200);
-        dlgStretch(1);
+    dlgHBoxLayout {
+      dlgGroup("Input Units") {
+        dlgRadioButton("Imperial(in)", GUI_in_unit);    // GUI_in_unit = 0
+        dlgRadioButton("Metric(mm)", GUI_in_unit);      // GUI_in_unit = 1
       }
-
-      dlgHBoxLayout {
-        dlgGroup("Input Units") {
-          dlgRadioButton("Imperial(in)", GUI_in_unit);    // GUI_in_unit = 0
-          dlgRadioButton("Metric(mm)", GUI_in_unit);      // GUI_in_unit = 1
-        }
-        dlgGridLayout {
-          dlgCell(0, 0) dlgLabel("Xorg");
-          dlgCell(1, 0) dlgLabel("Yorg");
-          dlgCell(0, 1) dlgRealEdit(GUI_Xorg);
-          dlgCell(1, 1) dlgRealEdit(GUI_Yorg);
-          dlgCell(2, 0) dlgLabel("Width");
-          dlgCell(2, 1) dlgRealEdit(GUI_lwidth);
-          dlgCell(3, 0) dlgLabel("Scale");
-          dlgCell(3, 1) dlgRealEdit(GUI_scale);
-          dlgCell(0, 2, 3, 2) {
-            dlgGroup("Scaled") {
-              dlgCheckBox("Xorg", GUI_scaled_Xorg);    // If checked int contains 1, if unchecked 0
-              dlgCheckBox("Yorg", GUI_scaled_Yorg);
-              dlgCheckBox("Width", GUI_scaled_lwidth);
-            }
+      dlgGridLayout {
+        dlgCell(0, 0) dlgLabel("Xorg");
+        dlgCell(1, 0) dlgLabel("Yorg");
+        dlgCell(0, 1) dlgRealEdit(GUI_Xorg);
+        dlgCell(1, 1) dlgRealEdit(GUI_Yorg);
+        dlgCell(2, 0) dlgLabel("Width");
+        dlgCell(2, 1) dlgRealEdit(GUI_lwidth);
+        dlgCell(3, 0) dlgLabel("Scale");
+        dlgCell(3, 1) dlgRealEdit(GUI_scale);
+        dlgCell(0, 2, 3, 2) {
+          dlgGroup("Scaled") {
+            dlgCheckBox("Xorg", GUI_scaled_Xorg);    // If checked int contains 1, if unchecked 0
+            dlgCheckBox("Yorg", GUI_scaled_Yorg);
+            dlgCheckBox("Width", GUI_scaled_lwidth);
           }
-          dlgCell(1, 3) dlgPushButton("OK") {
-            stateline = "converting file... please wait.";
-            dlgRedisplay();
-            checkscript();
-            stateline = " ";
-            dlgRedisplay();
-          }
-          dlgCell(2, 3) dlgPushButton("-Cancel") dlgReject();
         }
+        dlgCell(1, 3) dlgPushButton("OK") {
+          stateline = "converting file... please wait.";
+          dlgRedisplay();
+          checkscript();
+          stateline = " ";
+          dlgRedisplay();
+        }
+        dlgCell(2, 3) dlgPushButton("-Cancel") dlgReject();
       }
-      dlgLabel(stateline, 1);
-    };
-    return Result;
-  }
+    }
+    dlgLabel(stateline, 1);
+  };
+  return Result;
 }
